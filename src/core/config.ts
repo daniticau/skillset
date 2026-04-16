@@ -22,10 +22,25 @@ export interface SkillState {
   userModified: boolean;
 }
 
+export type MineStage = "heuristic" | "llm-validated" | "embedded";
+
+export interface ProcessedSession {
+  fileHash: string;
+  processedAt: string;
+  stage: MineStage;
+}
+
+export interface MineState {
+  pipelineVersion: number;
+  processedSessions: Record<string, ProcessedSession>;
+  lastRunAt?: string;
+}
+
 export interface State {
   version: 1;
   skills: Record<string, SkillState>;
   scrape?: ScrapeCursors;
+  mine?: MineState;
 }
 
 const DEFAULT_CONFIG: Config = { version: 1, links: [] };
