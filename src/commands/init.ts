@@ -44,13 +44,13 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   console.log(pc.green(`✓ canonical store ready at ${root}`));
 
   if (options.noAutoLink) {
-    console.log(pc.dim("  auto-link skipped (run `skillissue link <agent>` manually)"));
+    console.log(pc.dim("  auto-link skipped (run `skillset link <agent>` manually)"));
     return;
   }
 
   const detected = await detectAgents();
   if (detected.length === 0) {
-    console.log(pc.dim("  no coding agents detected — run `skillissue link <agent>` manually"));
+    console.log(pc.dim("  no coding agents detected — run `skillset link <agent>` manually"));
     return;
   }
 
@@ -75,7 +75,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   }
   if (added > 0) await writeConfig(fresh);
 
-  console.log(pc.dim("  next: `skillissue sync`"));
+  console.log(pc.dim("  next: `skillset sync`"));
 }
 
 async function detectAgents(): Promise<Link[]> {

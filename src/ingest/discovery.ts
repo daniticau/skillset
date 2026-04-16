@@ -1,6 +1,6 @@
 // Discovery helpers forked from nia-cli (src/commands/personal.ts, MIT). Only
 // coding-session sources are included; non-coding sources (Obsidian, Chrome,
-// Firefox, Apple Notes, Photos, etc.) are out of scope for skillissue.
+// Firefox, Apple Notes, Photos, etc.) are out of scope for skillset.
 //
 // Each helper reads `homedir()` at call time so tests can override HOME /
 // USERPROFILE — matches the contract used in upstream.

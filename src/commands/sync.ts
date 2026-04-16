@@ -5,7 +5,7 @@ import { getAdapter } from "../core/adapters/index.js";
 export async function syncCommand(): Promise<void> {
   const report = await sync();
   if (report.linkCount === 0) {
-    console.log(pc.yellow("no mirrors linked yet — run `skillissue link claude-code`"));
+    console.log(pc.yellow("no mirrors linked yet — run `skillset link claude-code`"));
     return;
   }
 

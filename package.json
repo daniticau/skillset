@@ -1,10 +1,10 @@
 {
-  "name": "skillissue",
+  "name": "skillset",
   "version": "0.1.0",
   "description": "Portable personalization layer for coding agents. Canonical skill store that mirrors to Claude Code, Cursor, and other agent harnesses.",
   "type": "module",
   "bin": {
-    "skillissue": "./dist/cli.js"
+    "skillset": "./dist/cli.js"
   },
   "files": [
     "dist"
