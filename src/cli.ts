@@ -9,7 +9,7 @@ import { listCommand } from "./commands/list.js";
 const program = new Command();
 
 program
-  .name("skillissue")
+  .name("skillset")
   .description("portable personalization layer for coding agents")
   .version("0.1.0");
 

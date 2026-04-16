@@ -18,7 +18,7 @@ import { discoverClaudeCodeHistory } from "../src/ingest/discovery.js";
 let tmp: string;
 
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), "skillissue-ingest-"));
+  tmp = mkdtempSync(join(tmpdir(), "skillset-ingest-"));
 });
 
 afterEach(() => {
@@ -117,7 +117,7 @@ describe("discoverClaudeCodeHistory", () => {
   it("returns null when the path doesn't exist", () => {
     const saved = process.env.USERPROFILE;
     const savedHome = process.env.HOME;
-    const empty = mkdtempSync(join(tmpdir(), "skillissue-home-"));
+    const empty = mkdtempSync(join(tmpdir(), "skillset-home-"));
     process.env.USERPROFILE = empty;
     process.env.HOME = empty;
     try {
@@ -134,7 +134,7 @@ describe("discoverClaudeCodeHistory", () => {
   it("returns the path when ~/.claude/projects exists", () => {
     const saved = process.env.USERPROFILE;
     const savedHome = process.env.HOME;
-    const fakeHome = mkdtempSync(join(tmpdir(), "skillissue-home-"));
+    const fakeHome = mkdtempSync(join(tmpdir(), "skillset-home-"));
     mkdirSync(join(fakeHome, ".claude", "projects"), { recursive: true });
     process.env.USERPROFILE = fakeHome;
     process.env.HOME = fakeHome;

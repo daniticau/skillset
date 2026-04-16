@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const TEST_ROOT = join(tmpdir(), "skillissue-test-fixed");
+const TEST_ROOT = join(tmpdir(), "skillset-test-fixed");
 const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const MIRROR = join(TEST_ROOT, "mirror");

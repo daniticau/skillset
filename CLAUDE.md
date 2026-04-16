@@ -1,28 +1,28 @@
-# skillissue
+# skillset
 
 Portable personalization layer for coding agents. A canonical skill store that mirrors SKILL.md files into each agent's native skills directory, with user-edit-aware sync.
 
 ## North star
 
-Cross-agent personalization. If you swap from Claude Code to Cursor to Codex mid-day, your skills follow you. You edit them in any mirror; skillissue promotes edits back to the canonical store on next sync.
+Cross-agent personalization. If you swap from Claude Code to Cursor to Codex mid-day, your skills follow you. You edit them in any mirror; skillset promotes edits back to the canonical store on next sync.
 
 v1 is **sync-only, Claude Code only**. No mining, no scoring, no proactivity. The goal is to prove the architecture: a canonical store + a mirror adapter + user-edits-as-first-class signal.
 
 ## Architecture
 
 ```
-~/.skillissue/
+~/.skillset/
   skills/             canonical SKILL.md directories (source of truth)
   config.json         { links: [{ agent, path }] }
   state.json          per-skill hashes (used to detect mirror-side edits)
   .git                version history of the canonical store
 ```
 
-Sync is **one-way canonical → mirror**, with an exception: before writing a mirror, skillissue compares the mirror's current hash to its recorded hash. If they differ, the user edited the mirror directly — skillissue promotes the mirror version to canonical and marks the skill `userModified`. Then all mirrors are rewritten from the updated canonical.
+Sync is **one-way canonical → mirror**, with an exception: before writing a mirror, skillset compares the mirror's current hash to its recorded hash. If they differ, the user edited the mirror directly — skillset promotes the mirror version to canonical and marks the skill `userModified`. Then all mirrors are rewritten from the updated canonical.
 
 ## Core modules
 
-- `src/core/paths.ts` — well-known paths (`~/.skillissue/`, `~/.claude/skills/`)
+- `src/core/paths.ts` — well-known paths (`~/.skillset/`, `~/.claude/skills/`)
 - `src/core/config.ts` — JSON read/write for config + state
 - `src/core/skill.ts` — parse/validate SKILL.md, hash skill directories
 - `src/core/store.ts` — canonical store operations
@@ -32,12 +32,12 @@ Sync is **one-way canonical → mirror**, with an exception: before writing a mi
 
 ## CLI
 
-- `skillissue init` — create the store, git-init it, and **auto-link any coding agents detected on disk** (pass `--no-auto-link` to skip). Detection is per-adapter (`adapter.detect()`).
-- `skillissue link <agent>` — manually register a mirror target (`--path` to override default)
-- `skillissue unlink <agent>`
-- `skillissue sync` — run the mirror engine
-- `skillissue status` — list links and skills, flag user-modified
-- `skillissue list` — list skills with descriptions
+- `skillset init` — create the store, git-init it, and **auto-link any coding agents detected on disk** (pass `--no-auto-link` to skip). Detection is per-adapter (`adapter.detect()`).
+- `skillset link <agent>` — manually register a mirror target (`--path` to override default)
+- `skillset unlink <agent>`
+- `skillset sync` — run the mirror engine
+- `skillset status` — list links and skills, flag user-modified
+- `skillset list` — list skills with descriptions
 
 ## Design principles
 
