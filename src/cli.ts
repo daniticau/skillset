@@ -5,6 +5,8 @@ import { linkCommand, unlinkCommand } from "./commands/link.js";
 import { syncCommand } from "./commands/sync.js";
 import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
+import { scrapeCommand } from "./commands/scrape.js";
+import type { ScrapeSource } from "./ingest/sessions/types.js";
 
 const program = new Command();
 
@@ -56,6 +58,18 @@ program
   .description("list skills in the canonical store")
   .action(async () => {
     await listCommand();
+  });
+
+program
+  .command("scrape")
+  .description("scrape coding-session transcripts into ~/.skillset/sessions")
+  .option("-s, --source <name>", "only scrape one source (claude-code | codex | cursor)")
+  .option("--full", "ignore stored cursors and re-scrape everything")
+  .action(async (options: { source?: string; full?: boolean }) => {
+    await scrapeCommand({
+      source: options.source as ScrapeSource | undefined,
+      full: options.full,
+    });
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {

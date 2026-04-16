@@ -4,7 +4,8 @@
   "description": "Portable personalization layer for coding agents. Canonical skill store that mirrors to Claude Code, Cursor, and other agent harnesses.",
   "type": "module",
   "bin": {
-    "skillset": "./dist/cli.js"
+    "skillset": "./dist/cli.js",
+    "sks": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -15,14 +16,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "start": "node ./dist/cli.js"
+    "start": "node ./dist/cli.js",
+    "cli": "bun run src/cli.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^12.9.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
