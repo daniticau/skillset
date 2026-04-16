@@ -1,8 +1,20 @@
 export {
   discoverClaudeCodeHistory,
+  discoverCodexHistory,
+  discoverCursorGlobalStorage,
   discoverSessionSources,
   type SessionSource,
 } from "./discovery.js";
+
+export { scrapeAll } from "./sessions/index.js";
+export type {
+  ScrapeEnvelope,
+  ScrapeSource,
+  ScrapeOptions,
+  ScrapeSummary,
+  PerSourceResult,
+  ScrapeCursors,
+} from "./sessions/types.js";
 
 export {
   extractFolderIncremental,

@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { CONFIG_FILE, STATE_FILE } from "./paths.js";
+import type { ScrapeCursors } from "../ingest/sessions/types.js";
 
 export type AgentKind = "claude-code" | "cursor" | "codex" | "copilot";
 
@@ -24,6 +25,7 @@ export interface SkillState {
 export interface State {
   version: 1;
   skills: Record<string, SkillState>;
+  scrape?: ScrapeCursors;
 }
 
 const DEFAULT_CONFIG: Config = { version: 1, links: [] };

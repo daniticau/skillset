@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 export interface SessionSource {
-  kind: "claude-code" | "cursor" | "vscode";
+  kind: "claude-code" | "codex" | "cursor" | "vscode";
   path: string;
   description: string;
 }
@@ -20,9 +20,20 @@ export function discoverClaudeCodeHistory(): string | null {
   return existsSync(root) ? root : null;
 }
 
+export function discoverCodexHistory(): string | null {
+  const root = path.join(homedir(), ".codex");
+  return existsSync(root) ? root : null;
+}
+
+export function discoverCursorGlobalStorage(): string | null {
+  const dbPath = path.join(
+    homedir(),
+    "AppData", "Roaming", "Cursor", "User", "globalStorage", "state.vscdb"
+  );
+  return existsSync(dbPath) ? dbPath : null;
+}
+
 // Discovers every coding-session source currently present on this machine.
-// Returns an empty array if none are found. Only Claude Code is wired up in
-// v0 — Cursor/VS Code stubs will land when their transcript formats stabilize.
 export function discoverSessionSources(): SessionSource[] {
   const sources: SessionSource[] = [];
 
@@ -32,6 +43,24 @@ export function discoverSessionSources(): SessionSource[] {
       kind: "claude-code",
       path: claudeCode,
       description: "Claude Code conversation transcripts (~/.claude/projects)",
+    });
+  }
+
+  const codex = discoverCodexHistory();
+  if (codex) {
+    sources.push({
+      kind: "codex",
+      path: codex,
+      description: "Codex CLI rollout sessions (~/.codex/sessions)",
+    });
+  }
+
+  const cursor = discoverCursorGlobalStorage();
+  if (cursor) {
+    sources.push({
+      kind: "cursor",
+      path: cursor,
+      description: "Cursor IDE chat/composer state (globalStorage/state.vscdb)",
     });
   }
 
