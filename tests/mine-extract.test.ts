@@ -219,9 +219,9 @@ describe("recencyWeight", () => {
     const today = new Date("2026-04-15T00:00:00Z").toISOString();
     expect(recencyWeight(today, now)).toBeCloseTo(1, 1);
   });
-  it("returns ~0.5 for 30 days ago", () => {
-    const month = new Date("2026-03-16T00:00:00Z").toISOString();
-    expect(recencyWeight(month, now)).toBeCloseTo(0.5, 1);
+  it("returns ~0.5 for 14 days ago (half-life)", () => {
+    const twoWeeks = new Date("2026-04-01T00:00:00Z").toISOString();
+    expect(recencyWeight(twoWeeks, now)).toBeCloseTo(0.5, 1);
   });
   it("returns default for undefined", () => {
     expect(recencyWeight(undefined, now)).toBe(0.5);

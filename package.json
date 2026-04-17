@@ -20,6 +20,7 @@
     "cli": "bun run src/cli.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "better-sqlite3": "^12.9.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3",

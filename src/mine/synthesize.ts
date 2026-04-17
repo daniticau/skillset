@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import matter from "gray-matter";
 import type { NuggetCluster } from "./types.js";
 import {
-  chatCompletion,
+  chat,
   synthesisSystemPrompt,
   synthesisUserPrompt,
 } from "./llm/index.js";
@@ -89,7 +89,7 @@ async function synthesizeOne(
   config: LLMConfig,
   temperature: number
 ): Promise<SynthesizedSkill | null> {
-  const result = await chatCompletion(config, {
+  const result = await chat(config, {
     messages: [
       { role: "system", content: synthesisSystemPrompt() },
       { role: "user", content: synthesisUserPrompt(cluster) },

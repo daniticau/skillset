@@ -138,3 +138,104 @@ Respond with JSON only:
 
 A signal is valid if it describes a persistent preference, style, workflow, or correction that would apply across future tasks. It's invalid if it's a one-off task instruction, a question, or conversational filler.`;
 }
+
+/**
+ * Triage prompt: given an observed cluster, decide whether to EDIT an existing
+ * skill, CREATE a new one, or SKIP. The existing skill list goes in the system
+ * prompt so Anthropic prompt caching can amortize it across all clusters in a
+ * single `sks make` run.
+ */
+export function triageSystemPrompt(
+  existingSkills: Array<{ name: string; description: string }>
+): string {
+  const listing =
+    existingSkills.length === 0
+      ? "(no existing skills yet)"
+      : existingSkills.map((s) => `- ${s.name}: ${s.description}`).join("\n");
+
+  return [
+    "You review patterns from a user's recent AI-agent interaction history and decide whether to update or add a skill.",
+    "",
+    'A "skill" is a SKILL.md file the AI reads at the start of future sessions — a compact set of durable rules about how the user wants to work.',
+    "",
+    `Existing skills (${existingSkills.length}):`,
+    listing,
+    "",
+    "Given a single detected pattern, decide exactly one action:",
+    "  1. EDIT — the pattern overlaps an existing skill's scope; that skill should absorb this evidence.",
+    "  2. CREATE — the pattern is distinct from every existing skill AND actionable enough to justify a new file.",
+    "  3. SKIP — the pattern is noise, too narrow, not actionable, or the evidence is thin.",
+    "",
+    "Rules:",
+    "- Prefer EDIT over CREATE. New skills compound clutter. If any existing skill meaningfully overlaps, choose EDIT.",
+    "- If budget remaining is 0, never CREATE — SKIP with reason \"budget exceeded\".",
+    "- Only return one action.",
+    "- Output strict JSON. No prose, no code fences.",
+    "",
+    "JSON shapes:",
+    '  {"kind":"edit","targetName":"<existing skill name>","rationale":"..."}',
+    '  {"kind":"create","name":"<kebab-case>","description":"<one sentence>","rationale":"..."}',
+    '  {"kind":"skip","reason":"..."}',
+  ].join("\n");
+}
+
+export function triageUserPrompt(cluster: NuggetCluster, budgetRemaining: number): string {
+  const evidence = cluster.members
+    .slice(0, 5)
+    .flatMap((n) => n.evidence.slice(0, 1))
+    .slice(0, 5)
+    .map((ev, i) => `  ${i + 1}. [${ev.project}] "${ev.userMessage.slice(0, 180).replace(/"/g, "'")}"`)
+    .join("\n");
+
+  return [
+    "Observed pattern:",
+    `  category: ${cluster.canonical.category}`,
+    `  signal: "${cluster.canonical.signal.slice(0, 300).replace(/"/g, "'")}"`,
+    `  occurrences: ${cluster.members.length}`,
+    `  projects: ${cluster.projects.join(", ") || "(none)"}`,
+    "  evidence:",
+    evidence || "  (no evidence samples)",
+    "",
+    `Budget remaining for new skills this run: ${budgetRemaining}`,
+    "",
+    "Return JSON only.",
+  ].join("\n");
+}
+
+/** Rewrite an existing SKILL.md to incorporate new evidence from a cluster. */
+export function editRewriteSystemPrompt(): string {
+  return [
+    "You update an existing SKILL.md file to incorporate newly observed user behavior.",
+    "",
+    "Preserve the existing structure and tone. Only add or adjust rules the new evidence supports.",
+    "Don't bloat the file — a crisp skill beats a comprehensive one.",
+    "Keep the YAML `name` field exactly as-is. You may refine the `description` if the new evidence warrants it.",
+    "",
+    "Output format: complete SKILL.md with YAML frontmatter followed by the markdown body. No commentary before or after. No code fences.",
+  ].join("\n");
+}
+
+export function editRewriteUserPrompt(currentSkill: string, cluster: NuggetCluster): string {
+  const evidence = cluster.members
+    .slice(0, 6)
+    .flatMap((n) => n.evidence.slice(0, 1))
+    .slice(0, 6)
+    .map((ev, i) => `  ${i + 1}. [${ev.project}] "${ev.userMessage.slice(0, 200).replace(/"/g, "'")}"`)
+    .join("\n");
+
+  return [
+    "Current SKILL.md:",
+    "---8<---",
+    currentSkill,
+    "---8<---",
+    "",
+    "New observed pattern (to incorporate):",
+    `  category: ${cluster.canonical.category}`,
+    `  signal: "${cluster.canonical.signal.slice(0, 300).replace(/"/g, "'")}"`,
+    `  occurrences: ${cluster.members.length}`,
+    "  evidence:",
+    evidence || "  (no evidence samples)",
+    "",
+    "Write the updated SKILL.md. Keep it tight.",
+  ].join("\n");
+}

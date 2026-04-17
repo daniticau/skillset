@@ -1,11 +1,13 @@
 import type { AgentKind } from "../config.js";
 import type { AgentAdapter } from "./types.js";
 import { claudeCodeAdapter } from "./claude-code.js";
+import { cursorAdapter } from "./cursor.js";
+import { codexAdapter } from "./codex.js";
 
 const ADAPTERS: Record<AgentKind, AgentAdapter | undefined> = {
   "claude-code": claudeCodeAdapter,
-  cursor: undefined,
-  codex: undefined,
+  cursor: cursorAdapter,
+  codex: codexAdapter,
   copilot: undefined,
 };
 
@@ -13,7 +15,7 @@ export function getAdapter(kind: AgentKind): AgentAdapter {
   const adapter = ADAPTERS[kind];
   if (!adapter) {
     throw new Error(
-      `Adapter for "${kind}" is not implemented yet. v1 only supports claude-code.`
+      `Adapter for "${kind}" is not implemented yet.`
     );
   }
   return adapter;
@@ -22,3 +24,5 @@ export function getAdapter(kind: AgentKind): AgentAdapter {
 export function supportedAgents(): AgentKind[] {
   return (Object.keys(ADAPTERS) as AgentKind[]).filter((k) => ADAPTERS[k]);
 }
+
+export type { AgentAdapter } from "./types.js";

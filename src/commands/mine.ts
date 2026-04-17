@@ -2,12 +2,14 @@ import pc from "picocolors";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { STORE_ROOT } from "../core/paths.js";
+import { STORE_ROOT, SESSIONS_DIR } from "../core/paths.js";
 import {
   readAllSessions,
   getSessionStats,
   extractSignal,
 } from "../mine/index.js";
+import { scrapeAll } from "../ingest/sessions/index.js";
+import { readState, writeState } from "../core/config.js";
 import { deduplicateAndRank } from "../mine/dedup.js";
 import { llmExtractFromSessions } from "../mine/llm-extract.js";
 import { synthesizeSkills, writeDraftSkill, DRAFTS_DIR } from "../mine/synthesize.js";
@@ -37,6 +39,8 @@ export interface MineOptions {
   synthesize?: boolean;
   force?: boolean;
   dryRun?: boolean;
+  noScrape?: boolean;
+  fullScrape?: boolean;
 }
 
 function categoryLabel(cat: string): string {
@@ -112,19 +116,56 @@ function mergeNuggets(existing: Nugget[], incoming: Nugget[]): Nugget[] {
 }
 
 export async function mineCommand(options: MineOptions): Promise<void> {
+  // Step 0: scrape transcripts from Claude Code / Codex / Cursor into the
+  // scrape store unless explicitly disabled. Incremental by default; --full
+  // rescans everything.
+  if (!options.noScrape) {
+    const state = await readState();
+    await mkdir(SESSIONS_DIR, { recursive: true });
+    console.log(pc.dim("scraping transcripts from linked agents…"));
+    const { summary, nextCursors } = await scrapeAll(
+      SESSIONS_DIR,
+      state.scrape ?? {},
+      { full: options.fullScrape }
+    );
+    await writeState({ ...state, scrape: nextCursors });
+    let totalWritten = 0;
+    for (const r of summary.perSource) {
+      totalWritten += r.sessionsWritten;
+      if (!r.available) {
+        console.log(`  ${pc.dim(r.source.padEnd(12))} ${pc.dim(r.reason ?? "unavailable")}`);
+        continue;
+      }
+      const bits = [`${r.sessionsWritten} written`];
+      if (r.sessionsSkipped) bits.push(`${r.sessionsSkipped} skipped`);
+      if (r.locked) bits.push(pc.yellow(`${r.locked} locked`));
+      console.log(`  ${pc.dim(r.source.padEnd(12))} ${bits.join(", ")}`);
+    }
+    console.log(
+      pc.green(`✓ scraped ${totalWritten} session(s) in ${(summary.totalMs / 1000).toFixed(1)}s`)
+    );
+  }
+
   const stats = getSessionStats();
   if (stats.userSessions === 0) {
-    console.log(pc.dim("no session data found in ~/.claude/projects/"));
+    console.log(
+      pc.dim(
+        `no session data in ${SESSIONS_DIR} — run without --no-scrape or check that at least one agent (claude-code, codex, cursor) has usage history.`
+      )
+    );
     return;
   }
 
-  const subagentNote =
-    stats.sidechainSessions > 0
-      ? ` (${stats.sidechainSessions} subagent runs skipped)`
-      : "";
+  const sourceBits = (["claude-code", "codex", "cursor"] as const)
+    .map((src) => {
+      const n = stats.bySource[src].sessions;
+      return n > 0 ? `${n} ${src}` : null;
+    })
+    .filter((s): s is string => !!s)
+    .join(", ");
   console.log(
     pc.dim(
-      `scanning ${stats.projects} projects, ${stats.userSessions} user sessions${subagentNote} ` +
+      `scanning ${stats.userSessions} session(s) [${sourceBits}] across ${stats.projects} project(s) ` +
         `(${(stats.totalSizeBytes / 1024 / 1024).toFixed(1)} MB)…`
     )
   );
@@ -138,12 +179,14 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   // Incremental: skip sessions already processed (unless --force)
   let mineState = await readMineState();
   const targetStage = options.llm ? "llm-validated" : "heuristic";
+  const stateKey = (s: { source?: string; sessionId: string }) =>
+    `${s.source ?? "unknown"}:${s.sessionId}`;
   const sessionsToProcess = options.force
     ? sessions
     : sessions.filter((s) => {
         const hash = sessionFileHash(s.filePath);
         if (!hash) return true;
-        return needsProcessing(s.sessionId, hash, mineState, targetStage);
+        return needsProcessing(stateKey(s), hash, mineState, targetStage);
       });
 
   if (sessionsToProcess.length === 0 && !options.dryRun) {
@@ -263,7 +306,7 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   for (const s of sessionsToProcess) {
     const hash = sessionFileHash(s.filePath);
     if (!hash) continue;
-    mineState = markProcessed(mineState, s.sessionId, hash, targetStage);
+    mineState = markProcessed(mineState, stateKey(s), hash, targetStage);
   }
   mineState = finalizeRun(mineState);
   await writeMineState(mineState);

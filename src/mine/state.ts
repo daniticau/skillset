@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { readState, writeState } from "../core/config.js";
 import type { MineState, MineStage } from "../core/config.js";
 
-export const MINE_PIPELINE_VERSION = 1;
+export const MINE_PIPELINE_VERSION = 2;
 
 const STAGE_ORDER: Record<MineStage, number> = {
   heuristic: 0,

@@ -1,6 +1,5 @@
 export {
   defaultLLMConfig,
-  isAvailable,
   chatCompletion,
   embed,
   parseLLMJson,
@@ -12,12 +11,18 @@ export type {
   ChatOptions,
   CompletionResult,
   EmbeddingResult,
+  Provider,
 } from "./client.js";
+export { chat, isAvailable, resolveProvider } from "./provider.js";
 export {
   extractionSystemPrompt,
   extractionUserPrompt,
   synthesisSystemPrompt,
   synthesisUserPrompt,
   validationPrompt,
+  triageSystemPrompt,
+  triageUserPrompt,
+  editRewriteSystemPrompt,
+  editRewriteUserPrompt,
 } from "./prompts.js";
 export type { ConversationWindow } from "./prompts.js";

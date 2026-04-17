@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import type { ParsedSession, Nugget, NuggetCategory, LLMExtractionResult } from "./types.js";
 import { chunkSession } from "./chunker.js";
 import {
-  chatCompletion,
+  chat,
   extractionSystemPrompt,
   extractionUserPrompt,
   parseLLMJson,
@@ -57,7 +57,7 @@ async function extractFromWindow(
     { role: "user" as const, content: extractionUserPrompt(window) },
   ];
 
-  const result = await chatCompletion(config, {
+  const result = await chat(config, {
     messages,
     temperature,
     jsonMode: true,

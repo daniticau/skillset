@@ -100,7 +100,7 @@ function buildWindow(
 
   return {
     sessionId: session.sessionId,
-    project: projectName(session.cwd, session.projectSlug),
+    project: projectName(session.cwd, session.projectSlug, session.source),
     messages: truncated,
     startIndex: start,
     heuristicHits,

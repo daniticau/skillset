@@ -96,19 +96,21 @@ function isNoise(text: string): boolean {
   return NOISE_PATTERNS.some((p) => p.test(text));
 }
 
-/** Compute a recency weight based on session timestamp. Today = 1.0, 30d ago = 0.5, 90d = 0.25. */
+/** Compute a recency weight based on session timestamp. 14-day half-life —
+ *  today = 1.0, 14d ago = 0.5, 30d = ~0.32, 60d ≈ 0.19. Recent behavior
+ *  should dominate: the user's current habits matter more than last quarter's. */
 function recencyWeight(timestamp: string | undefined, now: Date): number {
   if (!timestamp) return 0.5;
   const then = Date.parse(timestamp);
   if (Number.isNaN(then)) return 0.5;
   const daysSince = Math.max(0, (now.getTime() - then) / (1000 * 60 * 60 * 24));
-  return 1 / (1 + daysSince / 30);
+  return 1 / (1 + daysSince / 14);
 }
 
 /** Extract corrections from a session. */
 function extractCorrections(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (let i = 0; i < session.messages.length; i++) {
     const msg = session.messages[i]!;
@@ -155,7 +157,7 @@ function extractCorrections(session: ParsedSession, now: Date): Nugget[] {
 /** Multi-turn correction arc: (assistant does X) → (user says stop/wrong) → (user clarifies). */
 function extractMultiTurnCorrections(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
   const msgs = session.messages;
 
   for (let i = 1; i < msgs.length - 1; i++) {
@@ -207,7 +209,7 @@ function extractMultiTurnCorrections(session: ParsedSession, now: Date): Nugget[
 /** Extract preferences from a session. */
 function extractPreferences(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (const msg of session.messages) {
     if (msg.role !== "user") continue;
@@ -247,7 +249,7 @@ function extractPreferences(session: ParsedSession, now: Date): Nugget[] {
 /** Extract workflow patterns. */
 function extractWorkflows(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (const msg of session.messages) {
     if (msg.role !== "user") continue;
@@ -285,7 +287,7 @@ function extractWorkflows(session: ParsedSession, now: Date): Nugget[] {
 /** Extract style preferences. */
 function extractStyle(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (const msg of session.messages) {
     if (msg.role !== "user") continue;
@@ -323,7 +325,7 @@ function extractStyle(session: ParsedSession, now: Date): Nugget[] {
 /** Extract anti-patterns (things user consistently avoids). */
 function extractAntiPatterns(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (const msg of session.messages) {
     if (msg.role !== "user") continue;
@@ -361,7 +363,7 @@ function extractAntiPatterns(session: ParsedSession, now: Date): Nugget[] {
 /** Extract raw tool-use rejections (pre-collapse). */
 function extractRawRejections(session: ParsedSession, now: Date): Nugget[] {
   const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug);
+  const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (let i = 0; i < session.messages.length; i++) {
     const msg = session.messages[i]!;
@@ -451,7 +453,7 @@ function extractToolPatterns(sessions: ParsedSession[]): Nugget[] {
   const toolCounts = new Map<string, { count: number; projects: Set<string> }>();
 
   for (const session of sessions) {
-    const project = projectName(session.cwd, session.projectSlug);
+    const project = projectName(session.cwd, session.projectSlug, session.source);
     for (const msg of session.messages) {
       if (!msg.toolUses) continue;
       for (const tool of msg.toolUses) {
@@ -493,7 +495,7 @@ function extractTopics(sessions: ParsedSession[]): Nugget[] {
   >();
 
   for (const session of sessions) {
-    const project = projectName(session.cwd, session.projectSlug);
+    const project = projectName(session.cwd, session.projectSlug, session.source);
     const prompt = session.metadata?.firstPrompt ?? firstUserPrompt(session);
     const summary = session.metadata?.summary;
 
@@ -626,7 +628,7 @@ export function extractSignal(
     byCategory[n.category] = (byCategory[n.category] ?? 0) + 1;
   }
 
-  const projects = [...new Set(sessions.map((s) => projectName(s.cwd, s.projectSlug)))];
+  const projects = [...new Set(sessions.map((s) => projectName(s.cwd, s.projectSlug, s.source)))];
   const messagesProcessed = sessions.reduce((acc, s) => acc + s.messages.length, 0);
 
   return {

@@ -177,10 +177,10 @@ export function dbscan(
 /**
  * Cluster score in `[0, 1]` — a weighted sum of four bounded factors.
  *
- * Weights:
- *   0.40 freqNorm     — a pattern is a pattern because it repeats
- *   0.30 avgConf      — extractor's own confidence in the signal
- *   0.20 recency      — useful tiebreaker
+ * Weights (recency-biased — recent behavior dominates):
+ *   0.30 freqNorm     — a pattern is a pattern because it repeats
+ *   0.25 avgConf      — extractor's own confidence in the signal
+ *   0.35 recency      — bias toward current behavior; 14-day half-life
  *   0.10 crossProj    — bonus for multi-project patterns, not load-bearing
  *
  * freqNorm uses the saturating curve `1 - exp(-effectiveFreq / 3)` so a single
@@ -199,6 +199,7 @@ function computeScore(members: Nugget[], now: Date): number {
 
   // Recency: use the most recent evidence timestamp if available.
   // Default 0.5 when no timestamps exist (e.g. tool-pattern aggregates).
+  // Half-life tightened to 14 days — recent behavior should dominate.
   const timestamps = members
     .flatMap((m) => m.evidence.map((e) => e.timestamp))
     .filter((t): t is string => typeof t === "string");
@@ -209,7 +210,7 @@ function computeScore(members: Nugget[], now: Date): number {
     );
     if (latest > 0) {
       const daysAgo = (now.getTime() - latest) / (1000 * 60 * 60 * 24);
-      recency = 1 / (1 + Math.max(0, daysAgo) / 30);
+      recency = 1 / (1 + Math.max(0, daysAgo) / 14);
     }
   }
 
@@ -219,9 +220,9 @@ function computeScore(members: Nugget[], now: Date): number {
   const crossProjNorm = projects.size > 1 ? 1.0 : 0.5;
 
   return (
-    0.40 * freqNorm +
-    0.30 * avgConf +
-    0.20 * recency +
+    0.30 * freqNorm +
+    0.25 * avgConf +
+    0.35 * recency +
     0.10 * crossProjNorm
   );
 }

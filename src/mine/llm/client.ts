@@ -3,12 +3,16 @@
  *
  * Targets the local Ollama server on the user's DGX Spark.
  * Default endpoint: http://localhost:11434/v1
- * No data leaves the machine.
+ * Used for embeddings and as an optional fallback chat provider.
  */
 
+export type Provider = "anthropic" | "ollama";
+
 export interface LLMConfig {
+  provider: Provider;
   baseUrl: string;
   model: string;
+  apiKey?: string;
   embeddingModel?: string;
   timeout: number;
   maxRetries: number;
@@ -42,9 +46,31 @@ export interface EmbeddingResult {
 }
 
 export function defaultLLMConfig(overrides: Partial<LLMConfig> = {}): LLMConfig {
+  const providerRaw = process.env.SKILLSET_LLM_PROVIDER?.toLowerCase();
+  const provider: Provider = providerRaw === "ollama" ? "ollama" : "anthropic";
+  const isOllama = provider === "ollama";
+
+  // SKILLSET_LLM_MODEL is only honored when it "fits" the provider — i.e.
+  // `claude-*` for Anthropic, anything else for Ollama. This keeps users
+  // who had an Ollama model set (e.g. qwen3-coder) from accidentally
+  // sending that model to the Anthropic API after the default flip.
+  const envModel = process.env.SKILLSET_LLM_MODEL;
+  const envModelFitsProvider =
+    envModel !== undefined &&
+    (isOllama ? !envModel.startsWith("claude-") : envModel.startsWith("claude-"));
+
   return {
-    baseUrl: process.env.SKILLSET_LLM_URL ?? "http://localhost:11434/v1",
-    model: process.env.SKILLSET_LLM_MODEL ?? "qwen3-coder",
+    provider,
+    baseUrl:
+      process.env.SKILLSET_LLM_URL ??
+      (isOllama ? "http://localhost:11434/v1" : "https://api.anthropic.com"),
+    model:
+      envModelFitsProvider && envModel
+        ? envModel
+        : isOllama
+        ? "qwen3-coder"
+        : "claude-haiku-4-5-20251001",
+    apiKey: process.env.ANTHROPIC_API_KEY,
     embeddingModel: process.env.SKILLSET_EMBED_MODEL,
     timeout: 120_000,
     maxRetries: 3,
