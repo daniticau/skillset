@@ -11,6 +11,7 @@ import { synthesizeCommand } from "./commands/synthesize.js";
 import { makeCommand } from "./commands/make.js";
 import { deepDiveCommand } from "./commands/deep-dive.js";
 import { cycleCommand } from "./commands/cycle.js";
+import { scheduleCommand } from "./commands/schedule.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
 
@@ -183,6 +184,19 @@ program
   .option("--no-sync", "skip running `sync` after promotion")
   .action(async (name: string, options: { sync?: boolean }) => {
     await promoteCommand(name, { noSync: options.sync === false });
+  });
+
+program
+  .command("schedule <action>")
+  .description("manage the Windows scheduled task that fires `sks cycle --nightly` (actions: install, uninstall, status)")
+  .option("--at <HH:MM>", "time of day to fire (default 02:00)")
+  .action(async (action: string, options: { at?: string }) => {
+    if (action !== "install" && action !== "uninstall" && action !== "status") {
+      console.error(`error: invalid action "${action}" — use install, uninstall, or status`);
+      process.exitCode = 1;
+      return;
+    }
+    await scheduleCommand({ action, atTime: options.at });
   });
 
 program
