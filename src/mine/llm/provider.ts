@@ -1,7 +1,14 @@
 /**
  * Provider abstraction — dispatches chat calls to the configured backend.
- * Defaults to Anthropic (Haiku 4.5); Ollama remains an option for users with
- * SKILLSET_LLM_PROVIDER=ollama (retained for local-only workflows).
+ *
+ * Providers:
+ *   - claude-cli: spawn `claude -p` (subscription, no API key)
+ *   - codex-cli: spawn `codex exec` (subscription, no API key)
+ *   - anthropic: Anthropic SDK via ANTHROPIC_API_KEY
+ *   - ollama: local OpenAI-compatible server (no external cost)
+ *
+ * Auto-detection in defaultLLMConfig() picks claude-cli first when available,
+ * so the self-improving loop can run for free on the user's existing plan.
  */
 
 import {
@@ -15,6 +22,8 @@ import type {
   Provider,
 } from "./client.js";
 import { anthropicChat, anthropicIsAvailable } from "./anthropic.js";
+import { claudeCliChat, claudeCliIsAvailable } from "./claude-cli.js";
+import { codexCliChat, codexCliIsAvailable } from "./codex-cli.js";
 
 export function resolveProvider(config: LLMConfig): Provider {
   return config.provider;
@@ -24,10 +33,16 @@ export async function chat(
   config: LLMConfig,
   opts: ChatOptions
 ): Promise<CompletionResult> {
-  if (resolveProvider(config) === "anthropic") {
-    return anthropicChat(config, opts);
+  switch (config.provider) {
+    case "claude-cli":
+      return claudeCliChat(config, opts);
+    case "codex-cli":
+      return codexCliChat(config, opts);
+    case "anthropic":
+      return anthropicChat(config, opts);
+    case "ollama":
+      return chatCompletion(config, opts);
   }
-  return chatCompletion(config, opts);
 }
 
 export async function isAvailable(config: LLMConfig): Promise<{
@@ -36,8 +51,14 @@ export async function isAvailable(config: LLMConfig): Promise<{
   models: string[];
   reason?: string;
 }> {
-  if (resolveProvider(config) === "anthropic") {
-    return anthropicIsAvailable(config);
+  switch (config.provider) {
+    case "claude-cli":
+      return claudeCliIsAvailable(config);
+    case "codex-cli":
+      return codexCliIsAvailable(config);
+    case "anthropic":
+      return anthropicIsAvailable(config);
+    case "ollama":
+      return ollamaIsAvailable(config);
   }
-  return ollamaIsAvailable(config);
 }
