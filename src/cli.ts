@@ -10,6 +10,7 @@ import { mineCommand } from "./commands/mine.js";
 import { synthesizeCommand } from "./commands/synthesize.js";
 import { makeCommand } from "./commands/make.js";
 import { deepDiveCommand } from "./commands/deep-dive.js";
+import { cycleCommand } from "./commands/cycle.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
 
@@ -128,6 +129,29 @@ program
       draft?: boolean;
     }) => {
       await makeCommand(options);
+    }
+  );
+
+program
+  .command("cycle")
+  .description("run the nightly self-improvement cycle (scrape + mine + synthesize + sync + commit)")
+  .option("--nightly", "run as a nightly cycle (currently the only cycle kind)")
+  .option("--no-idle-check", "skip the CPU/input idle gate (useful for manual runs)")
+  .option("--dry-run", "print the plan without writing files or committing")
+  .option("--scheduled", "invoked by the scheduled task — exit 0 on benign skips (lock/idle)")
+  .action(
+    async (options: {
+      nightly?: boolean;
+      idleCheck?: boolean;
+      dryRun?: boolean;
+      scheduled?: boolean;
+    }) => {
+      await cycleCommand({
+        nightly: options.nightly,
+        noIdleCheck: options.idleCheck === false,
+        dryRun: options.dryRun,
+        scheduled: options.scheduled,
+      });
     }
   );
 
