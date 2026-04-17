@@ -13,7 +13,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import matter from "gray-matter";
 import type { AgentAdapter } from "./types.js";
-import type { ParsedSkill } from "../skill.js";
+import type { ParsedSkill, SkillTier, SkillOrigin } from "../skill.js";
+import { isSkillTier, isSkillOrigin } from "../skill.js";
 
 const DEFAULT_CURSOR_RULES_DIR = join(homedir(), ".cursor", "rules");
 
@@ -33,15 +34,23 @@ function renderMdc(skill: ParsedSkill): string {
     `globs: []`,
     `alwaysApply: false`,
     `skillset-name: ${skill.frontmatter.name}`,
-    "---",
-    "",
   ];
+  // Persist tier + origin so round-trip through a cursor edit preserves them
+  // (Cursor ignores unknown frontmatter keys; they just ride along).
+  if (skill.frontmatter.tier) {
+    lines.push(`skillset-tier: ${skill.frontmatter.tier}`);
+  }
+  if (skill.frontmatter.origin) {
+    lines.push(`skillset-origin: ${skill.frontmatter.origin}`);
+  }
+  lines.push("---", "");
   const body = skill.body.trim();
   return lines.join("\n") + body + "\n";
 }
 
 /** Parse an .mdc file back into a ParsedSkill. The canonical name comes from
- *  `skillset-name` if present, else the filename stem. */
+ *  `skillset-name` if present, else the filename stem. Tier + origin are
+ *  pulled from `skillset-tier` / `skillset-origin` when present. */
 function parseMdc(content: string, fallbackName: string): ParsedSkill | null {
   try {
     const parsed = matter(content);
@@ -54,8 +63,12 @@ function parseMdc(content: string, fallbackName: string): ParsedSkill | null {
       typeof data.description === "string" && data.description
         ? (data.description as string)
         : "Cursor rule";
+    let tier: SkillTier | undefined;
+    if (isSkillTier(data["skillset-tier"])) tier = data["skillset-tier"];
+    let origin: SkillOrigin | undefined;
+    if (isSkillOrigin(data["skillset-origin"])) origin = data["skillset-origin"];
     return {
-      frontmatter: { name, description },
+      frontmatter: { name, description, tier, origin },
       body: parsed.content.trim(),
     };
   } catch {
