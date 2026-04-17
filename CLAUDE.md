@@ -27,7 +27,9 @@ Everything is manual-trigger today. No daemons, no auto-install tier.
   .git                version history of the canonical store
 ```
 
-Sync is **one-way canonical → mirror**, with an exception: before writing a mirror, skillset compares the mirror's current hash to its recorded hash. If they differ, the user edited the mirror directly — skillset promotes the mirror version to canonical and marks the skill `userModified`. Then all mirrors are rewritten from the updated canonical.
+Sync is **one-way canonical → mirror**, with an exception: before writing a mirror, skillset compares the mirror's current hash to its recorded hash. If they differ, the user edited the mirror directly — skillset promotes the mirror version to canonical and sets `userEdited=true`. Then all mirrors are rewritten from the updated canonical.
+
+Skills carry a `SkillOrigin` (`user-created` or `auto-created`) in both frontmatter and state. `user-created` skills are never modified by automation; `auto-created` skills may be edited/merged/pruned by the nightly pipeline unless `userEdited=true` AND cleanup's tiebreaker rules say otherwise.
 
 ## Core modules
 
@@ -59,7 +61,8 @@ Sync + store:
 
 Mining pipeline:
 - `skillset scrape` — pull session transcripts from Claude Code / Codex / Cursor into `~/.skillset/sessions/` (`--source` to pick one, `--full` to ignore incremental cursors)
-- `skillset mine` — heuristic extraction of nuggets from scraped sessions. Flags: `--llm` (add Ollama-backed extraction), `--synthesize` (draft SKILL.md files from top clusters, implies `--llm`), `--project <slug>`, `--force`, `--dry-run`, `--verbose`
+- `skillset mine` — heuristic extraction of nuggets from scraped sessions. Flags: `--llm` (add Ollama-backed extraction), `--project <slug>`, `--force`, `--dry-run`, `--verbose`
+- `skillset synthesize` — turn top clusters into draft SKILL.md files in `~/.skillset/drafts/`. Flags: `--max <n>` (default 10), `--min-members <n>` (default 2)
 - `skillset drafts` — list pending draft skills; `--rm <name>` to discard
 - `skillset promote <name>` — move a draft into the canonical store and sync (`--no-sync` to skip the sync step)
 - `skillset doctor` — health check: store, LLM connectivity, mirror state, session data
@@ -68,16 +71,34 @@ Mining pipeline:
 
 - **User edits are sacred.** Any edit a user makes to a mirror's SKILL.md gets promoted to canonical. The system never overwrites a user edit silently.
 - **One-way sync by default.** The canonical store is the source of truth. Mirrors are derived. Bidirectional merge is explicitly rejected.
-- **No magic by default.** Sync, scrape, mine, and promote all run on demand. No background daemons. Skills only land in the canonical store after the user runs `promote`.
-- **Mining proposes, the user disposes.** The pipeline generates drafts; shipping them is a deliberate action.
+- **No magic by default.** Sync, scrape, mine, and promote all run on demand. No background daemons.
+- **Tiered autonomy.** `sks make` decides per skill whether to auto-install (high/medium tier) or hold as draft (low tier).
+
+## Trust tiers
+
+`sks make` asks Haiku to label every new skill with a `tier:` in frontmatter:
+- **`high`** — narrow style/typography rules; auto-installed silently into canonical + mirrors.
+- **`medium`** — workflow / tool-routing rules; auto-installed with a one-line notice.
+- **`low`** — broad behavior changes; held as a draft for human review (overrides default auto-promote).
+- *missing* — legacy skills written before tiering; preserved untouched.
+
+`--draft` flag on `sks make` forces all CREATEs to drafts regardless of tier (escape hatch). Tiers never downgrade across `executeEdit`.
+
+## Multi-mirror conflict resolution
+
+When `sync` detects that ≥2 mirrors of the same skill diverge from canonical (and from each other), it treats them all as user edits and resolves:
+1. Newest mtime wins; its content becomes canonical.
+2. Each loser's body + a `CONTEXT.md` describing the conflict is archived to `~/.skillset/conflicts/<ISO-ts>/<skill>/<adapter>/`.
+3. `state.skills[name].conflictHistory` records the resolution; `sks status` and `sks doctor` surface it.
+
+No prompts, no silent loss — older edits stay recoverable.
 
 ## Not yet built
 
-- **Writable mirrors for Cursor / Codex / Copilot.** Session reading works for all three, but only Claude Code is a sync target. This is the biggest gap vs. the cross-agent portability promise in `VISION.md`.
-- **Trust-tiered auto-install.** Everything requires manual `promote` today. A category-based "safe to auto-install" tier is on the roadmap.
 - **Usefulness feedback loop.** No signal yet on whether promoted skills actually reduced friction. Needed to close the self-improvement loop.
 - **Usefulness scoring / auto-prune** for stale or low-value skills.
-- **Conflict resolution** for simultaneous edits in multiple mirrors (currently last-promoted wins).
+- **Project-level (non-global) mirror delivery** — mirrors today only target user-global paths.
+- **Three-way merge or interactive conflict resolution** — current archive-and-pick-newest is deliberate but coarse.
 
 ## Dev
 

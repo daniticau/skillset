@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CLAUDE_SKILLS_DIR, STORE_SKILLS_DIR } from "../paths.js";
@@ -40,6 +40,13 @@ export const claudeCodeAdapter: AgentAdapter = {
     const dir = mirrorDirFor(targetRoot, name);
     if (!existsSync(join(dir, "SKILL.md"))) return null;
     return hashSkillDir(dir);
+  },
+
+  async mirrorSkillMtimeMs(name: string, targetRoot: string): Promise<number | null> {
+    const skillFile = join(mirrorDirFor(targetRoot, name), "SKILL.md");
+    if (!existsSync(skillFile)) return null;
+    const s = await stat(skillFile);
+    return s.mtimeMs;
   },
 
   async readMirrorSkill(name: string, targetRoot: string): Promise<ParsedSkill | null> {

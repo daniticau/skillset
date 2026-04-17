@@ -16,7 +16,12 @@ import {
   synthesisUserPrompt,
 } from "./llm/index.js";
 import type { LLMConfig } from "./llm/index.js";
-import { parseSkillMd, SkillValidationError } from "../core/skill.js";
+import {
+  parseSkillMd,
+  renderSkillMd,
+  SkillValidationError,
+} from "../core/skill.js";
+import type { SkillTier } from "../core/skill.js";
 import { STORE_ROOT, STORE_SKILLS_DIR } from "../core/paths.js";
 
 export const DRAFTS_DIR = join(STORE_ROOT, "drafts");
@@ -25,6 +30,7 @@ export interface SynthesizedSkill {
   name: string;
   description: string;
   body: string;
+  tier?: SkillTier;
   sourceClusterIds: string[];
   score: number;
   memberCount: number;
@@ -152,16 +158,22 @@ export async function writeDraftSkill(skill: SynthesizedSkill): Promise<string> 
   const dir = join(DRAFTS_DIR, skill.name);
   await mkdir(dir, { recursive: true });
 
-  const fm = [
-    "---",
-    `name: ${skill.name}`,
-    `description: ${JSON.stringify(skill.description)}`,
-    "---",
-    "",
-  ].join("\n");
-
+  // Every synthesized draft is origin:auto-created — so when promoted to the
+  // canonical store and observed by sync, state seeds correctly without guessing.
   const filePath = join(dir, "SKILL.md");
-  await writeFile(filePath, fm + skill.body + "\n", "utf8");
+  await writeFile(
+    filePath,
+    renderSkillMd(
+      {
+        name: skill.name,
+        description: skill.description,
+        tier: skill.tier,
+        origin: "auto-created",
+      },
+      skill.body
+    ),
+    "utf8"
+  );
 
   // Also write a sidecar metadata file for provenance
   const metaPath = join(dir, "meta.json");

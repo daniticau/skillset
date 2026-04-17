@@ -2,7 +2,7 @@
 
 ## What is this?
 
-A coding-agent harness that gets better at working with *you* the more you use it. When your agent gets something wrong — slightly off, or completely sideways — a background process investigates what went wrong and writes a skill that would have prevented it. Over time, the friction fades.
+A coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, it reads your entire coding history — Claude Code, Codex, Cursor — and writes the foundational skills that would have saved you the friction you've already lived through. Every night after that, it reviews the day's work, notices what went sideways, and drafts small improvements. Over time, the friction fades.
 
 ## The Problem
 
@@ -12,11 +12,21 @@ The harness you work inside every day doesn't learn. That's the gap.
 
 ## How It Works
 
-You work with your agent normally. In the background, another process reads through your session history looking for the moments where things went wrong — a rejected plan, a correction, a redo, a visible sigh. It traces the failure back to its cause and drafts a small skill: a rule, a pattern, a preference, a piece of context the agent should have had.
+You work with your agent normally. In the background — at 2am, when your machine is idle and your subscriptions aren't busy — another process reads the sessions from that day, looking for moments where things went wrong: a rejected plan, a correction, a redo, a visible sigh. It traces the failure back to its cause and drafts a small skill that would have prevented it.
+
+At the end of each nightly pass, skillset also cleans up after itself: if two skills contradict each other, it picks the most recent (because your preferences evolve). If two skills say the same thing twice, it merges them. Stale auto-generated skills that haven't mattered in a while get marked for pruning.
 
 Some skills get installed silently because they're obviously safe. Others get surfaced for you to approve, edit, or throw away. You decide the threshold.
 
-The skills themselves live in a canonical store that you own. Every agent harness you use — Claude Code today, whatever else tomorrow — is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical, then out to all the others.
+The skills themselves live in a canonical store that you own. Every agent harness you use — Claude Code, Cursor, Codex today, whatever else tomorrow — is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical, then out to all the others.
+
+## The Daily Loop
+
+**Day 0: deep dive.** `sks init` walks you through setup — which agents to link, whether to run the deep dive now, whether to register the nightly task. The deep dive reads every session on disk (could be months of history) and generates up to ten foundational skills that capture what you've already taught your agents the hard way. It's resumable: interrupt it and re-running picks up where it left off.
+
+**Every day after.** A scheduled task fires at 2am. If your machine is idle (CPU quiet, no recent input), the cycle starts: scrape new sessions from that day, mine for signals, draft zero to three new skills, run a cleanup pass (dedup, conflict resolution, stale pruning), sync to all your mirrors, and commit the result to the canonical store's internal git log. Wake up the next morning and find your harness a little better at you than it was yesterday.
+
+If you're still up at 2am, the cycle waits until the next night rather than stealing compute.
 
 ## Who It's For
 
@@ -32,8 +42,10 @@ The agent I work with in six months knows things about how I work that I never e
 
 **Your personalization is yours.** It shouldn't live in one vendor's database. It shouldn't vanish when you switch tools. The canonical store is on your disk, in a git repo you control. Any agent that wants access is a mirror, not an owner.
 
+**Boundaries are explicit.** Skills you author yourself are never touched by automation. Skills the system generated can evolve, but if you edit one, the edit is preserved unless a later pass finds real contradictory evidence. You always know which rules are yours and which are the system's — every skill carries its origin.
+
 **User edits are sacred.** If you edit a skill directly in a mirror, that edit gets promoted back to canonical. The system never silently overwrites something you changed by hand.
 
-**No magic by default.** Mining runs when you ask it to. Sync runs when you ask it to. Skills that get auto-installed are ones you've told the system are safe to auto-install. Everything else waits for you.
+**No magic by default.** The nightly cycle runs only because you installed its scheduled task. Skills get auto-installed only in tiers you've marked safe. Everything else waits for you.
 
-**Start boring.** The current codebase is a sync engine and nothing else — no mining, no scoring, no proactivity. The interesting layer sits on top and gets built once the skeleton is solid. Get the plumbing right first.
+**Start boring.** Every layer sits on a boring-and-correct one below it. The canonical store is a git repo. The mirrors are files. The nightly cycle is a scheduled task. Nothing exotic — nothing you can't inspect.

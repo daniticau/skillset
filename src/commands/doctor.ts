@@ -6,6 +6,7 @@ import {
   STORE_ROOT,
   STORE_SKILLS_DIR,
   SESSIONS_DIR,
+  CONFLICTS_DIR,
   CONFIG_FILE,
   STATE_FILE,
 } from "../core/paths.js";
@@ -187,6 +188,29 @@ async function sectionMine(): Promise<void> {
   console.log();
 }
 
+async function sectionConflicts(): Promise<void> {
+  console.log(pc.bold("Conflicts"));
+  const state = await readState();
+  let total = 0;
+  let lastAt: string | undefined;
+  for (const skill of Object.values(state.skills)) {
+    const history = skill.conflictHistory ?? [];
+    total += history.length;
+    if (history.length > 0) {
+      const latest = history[history.length - 1]!.at;
+      if (!lastAt || latest > lastAt) lastAt = latest;
+    }
+  }
+  if (total === 0) {
+    console.log(pc.dim(`  none recorded — multi-mirror divergences will land in ${CONFLICTS_DIR}`));
+  } else {
+    console.log(`  ${label("archived")} ${pc.dim(`${total} conflict(s) across ${Object.values(state.skills).filter((s) => (s.conflictHistory?.length ?? 0) > 0).length} skill(s)`)}`);
+    if (lastAt) console.log(`  ${label("last at")} ${pc.dim(lastAt)}`);
+    console.log(`  ${label("archive")} ${pc.dim(CONFLICTS_DIR)}`);
+  }
+  console.log();
+}
+
 export interface DoctorOptions {
   verbose?: boolean;
 }
@@ -198,4 +222,5 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   await sectionMirrors();
   await sectionSessions();
   await sectionMine();
+  await sectionConflicts();
 }

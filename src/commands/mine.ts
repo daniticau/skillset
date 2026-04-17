@@ -12,7 +12,6 @@ import { scrapeAll } from "../ingest/sessions/index.js";
 import { readState, writeState } from "../core/config.js";
 import { deduplicateAndRank } from "../mine/dedup.js";
 import { llmExtractFromSessions } from "../mine/llm-extract.js";
-import { synthesizeSkills, writeDraftSkill, DRAFTS_DIR } from "../mine/synthesize.js";
 import {
   defaultLLMConfig,
   isAvailable,
@@ -36,7 +35,6 @@ export interface MineOptions {
   project?: string;
   verbose?: boolean;
   llm?: boolean;
-  synthesize?: boolean;
   force?: boolean;
   dryRun?: boolean;
   noScrape?: boolean;
@@ -338,34 +336,4 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   console.log();
   console.log(pc.dim(`nuggets → ${NUGGETS_FILE}`));
   console.log(pc.dim(`clusters → ${CLUSTERS_FILE}`));
-
-  // Stage 4: synthesis (if --synthesize)
-  if (options.synthesize) {
-    const avail = await isAvailable(clusterConfig);
-    if (!avail.reachable || !avail.modelPresent) {
-      console.log(pc.yellow(`⚠ LLM unavailable — cannot synthesize skills`));
-      return;
-    }
-
-    console.log();
-    console.log(pc.dim("synthesizing draft skills…"));
-
-    const skills = await synthesizeSkills(clusters, clusterConfig, {
-      maxSkills: 10,
-      minClusterMembers: 2,
-      onProgress: (done, total) => {
-        process.stderr.write(`\r  synthesizing ${done}/${total}   `);
-      },
-    });
-    process.stderr.write("\n");
-
-    for (const skill of skills) {
-      const path = await writeDraftSkill(skill);
-      console.log(pc.green(`✓ draft`) + ` ${pc.bold(skill.name)}  ${pc.dim(path)}`);
-      console.log(pc.dim(`    ${skill.description}`));
-    }
-    console.log();
-    console.log(pc.dim(`${skills.length} drafts → ${DRAFTS_DIR}`));
-    console.log(pc.dim(`run ${pc.bold("skillset drafts")} to review, ${pc.bold("skillset promote <name>")} to publish`));
-  }
 }

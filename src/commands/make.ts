@@ -113,12 +113,14 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
   console.log();
 
   const maxNew = options.maxNew ?? 3;
-  let createdCount = 0;
   let editedCount = 0;
+  let highCount = 0;
+  let mediumCount = 0;
+  let draftedCount = 0;
   let skippedCount = 0;
 
   for (const cluster of eligible) {
-    const budget = maxNew - createdCount;
+    const budget = maxNew - (highCount + mediumCount + draftedCount);
     const sig = truncate(cluster.canonical.signal, 90);
     const scoreTag = pc.dim(`[score ${cluster.score.toFixed(2)}]`);
 
@@ -167,20 +169,32 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
       continue;
     }
 
-    // create
-    const createLabel = options.draft ? "CREATE" : "CREATE+";
-    console.log(`  ${pc.green(createLabel)} ${scoreTag} ${pc.bold(action.name)}  ${pc.dim(sig)}`);
+    // create — route by tier (high → silent install, medium → install + notice, low → draft)
+    const tierColor =
+      action.tier === "high" ? pc.green : action.tier === "medium" ? pc.cyan : pc.yellow;
+    const willDraft = options.draft || action.tier === "low";
+    const verb = willDraft ? "DRAFT " : "CREATE";
+    const tierTag = tierColor(`(${action.tier})`);
+    console.log(
+      `  ${pc.green(verb)} ${scoreTag} ${tierTag} ${pc.bold(action.name)}  ${pc.dim(sig)}`
+    );
     if (action.rationale) console.log(`         ${pc.dim(action.rationale)}`);
     if (options.dryRun) continue;
     try {
       const { path, skill } = await executeCreate(action, cluster, config);
-      if (options.draft) {
+      if (willDraft) {
         console.log(`         ${pc.dim(`→ ${path}`)}`);
+        draftedCount += 1;
       } else {
         const canonicalPath = await promoteDraft(skill.name);
-        console.log(`         ${pc.dim(`→ ${canonicalPath}`)}`);
+        if (action.tier === "medium") {
+          console.log(`         ${pc.dim(`→ ${canonicalPath}`)} ${pc.cyan("(installed, medium tier)")}`);
+          mediumCount += 1;
+        } else {
+          console.log(`         ${pc.dim(`→ ${canonicalPath}`)}`);
+          highCount += 1;
+        }
       }
-      createdCount += 1;
       state = recordAction(state, cluster, "create", { targetSkill: skill.name });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -198,20 +212,20 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
   }
 
   console.log();
-  const createdVerb = options.draft ? "drafted" : "created";
   console.log(
     pc.bold(
-      `${editedCount} edited · ${createdCount} ${createdVerb} · ${skippedCount} skipped`
+      `${editedCount} edited · ${highCount} high-installed · ${mediumCount} medium-installed · ${draftedCount} drafted · ${skippedCount} skipped`
     )
   );
 
-  const shouldSync =
-    !options.dryRun && (editedCount > 0 || (createdCount > 0 && !options.draft));
+  const installedCount = highCount + mediumCount;
+  const shouldSync = !options.dryRun && (editedCount > 0 || installedCount > 0);
   if (shouldSync) {
     console.log();
     console.log(pc.dim("syncing mirrors…"));
     await syncCommand();
-  } else if (options.draft && createdCount > 0) {
+  }
+  if (draftedCount > 0) {
     console.log(pc.dim(`  review drafts: ${pc.bold("skillset drafts")}`));
     console.log(pc.dim(`  promote:       ${pc.bold("skillset promote <name>")}`));
   }

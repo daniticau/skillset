@@ -7,6 +7,7 @@ import { syncCommand } from "./commands/sync.js";
 import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
 import { mineCommand } from "./commands/mine.js";
+import { synthesizeCommand } from "./commands/synthesize.js";
 import { makeCommand } from "./commands/make.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -72,7 +73,6 @@ program
   .option("-p, --project <slug>", "only mine a specific project slug")
   .option("-v, --verbose", "show evidence details for each nugget")
   .option("--llm", "also run LLM-based extraction (via configured provider)")
-  .option("--synthesize", "generate draft SKILL.md files from top clusters (implies --llm)")
   .option("--force", "reprocess all sessions, ignoring incremental state")
   .option("--no-scrape", "skip the scrape step; mine whatever is already in ~/.skillset/sessions")
   .option("--full-scrape", "ignore stored cursors and re-scrape every session from every source")
@@ -82,19 +82,15 @@ program
       project?: string;
       verbose?: boolean;
       llm?: boolean;
-      synthesize?: boolean;
       force?: boolean;
       scrape?: boolean;
       fullScrape?: boolean;
       dryRun?: boolean;
     }) => {
-      // --synthesize implies --llm
-      if (options.synthesize) options.llm = true;
       await mineCommand({
         project: options.project,
         verbose: options.verbose,
         llm: options.llm,
-        synthesize: options.synthesize,
         force: options.force,
         dryRun: options.dryRun,
         noScrape: options.scrape === false,
@@ -102,6 +98,15 @@ program
       });
     }
   );
+
+program
+  .command("synthesize")
+  .description("turn top nugget clusters into draft SKILL.md files in ~/.skillset/drafts/")
+  .option("--max <n>", "max draft skills to produce (default 10)", (v) => parseInt(v, 10))
+  .option("--min-members <n>", "minimum cluster members required (default 2)", (v) => parseInt(v, 10))
+  .action(async (options: { max?: number; minMembers?: number }) => {
+    await synthesizeCommand(options);
+  });
 
 program
   .command("make")
@@ -127,7 +132,7 @@ program
 
 program
   .command("drafts")
-  .description("list draft skills pending review (written by `mine --synthesize`)")
+  .description("list draft skills pending review (written by `synthesize`)")
   .option("--rm <name>", "discard a draft instead of listing")
   .action(async (options: { rm?: string }) => {
     if (options.rm) {

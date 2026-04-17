@@ -22,10 +22,26 @@ export async function statusCommand(): Promise<void> {
   }
   console.log(pc.bold("\nskills:"));
   for (const sk of s.skills) {
-    const marker = sk.userModified ? pc.magenta("✎") : pc.green("•");
-    console.log(`  ${marker} ${sk.name}`);
+    const marker = sk.userEdited
+      ? pc.magenta("✎")
+      : sk.origin === "user-created"
+        ? pc.cyan("◆")
+        : pc.green("•");
+    const conflict =
+      sk.conflicts > 0
+        ? ` ${pc.yellow(`⚠ ${sk.conflicts} conflict(s), last ${sk.lastConflictAt}`)}`
+        : "";
+    console.log(`  ${marker} ${sk.name}${conflict}`);
   }
   console.log(
-    pc.dim(`\n${pc.magenta("✎")} = user-modified (edits in a mirror were promoted)`)
+    pc.dim(
+      `\n${pc.cyan("◆")} = user-authored (never touched by automation)    ${pc.magenta("✎")} = user-edited (your edits to an auto-skill are preserved)    ${pc.green("•")} = auto-managed`
+    )
   );
+  const hasConflicts = s.skills.some((sk) => sk.conflicts > 0);
+  if (hasConflicts) {
+    console.log(
+      pc.dim(`${pc.yellow("⚠")} = multi-mirror conflict resolved; see ~/.skillset/conflicts/ for archived edits`)
+    );
+  }
 }
