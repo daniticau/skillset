@@ -28,10 +28,14 @@ program
 
 program
   .command("init")
-  .description("initialize the store and auto-link any detected coding agents")
+  .description("initialize the store, interactively link detected agents, optionally install scheduler + run deep-dive")
   .option("--no-auto-link", "skip auto-linking detected agents")
-  .action(async (options: { autoLink?: boolean }) => {
-    await initCommand({ noAutoLink: options.autoLink === false });
+  .option("--non-interactive", "skip prompts; use defaults (auto-link all, no scheduler, no deep-dive)")
+  .action(async (options: { autoLink?: boolean; nonInteractive?: boolean }) => {
+    await initCommand({
+      noAutoLink: options.autoLink === false,
+      nonInteractive: options.nonInteractive,
+    });
   });
 
 program
