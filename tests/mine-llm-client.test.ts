@@ -20,8 +20,8 @@ describe("defaultLLMConfig", () => {
     else delete process.env.SKILLSET_LLM_MODEL;
   });
 
-  it("defaults to Anthropic Haiku when no env vars", () => {
-    delete process.env.SKILLSET_LLM_PROVIDER;
+  it("uses Anthropic defaults when SKILLSET_LLM_PROVIDER=anthropic", () => {
+    process.env.SKILLSET_LLM_PROVIDER = "anthropic";
     delete process.env.SKILLSET_LLM_URL;
     delete process.env.SKILLSET_LLM_MODEL;
     const cfg = defaultLLMConfig();
@@ -40,6 +40,16 @@ describe("defaultLLMConfig", () => {
     expect(cfg.model).toBe("qwen3-coder");
   });
 
+  it("uses claude-cli defaults when SKILLSET_LLM_PROVIDER=claude-cli", () => {
+    process.env.SKILLSET_LLM_PROVIDER = "claude-cli";
+    delete process.env.SKILLSET_LLM_URL;
+    delete process.env.SKILLSET_LLM_MODEL;
+    const cfg = defaultLLMConfig();
+    expect(cfg.provider).toBe("claude-cli");
+    // CLI providers don't use HTTP
+    expect(cfg.baseUrl).toBe("");
+  });
+
   it("respects env overrides with matching provider", () => {
     process.env.SKILLSET_LLM_PROVIDER = "ollama";
     process.env.SKILLSET_LLM_URL = "http://custom:9999/v1";
@@ -50,7 +60,7 @@ describe("defaultLLMConfig", () => {
   });
 
   it("honors SKILLSET_LLM_MODEL for Anthropic when it's a claude-* name", () => {
-    delete process.env.SKILLSET_LLM_PROVIDER;
+    process.env.SKILLSET_LLM_PROVIDER = "anthropic";
     delete process.env.SKILLSET_LLM_URL;
     process.env.SKILLSET_LLM_MODEL = "claude-sonnet-4-5-20250929";
     const cfg = defaultLLMConfig();
@@ -59,7 +69,7 @@ describe("defaultLLMConfig", () => {
   });
 
   it("ignores Ollama-shaped SKILLSET_LLM_MODEL when provider is Anthropic", () => {
-    delete process.env.SKILLSET_LLM_PROVIDER;
+    process.env.SKILLSET_LLM_PROVIDER = "anthropic";
     delete process.env.SKILLSET_LLM_URL;
     process.env.SKILLSET_LLM_MODEL = "qwen3-coder";
     const cfg = defaultLLMConfig();

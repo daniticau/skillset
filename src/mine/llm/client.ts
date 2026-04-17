@@ -6,7 +6,9 @@
  * Used for embeddings and as an optional fallback chat provider.
  */
 
-export type Provider = "anthropic" | "ollama";
+import { whichSync } from "./cli-detect.js";
+
+export type Provider = "claude-cli" | "codex-cli" | "anthropic" | "ollama";
 
 export interface LLMConfig {
   provider: Provider;
@@ -45,31 +47,72 @@ export interface EmbeddingResult {
   model: string;
 }
 
-export function defaultLLMConfig(overrides: Partial<LLMConfig> = {}): LLMConfig {
-  const providerRaw = process.env.SKILLSET_LLM_PROVIDER?.toLowerCase();
-  const provider: Provider = providerRaw === "ollama" ? "ollama" : "anthropic";
-  const isOllama = provider === "ollama";
+/**
+ * Pick a sensible default provider based on what's on PATH + env. Runs sync so
+ * defaultLLMConfig() doesn't await. Preference order:
+ *   1. SKILLSET_LLM_PROVIDER env var (explicit opt-in, always honored)
+ *   2. claude-cli if `claude` is on PATH (uses subscription, no API key)
+ *   3. anthropic if ANTHROPIC_API_KEY is set
+ *   4. codex-cli if `codex` is on PATH
+ *   5. ollama (last resort — works offline on the user's DGX Spark)
+ */
+function detectDefaultProvider(): Provider {
+  const raw = process.env.SKILLSET_LLM_PROVIDER?.toLowerCase();
+  if (raw === "claude-cli" || raw === "codex-cli" || raw === "anthropic" || raw === "ollama") {
+    return raw;
+  }
+  if (whichSync("claude")) return "claude-cli";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (whichSync("codex")) return "codex-cli";
+  return "ollama";
+}
 
-  // SKILLSET_LLM_MODEL is only honored when it "fits" the provider — i.e.
-  // `claude-*` for Anthropic, anything else for Ollama. This keeps users
-  // who had an Ollama model set (e.g. qwen3-coder) from accidentally
-  // sending that model to the Anthropic API after the default flip.
+function defaultModelFor(provider: Provider): string {
+  switch (provider) {
+    case "claude-cli":
+      // Default to the CLI's own configured model unless overridden. The CLI
+      // picks a sensible default (Sonnet in Claude Code); we pass through.
+      return "claude-sonnet-4-6";
+    case "codex-cli":
+      return "codex-default";
+    case "anthropic":
+      return "claude-haiku-4-5-20251001";
+    case "ollama":
+    default:
+      return "qwen3-coder";
+  }
+}
+
+function defaultBaseUrlFor(provider: Provider): string {
+  switch (provider) {
+    case "ollama":
+      return "http://localhost:11434/v1";
+    case "anthropic":
+      return "https://api.anthropic.com";
+    case "claude-cli":
+    case "codex-cli":
+    default:
+      return ""; // subprocess providers don't use HTTP
+  }
+}
+
+export function defaultLLMConfig(overrides: Partial<LLMConfig> = {}): LLMConfig {
+  const provider = detectDefaultProvider();
   const envModel = process.env.SKILLSET_LLM_MODEL;
-  const envModelFitsProvider =
+  // SKILLSET_LLM_MODEL only honored when it plausibly fits the provider. For
+  // CLI providers we pass through to their own defaults unless user overrides.
+  const envModelFits =
     envModel !== undefined &&
-    (isOllama ? !envModel.startsWith("claude-") : envModel.startsWith("claude-"));
+    (provider === "ollama"
+      ? !envModel.startsWith("claude-")
+      : provider === "anthropic"
+        ? envModel.startsWith("claude-")
+        : true);
 
   return {
     provider,
-    baseUrl:
-      process.env.SKILLSET_LLM_URL ??
-      (isOllama ? "http://localhost:11434/v1" : "https://api.anthropic.com"),
-    model:
-      envModelFitsProvider && envModel
-        ? envModel
-        : isOllama
-        ? "qwen3-coder"
-        : "claude-haiku-4-5-20251001",
+    baseUrl: process.env.SKILLSET_LLM_URL ?? defaultBaseUrlFor(provider),
+    model: envModelFits && envModel ? envModel : defaultModelFor(provider),
     apiKey: process.env.ANTHROPIC_API_KEY,
     embeddingModel: process.env.SKILLSET_EMBED_MODEL,
     timeout: 120_000,
