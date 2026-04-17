@@ -12,6 +12,7 @@ import { makeCommand } from "./commands/make.js";
 import { deepDiveCommand } from "./commands/deep-dive.js";
 import { cycleCommand } from "./commands/cycle.js";
 import { scheduleCommand } from "./commands/schedule.js";
+import { cleanupCommand } from "./commands/cleanup.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
 
@@ -184,6 +185,14 @@ program
   .option("--no-sync", "skip running `sync` after promotion")
   .action(async (name: string, options: { sync?: boolean }) => {
     await promoteCommand(name, { noSync: options.sync === false });
+  });
+
+program
+  .command("cleanup")
+  .description("standalone cleanup pass: conflict detect + dedup merge + auto-prune (v1 dry-run only)")
+  .option("--dry-run", "print findings without mutating state or archives")
+  .action(async (options: { dryRun?: boolean }) => {
+    await cleanupCommand(options);
   });
 
 program
