@@ -36,11 +36,27 @@ export interface MineState {
   lastRunAt?: string;
 }
 
+export type MakeAction = "edit" | "create" | "skip";
+
+export interface ProcessedCluster {
+  action: MakeAction;
+  targetSkill?: string;
+  processedAt: string;
+  reason?: string;
+}
+
+export interface MakeState {
+  pipelineVersion: number;
+  processedClusters: Record<string, ProcessedCluster>;
+  lastRunAt?: string;
+}
+
 export interface State {
   version: 1;
   skills: Record<string, SkillState>;
   scrape?: ScrapeCursors;
   mine?: MineState;
+  make?: MakeState;
 }
 
 const DEFAULT_CONFIG: Config = { version: 1, links: [] };

@@ -6,11 +6,10 @@ import { linkCommand, unlinkCommand } from "./commands/link.js";
 import { syncCommand } from "./commands/sync.js";
 import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
-import { scrapeCommand } from "./commands/scrape.js";
 import { mineCommand } from "./commands/mine.js";
+import { makeCommand } from "./commands/make.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
-import type { ScrapeSource } from "./ingest/sessions/types.js";
 
 // Load ~/.skillset/.env before any command reads process.env
 loadEnv();
@@ -32,7 +31,7 @@ program
 
 program
   .command("link <agent>")
-  .description("link a coding agent mirror (v1: claude-code)")
+  .description("link a coding agent mirror (claude-code | cursor | codex)")
   .option("-p, --path <path>", "override the default mirror path")
   .action(async (agent: string, options: { path?: string }) => {
     await linkCommand(agent, options);
@@ -68,25 +67,15 @@ program
   });
 
 program
-  .command("scrape")
-  .description("scrape coding-session transcripts into ~/.skillset/sessions")
-  .option("-s, --source <name>", "only scrape one source (claude-code | codex | cursor)")
-  .option("--full", "ignore stored cursors and re-scrape everything")
-  .action(async (options: { source?: string; full?: boolean }) => {
-    await scrapeCommand({
-      source: options.source as ScrapeSource | undefined,
-      full: options.full,
-    });
-  });
-
-program
   .command("mine")
-  .description("extract signal (corrections, preferences, patterns) from session transcripts")
+  .description("scrape transcripts from all linked agents and extract signal (corrections, preferences, patterns)")
   .option("-p, --project <slug>", "only mine a specific project slug")
   .option("-v, --verbose", "show evidence details for each nugget")
-  .option("--llm", "also run LLM-based extraction via local Ollama")
+  .option("--llm", "also run LLM-based extraction (via configured provider)")
   .option("--synthesize", "generate draft SKILL.md files from top clusters (implies --llm)")
   .option("--force", "reprocess all sessions, ignoring incremental state")
+  .option("--no-scrape", "skip the scrape step; mine whatever is already in ~/.skillset/sessions")
+  .option("--full-scrape", "ignore stored cursors and re-scrape every session from every source")
   .option("--dry-run", "print what would be processed without doing it")
   .action(
     async (options: {
@@ -95,11 +84,44 @@ program
       llm?: boolean;
       synthesize?: boolean;
       force?: boolean;
+      scrape?: boolean;
+      fullScrape?: boolean;
       dryRun?: boolean;
     }) => {
       // --synthesize implies --llm
       if (options.synthesize) options.llm = true;
-      await mineCommand(options);
+      await mineCommand({
+        project: options.project,
+        verbose: options.verbose,
+        llm: options.llm,
+        synthesize: options.synthesize,
+        force: options.force,
+        dryRun: options.dryRun,
+        noScrape: options.scrape === false,
+        fullScrape: options.fullScrape,
+      });
+    }
+  );
+
+program
+  .command("make")
+  .description("triage mined clusters into skill edits or new skills via LLM (auto-promotes new skills to canonical + syncs)")
+  .option("--max-new <n>", "max new skills to create per run (default 3)", (v) => parseInt(v, 10))
+  .option("--min-score <f>", "minimum cluster score to consider (default 0.5)", (v) => parseFloat(v))
+  .option("--limit <n>", "max clusters to consider per run (default 20)", (v) => parseInt(v, 10))
+  .option("--dry-run", "print triage decisions without writing files or state")
+  .option("--force", "reconsider clusters already processed in a prior run")
+  .option("--draft", "write new skills to ~/.skillset/drafts/ for manual review instead of auto-promoting")
+  .action(
+    async (options: {
+      maxNew?: number;
+      minScore?: number;
+      limit?: number;
+      dryRun?: boolean;
+      force?: boolean;
+      draft?: boolean;
+    }) => {
+      await makeCommand(options);
     }
   );
 
@@ -126,7 +148,7 @@ program
 program
   .command("doctor")
   .description("check store health, LLM connectivity, mirror state, and session data")
-  .option("-v, --verbose", "show extra detail (e.g., list all available Ollama models)")
+  .option("-v, --verbose", "show extra detail")
   .action(async (options: { verbose?: boolean }) => {
     await doctorCommand(options);
   });

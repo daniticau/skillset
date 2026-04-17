@@ -7,30 +7,64 @@ import {
 } from "../src/mine/llm/client.js";
 
 describe("defaultLLMConfig", () => {
+  const origProvider = process.env.SKILLSET_LLM_PROVIDER;
   const origUrl = process.env.SKILLSET_LLM_URL;
   const origModel = process.env.SKILLSET_LLM_MODEL;
 
   afterEach(() => {
+    if (origProvider) process.env.SKILLSET_LLM_PROVIDER = origProvider;
+    else delete process.env.SKILLSET_LLM_PROVIDER;
     if (origUrl) process.env.SKILLSET_LLM_URL = origUrl;
     else delete process.env.SKILLSET_LLM_URL;
     if (origModel) process.env.SKILLSET_LLM_MODEL = origModel;
     else delete process.env.SKILLSET_LLM_MODEL;
   });
 
-  it("uses Ollama defaults when no env vars", () => {
+  it("defaults to Anthropic Haiku when no env vars", () => {
+    delete process.env.SKILLSET_LLM_PROVIDER;
     delete process.env.SKILLSET_LLM_URL;
     delete process.env.SKILLSET_LLM_MODEL;
     const cfg = defaultLLMConfig();
+    expect(cfg.provider).toBe("anthropic");
+    expect(cfg.baseUrl).toBe("https://api.anthropic.com");
+    expect(cfg.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("uses Ollama defaults when SKILLSET_LLM_PROVIDER=ollama", () => {
+    process.env.SKILLSET_LLM_PROVIDER = "ollama";
+    delete process.env.SKILLSET_LLM_URL;
+    delete process.env.SKILLSET_LLM_MODEL;
+    const cfg = defaultLLMConfig();
+    expect(cfg.provider).toBe("ollama");
     expect(cfg.baseUrl).toBe("http://localhost:11434/v1");
     expect(cfg.model).toBe("qwen3-coder");
   });
 
-  it("respects env overrides", () => {
+  it("respects env overrides with matching provider", () => {
+    process.env.SKILLSET_LLM_PROVIDER = "ollama";
     process.env.SKILLSET_LLM_URL = "http://custom:9999/v1";
     process.env.SKILLSET_LLM_MODEL = "custom-model";
     const cfg = defaultLLMConfig();
     expect(cfg.baseUrl).toBe("http://custom:9999/v1");
     expect(cfg.model).toBe("custom-model");
+  });
+
+  it("honors SKILLSET_LLM_MODEL for Anthropic when it's a claude-* name", () => {
+    delete process.env.SKILLSET_LLM_PROVIDER;
+    delete process.env.SKILLSET_LLM_URL;
+    process.env.SKILLSET_LLM_MODEL = "claude-sonnet-4-5-20250929";
+    const cfg = defaultLLMConfig();
+    expect(cfg.provider).toBe("anthropic");
+    expect(cfg.model).toBe("claude-sonnet-4-5-20250929");
+  });
+
+  it("ignores Ollama-shaped SKILLSET_LLM_MODEL when provider is Anthropic", () => {
+    delete process.env.SKILLSET_LLM_PROVIDER;
+    delete process.env.SKILLSET_LLM_URL;
+    process.env.SKILLSET_LLM_MODEL = "qwen3-coder";
+    const cfg = defaultLLMConfig();
+    expect(cfg.provider).toBe("anthropic");
+    expect(cfg.model).toBe("claude-haiku-4-5-20251001");
   });
 });
 

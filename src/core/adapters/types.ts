@@ -1,12 +1,41 @@
 import type { AgentKind } from "../config.js";
+import type { ParsedSkill } from "../skill.js";
+
+/**
+ * How an agent stores its skills on disk.
+ *   per-skill-dir   — one directory per skill (Claude Code)
+ *   per-skill-file  — one file per skill (Cursor .mdc)
+ *   aggregate-file  — all skills in one managed file (Codex AGENTS.md)
+ */
+export type MirrorLayout = "per-skill-dir" | "per-skill-file" | "aggregate-file";
 
 export interface AgentAdapter {
   kind: AgentKind;
   defaultPath: string;
   displayName: string;
-  // Heuristic presence check: does the user appear to have this agent installed?
-  // Used by `init` for auto-linking. May have false negatives (returns a concrete path
-  // if detected, null otherwise — path can override defaultPath if the agent lives
-  // somewhere non-standard).
-  detect: () => Promise<{ path: string } | null>;
+  layout: MirrorLayout;
+
+  /**
+   * Heuristic presence check: does the user appear to have this agent installed?
+   * Returns the concrete target path if detected, null otherwise.
+   */
+  detect(): Promise<{ path: string } | null>;
+
+  // Per-skill layouts (per-skill-dir, per-skill-file):
+  /** Write one skill into the mirror. Returns a path or identifier for logging. */
+  mirrorSkill?(skill: ParsedSkill, targetRoot: string): Promise<string>;
+  /** Hash the mirror's representation of this skill (for user-edit detection). */
+  hashMirrorSkill?(name: string, targetRoot: string): Promise<string | null>;
+  /** Read a mirror-side skill back as a ParsedSkill (for promotion / adoption). */
+  readMirrorSkill?(name: string, targetRoot: string): Promise<ParsedSkill | null>;
+  /** List skill names present in the mirror. */
+  listMirrorSkills?(targetRoot: string): Promise<string[]>;
+  /** Delete a skill from the mirror (for prune-on-canonical-delete). */
+  removeMirrorSkill?(name: string, targetRoot: string): Promise<void>;
+
+  // Aggregate-file layout:
+  /** Rewrite the aggregate file with all current canonical skills. */
+  mirrorAll?(skills: ParsedSkill[], targetRoot: string): Promise<string>;
+  /** Hash the aggregate file's managed region (for drift detection). */
+  hashAggregate?(targetRoot: string): Promise<string | null>;
 }

@@ -4,10 +4,12 @@ export { chunkSession, estimateTokens } from "./chunker.js";
 export {
   defaultLLMConfig,
   isAvailable,
+  chat,
   chatCompletion,
   embed,
   parseLLMJson,
   detectEmbeddingModel,
+  resolveProvider,
   extractionSystemPrompt,
   extractionUserPrompt,
   synthesisSystemPrompt,
@@ -21,6 +23,7 @@ export type {
   CompletionResult,
   EmbeddingResult,
   ConversationWindow,
+  Provider,
 } from "./llm/index.js";
 export {
   readMineState,

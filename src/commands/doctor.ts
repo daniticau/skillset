@@ -58,17 +58,23 @@ async function sectionPaths(): Promise<void> {
 
 async function sectionLLM(verbose: boolean): Promise<void> {
   const config = defaultLLMConfig();
-  console.log(pc.bold("LLM (local Ollama)"));
-  console.log(
-    `  ${label("endpoint")} ${pc.dim(config.baseUrl)}${
-      process.env.SKILLSET_LLM_URL ? pc.dim(" (from env)") : pc.dim(" (default)")
-    }`
-  );
+  const providerLabel =
+    config.provider === "anthropic" ? "Anthropic API" : "local Ollama";
+  console.log(pc.bold(`LLM (${providerLabel})`));
+  console.log(`  ${label("provider")} ${pc.dim(config.provider)}`);
+  const modelFromEnv = process.env.SKILLSET_LLM_MODEL === config.model;
   console.log(
     `  ${label("model")} ${pc.dim(config.model)}${
-      process.env.SKILLSET_LLM_MODEL ? pc.dim(" (from env)") : pc.dim(" (default)")
+      modelFromEnv ? pc.dim(" (from env)") : pc.dim(" (default)")
     }`
   );
+  if (config.provider === "ollama") {
+    console.log(
+      `  ${label("endpoint")} ${pc.dim(config.baseUrl)}${
+        process.env.SKILLSET_LLM_URL ? pc.dim(" (from env)") : pc.dim(" (default)")
+      }`
+    );
+  }
   console.log(
     `  ${label("embedding")} ${pc.dim(config.embeddingModel ?? "(unset — TF-IDF fallback)")}`
   );
@@ -79,21 +85,25 @@ async function sectionLLM(verbose: boolean): Promise<void> {
 
   if (!avail.reachable) {
     console.log(`  ${label("reachable")} ${ERR} ${pc.red(avail.reason ?? "unknown")}`);
-    console.log(pc.dim(`    Is Ollama running on the host? Try:`));
-    console.log(pc.dim(`      curl ${config.baseUrl.replace(/\/v1\/?$/, "")}/api/tags`));
-    console.log(pc.dim(`    If remote, ensure Ollama binds to 0.0.0.0:`));
-    console.log(pc.dim(`      OLLAMA_HOST=0.0.0.0:11434 ollama serve`));
+    if (config.provider === "anthropic") {
+      console.log(pc.dim(`    Set ANTHROPIC_API_KEY in ~/.skillset/.env or your shell.`));
+    } else {
+      console.log(pc.dim(`    Is Ollama running on the host? Try:`));
+      console.log(pc.dim(`      curl ${config.baseUrl.replace(/\/v1\/?$/, "")}/api/tags`));
+    }
   } else {
     console.log(`  ${label("reachable")} ${OK}`);
     if (avail.modelPresent) {
       console.log(`  ${label("model found")} ${OK}`);
     } else {
       console.log(
-        `  ${label("model found")} ${ERR} ${pc.red(`"${config.model}" not pulled`)}`
+        `  ${label("model found")} ${ERR} ${pc.red(`"${config.model}" not available`)}`
       );
-      console.log(pc.dim(`    pull it: ${pc.bold(`ollama pull ${config.model}`)}`));
+      if (config.provider === "ollama") {
+        console.log(pc.dim(`    pull it: ${pc.bold(`ollama pull ${config.model}`)}`));
+      }
     }
-    if (verbose || !avail.modelPresent) {
+    if ((verbose || !avail.modelPresent) && config.provider === "ollama") {
       const list = avail.models.length > 0 ? avail.models.join(", ") : "(none)";
       console.log(`  ${label("available")} ${pc.dim(list)}`);
     }
@@ -139,23 +149,24 @@ async function sectionSessions(): Promise<void> {
   console.log(pc.bold("Sessions"));
   const stats = getSessionStats();
   if (stats.userSessions === 0) {
-    console.log(pc.dim("  no sessions in ~/.claude/projects/"));
-  } else {
-    const subagent =
-      stats.sidechainSessions > 0
-        ? `, ${stats.sidechainSessions} subagent runs`
-        : "";
     console.log(
-      `  ${label("claude-code")} ${pc.dim(
-        `${stats.userSessions} user sessions${subagent} across ${stats.projects} projects (${(stats.totalSizeBytes / 1024 / 1024).toFixed(1)} MB)`
-      )}`
+      pc.dim(`  no scraped sessions in ${SESSIONS_DIR} — run ${pc.bold("skillset mine")} to scrape + mine`)
     );
+    console.log();
+    return;
   }
 
-  if (existsSync(SESSIONS_DIR)) {
-    const scrapedCount = await countDirs(SESSIONS_DIR);
-    console.log(`  ${label("scraped")} ${pc.dim(`${scrapedCount} source folders → ${SESSIONS_DIR}`)}`);
+  for (const src of ["claude-code", "codex", "cursor"] as const) {
+    const entry = stats.bySource[src];
+    if (entry.sessions === 0) continue;
+    const mb = (entry.bytes / 1024 / 1024).toFixed(1);
+    console.log(`  ${label(src)} ${pc.dim(`${entry.sessions} sessions (${mb} MB)`)}`);
   }
+  console.log(
+    `  ${label("total")} ${pc.dim(
+      `${stats.userSessions} sessions across ${stats.projects} project slug(s) (${(stats.totalSizeBytes / 1024 / 1024).toFixed(1)} MB)`
+    )}`
+  );
   console.log();
 }
 
