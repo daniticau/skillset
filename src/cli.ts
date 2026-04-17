@@ -9,6 +9,7 @@ import { listCommand } from "./commands/list.js";
 import { mineCommand } from "./commands/mine.js";
 import { synthesizeCommand } from "./commands/synthesize.js";
 import { makeCommand } from "./commands/make.js";
+import { deepDiveCommand } from "./commands/deep-dive.js";
 import { draftsCommand, promoteCommand, discardDraftCommand } from "./commands/drafts.js";
 import { doctorCommand } from "./commands/doctor.js";
 
@@ -129,6 +130,16 @@ program
       await makeCommand(options);
     }
   );
+
+program
+  .command("deep-dive")
+  .description("one-shot onboarding pass: ingest ALL history and generate foundational skills (resumable)")
+  .option("--max <n>", "cap on new skills this run (default 10)", (v) => parseInt(v, 10))
+  .option("--restart", "discard any prior checkpoint and start fresh")
+  .option("--dry-run", "print the plan without writing files or committing")
+  .action(async (options: { max?: number; restart?: boolean; dryRun?: boolean }) => {
+    await deepDiveCommand(options);
+  });
 
 program
   .command("drafts")
