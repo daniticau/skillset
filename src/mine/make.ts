@@ -23,7 +23,13 @@ import {
   editRewriteUserPrompt,
 } from "./llm/index.js";
 import { storeSkillDir, listStoreSkills } from "../core/store.js";
-import { readSkillMd, parseSkillMd } from "../core/skill.js";
+import {
+  readSkillMd,
+  parseSkillMd,
+  isSkillTier,
+  renderSkillMd,
+} from "../core/skill.js";
+import type { SkillTier } from "../core/skill.js";
 import { writeDraftSkill, DRAFTS_DIR } from "./synthesize.js";
 import type { SynthesizedSkill } from "./synthesize.js";
 
@@ -33,8 +39,14 @@ export interface SkillSummary {
 }
 
 export type SkillAction =
-  | { kind: "edit"; targetName: string; rationale?: string }
-  | { kind: "create"; name: string; description: string; rationale?: string }
+  | { kind: "edit"; targetName: string; tier: SkillTier; rationale?: string }
+  | {
+      kind: "create";
+      name: string;
+      description: string;
+      tier: SkillTier;
+      rationale?: string;
+    }
   | { kind: "skip"; reason?: string };
 
 export async function loadExistingSkillSummaries(): Promise<SkillSummary[]> {
@@ -71,14 +83,19 @@ function slugify(s: string): string {
  *  - CREATE with a name that already exists → EDIT on that name
  *  - CREATE when budget is 0 → SKIP
  */
+function coerceTier(raw: unknown): SkillTier {
+  return isSkillTier(raw) ? raw : "low";
+}
+
 function normalizeAction(
   raw: unknown,
   summaries: SkillSummary[],
   budgetRemaining: number
 ): SkillAction {
-  const obj = raw as { kind?: string } | null;
+  const obj = raw as { kind?: string; tier?: unknown } | null;
   const kind = obj?.kind;
   const existing = new Set(summaries.map((s) => s.name));
+  const tier = coerceTier(obj?.tier);
 
   if (kind === "skip") {
     const reason = (obj as { reason?: unknown }).reason;
@@ -107,10 +124,11 @@ function normalizeAction(
         kind: "create",
         name: slug,
         description: rationale ?? `Derived from EDIT of missing skill "${target}"`,
+        tier,
         rationale: rationale ?? "coerced from EDIT on missing target",
       };
     }
-    return { kind: "edit", targetName: target, rationale };
+    return { kind: "edit", targetName: target, tier, rationale };
   }
 
   if (kind === "create") {
@@ -125,6 +143,7 @@ function normalizeAction(
       return {
         kind: "edit",
         targetName: slug,
+        tier,
         rationale: rationale ?? `CREATE name "${slug}" collided with existing skill`,
       };
     }
@@ -133,7 +152,7 @@ function normalizeAction(
         ? r.description
         : "Personalization skill synthesized from observed behavior";
     const rationale = typeof r.rationale === "string" ? r.rationale : undefined;
-    return { kind: "create", name: slug, description, rationale };
+    return { kind: "create", name: slug, description, tier, rationale };
   }
 
   return { kind: "skip", reason: `triage returned unknown kind: ${String(kind)}` };
@@ -161,9 +180,20 @@ export async function planSkillAction(
   return normalizeAction(parsed, summaries, budgetRemaining);
 }
 
+function tierRank(t: SkillTier | undefined): number {
+  if (t === "high") return 2;
+  if (t === "medium") return 1;
+  if (t === "low") return 0;
+  return -1;
+}
+
 /**
  * Rewrite the target canonical skill to incorporate a new cluster's evidence.
- * Writes back to ~/.skillset/skills/<name>/SKILL.md directly.
+ * Writes back to ~/.skillset/skills/<name>/SKILL.md directly. Tier and origin are
+ * preserved (tier may upgrade, never downgrade) regardless of what the LLM emits.
+ *
+ * Caller is responsible for refusing to call executeEdit on origin=user-created
+ * skills — this function trusts the triage layer to filter.
  */
 export async function executeEdit(
   targetName: string,
@@ -173,6 +203,10 @@ export async function executeEdit(
   const dir = storeSkillDir(targetName);
   const skillPath = join(dir, "SKILL.md");
   const current = await readFile(skillPath, "utf8");
+  const currentParsed = parseSkillMd(current);
+  const existingTier = currentParsed.frontmatter.tier;
+  const existingOrigin = currentParsed.frontmatter.origin;
+  const existingLicense = currentParsed.frontmatter.license;
 
   const result = await chat(config, {
     messages: [
@@ -183,20 +217,33 @@ export async function executeEdit(
     maxTokens: 1800,
   });
 
-  let body = result.content.trim();
-  if (body.startsWith("```")) {
-    body = body.replace(/^```(?:\w+)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+  let raw = result.content.trim();
+  if (raw.startsWith("```")) {
+    raw = raw.replace(/^```(?:\w+)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   }
 
   // Validate — ensure the LLM kept a well-formed SKILL.md.
-  const parsed = parseSkillMd(body);
-  if (parsed.frontmatter.name !== targetName) {
-    // Never let EDIT rename a skill — coerce the name back.
-    body = body.replace(/^name:\s*.+$/m, `name: ${targetName}`);
-    parseSkillMd(body);
+  const rewritten = parseSkillMd(raw);
+  // Never let EDIT rename a skill.
+  const finalName = targetName;
+  // Never downgrade tier. If the LLM dropped the field on a tiered skill, restore it.
+  let finalTier = rewritten.frontmatter.tier;
+  if (existingTier && (finalTier === undefined || tierRank(finalTier) < tierRank(existingTier))) {
+    finalTier = existingTier;
   }
 
-  await writeFile(skillPath, body.endsWith("\n") ? body : body + "\n", "utf8");
+  const body = renderSkillMd(
+    {
+      name: finalName,
+      description: rewritten.frontmatter.description,
+      tier: finalTier,
+      license: rewritten.frontmatter.license ?? existingLicense,
+      origin: existingOrigin,
+    },
+    rewritten.body
+  );
+
+  await writeFile(skillPath, body, "utf8");
   return { path: skillPath };
 }
 
@@ -227,20 +274,27 @@ export async function executeCreate(
   // Try to parse as a full SKILL.md; fall back to treating the whole thing as body.
   let description = action.description;
   let body = raw;
+  let parsedTier: SkillTier | undefined;
   try {
     const parsed = parseSkillMd(raw);
     body = parsed.body.trim();
     if (parsed.frontmatter.description && parsed.frontmatter.description.length > 0) {
       description = parsed.frontmatter.description;
     }
+    parsedTier = parsed.frontmatter.tier;
   } catch {
     // keep raw body + action-supplied description
   }
+
+  // Triage tier wins over whatever the synthesis prompt emitted — triage saw
+  // the cluster + existing skills and is the source of truth for tier policy.
+  const tier = action.tier ?? parsedTier ?? "low";
 
   const skill: SynthesizedSkill = {
     name: action.name,
     description,
     body,
+    tier,
     sourceClusterIds: [cluster.id],
     score: cluster.score,
     memberCount: cluster.members.length,

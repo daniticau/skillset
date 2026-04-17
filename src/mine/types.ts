@@ -138,7 +138,6 @@ export interface NuggetCluster {
 export interface MinePipelineOptions {
   project?: string;
   llm?: boolean;
-  synthesize?: boolean;
   verbose?: boolean;
   dryRun?: boolean;
   force?: boolean;

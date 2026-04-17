@@ -81,11 +81,20 @@ export function extractionUserPrompt(window: ConversationWindow): string {
   return `Conversation window from project "${window.project}":${hits}\n\n${formatted}\n\nExtract signals as JSON:`;
 }
 
+const TIER_DEFINITIONS = `Tier definitions (used in YAML frontmatter \`tier\` field):
+- high: narrow style/typography rules, single-fact corrections, anything where being wrong has trivial cost (e.g. "no em-dashes", "use pnpm not npm"). Auto-installed silently.
+- medium: workflow preferences, tool-routing rules, anti-patterns at a single tool/library level (e.g. "before X, run Y", "don't mock the database in tests"). Auto-installed with a notice.
+- low: broad behavior changes that affect how the AI reasons about a class of problems (e.g. "always start with TDD", "decompose long tasks into sub-agents"). Held as a draft for human review.
+
+When in doubt between two tiers, choose the lower (more conservative) one.`;
+
 const SYNTHESIS_SYSTEM = `You synthesize a user's personalization signals into a reusable SKILL.md file that a coding AI will read at the start of every session.
 
 A SKILL.md file has:
-1. YAML frontmatter with \`name\` (kebab-case) and \`description\` (one sentence describing when to apply)
+1. YAML frontmatter with \`name\` (kebab-case), \`description\` (one sentence describing when to apply), and \`tier\` (high|medium|low)
 2. Markdown body with clear instructions (imperative mood, under 400 words)
+
+${TIER_DEFINITIONS}
 
 Rules:
 - Be specific and actionable. "Use pnpm" not "The user has package manager preferences".
@@ -166,15 +175,18 @@ export function triageSystemPrompt(
     "  2. CREATE — the pattern is distinct from every existing skill AND actionable enough to justify a new file.",
     "  3. SKIP — the pattern is noise, too narrow, not actionable, or the evidence is thin.",
     "",
+    TIER_DEFINITIONS,
+    "",
     "Rules:",
     "- Prefer EDIT over CREATE. New skills compound clutter. If any existing skill meaningfully overlaps, choose EDIT.",
     "- If budget remaining is 0, never CREATE — SKIP with reason \"budget exceeded\".",
+    "- Every EDIT and CREATE must include a `tier` field (high|medium|low).",
     "- Only return one action.",
     "- Output strict JSON. No prose, no code fences.",
     "",
     "JSON shapes:",
-    '  {"kind":"edit","targetName":"<existing skill name>","rationale":"..."}',
-    '  {"kind":"create","name":"<kebab-case>","description":"<one sentence>","rationale":"..."}',
+    '  {"kind":"edit","targetName":"<existing skill name>","tier":"<high|medium|low>","rationale":"..."}',
+    '  {"kind":"create","name":"<kebab-case>","description":"<one sentence>","tier":"<high|medium|low>","rationale":"..."}',
     '  {"kind":"skip","reason":"..."}',
   ].join("\n");
 }
@@ -210,6 +222,11 @@ export function editRewriteSystemPrompt(): string {
     "Preserve the existing structure and tone. Only add or adjust rules the new evidence supports.",
     "Don't bloat the file — a crisp skill beats a comprehensive one.",
     "Keep the YAML `name` field exactly as-is. You may refine the `description` if the new evidence warrants it.",
+    "",
+    TIER_DEFINITIONS,
+    "",
+    "If the existing frontmatter has a `tier` field, preserve it unless the new evidence clearly justifies an UPGRADE (low → medium → high). Never downgrade tier.",
+    "If the existing skill has no `tier`, leave it absent unless you're confident — most legacy skills should remain untiered.",
     "",
     "Output format: complete SKILL.md with YAML frontmatter followed by the markdown body. No commentary before or after. No code fences.",
   ].join("\n");

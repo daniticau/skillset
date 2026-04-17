@@ -11,8 +11,19 @@ export async function syncCommand(): Promise<void> {
 
   const promoted = report.actions.filter((a) => a.kind === "promoted");
   const adopted = report.actions.filter((a) => a.kind === "adopted");
+  const conflicts = report.actions.filter((a) => a.kind === "conflict");
   const mirrored = report.actions.filter((a) => a.kind === "mirrored");
 
+  for (const a of conflicts) {
+    if (a.kind !== "conflict") continue;
+    const winnerName = getAdapter(a.winner.agent).displayName;
+    const loserNames = a.losers.map((l) => getAdapter(l.agent).displayName).join(", ");
+    console.log(
+      pc.yellow(
+        `⚠ conflict on "${a.skill}" — ${winnerName} won (newest mtime); archived ${a.losers.length} loser(s) [${loserNames}] to ${a.archive}`
+      )
+    );
+  }
   for (const a of promoted) {
     if (a.kind !== "promoted") continue;
     console.log(

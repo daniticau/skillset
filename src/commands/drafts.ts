@@ -10,7 +10,7 @@ export async function draftsCommand(): Promise<void> {
   if (drafts.length === 0) {
     console.log(
       pc.dim(
-        `no drafts found at ${DRAFTS_DIR}\nrun ${pc.bold("skillset mine --llm --synthesize")} to generate some`
+        `no drafts found at ${DRAFTS_DIR}\nrun ${pc.bold("skillset synthesize")} to generate some`
       )
     );
     return;

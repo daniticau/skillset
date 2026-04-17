@@ -26,6 +26,12 @@ export interface AgentAdapter {
   mirrorSkill?(skill: ParsedSkill, targetRoot: string): Promise<string>;
   /** Hash the mirror's representation of this skill (for user-edit detection). */
   hashMirrorSkill?(name: string, targetRoot: string): Promise<string | null>;
+  /**
+   * Last-modified time (ms since epoch) of the mirror's content for this skill.
+   * Used as a tiebreaker when multiple mirrors of the same skill diverge from
+   * canonical (and from each other) — newest edit wins.
+   */
+  mirrorSkillMtimeMs?(name: string, targetRoot: string): Promise<number | null>;
   /** Read a mirror-side skill back as a ParsedSkill (for promotion / adoption). */
   readMirrorSkill?(name: string, targetRoot: string): Promise<ParsedSkill | null>;
   /** List skill names present in the mirror. */

@@ -1,10 +1,15 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readConfig, readState, writeState } from "./config.js";
-import type { Link, SkillState, State } from "./config.js";
-import { hashSkillDir, readSkillMd } from "./skill.js";
-import type { ParsedSkill } from "./skill.js";
+import {
+  readConfig,
+  readState,
+  writeState,
+  initialSkillState,
+} from "./config.js";
+import type { ConflictRecord, Link, SkillState, State } from "./config.js";
+import { hashSkillDir, readSkillMd, renderSkillMd } from "./skill.js";
+import type { ParsedSkill, SkillFrontmatter, SkillOrigin } from "./skill.js";
 import {
   listStoreSkills,
   storeSkillDir,
@@ -12,12 +17,13 @@ import {
 } from "./store.js";
 import { getAdapter } from "./adapters/index.js";
 import type { AgentAdapter } from "./adapters/index.js";
+import { CONFLICTS_DIR } from "./paths.js";
 
 export type SyncAction =
   | { kind: "promoted"; skill: string; from: Link }
   | { kind: "mirrored"; skill: string; to: Link }
   | { kind: "adopted"; skill: string; from: Link }
-  | { kind: "conflict"; skill: string; link: Link }
+  | { kind: "conflict"; skill: string; winner: Link; losers: Link[]; archive: string }
   | { kind: "removed-from-mirror"; skill: string; link: Link };
 
 export interface SyncReport {
@@ -30,34 +36,119 @@ function linkKey(link: Link): string {
   return `${link.agent}:${link.path}`;
 }
 
-function initialSkillState(): SkillState {
-  return { canonicalHash: "", mirrorHashes: {}, userModified: false };
+/**
+ * Merge a skill parsed from a mirror with a canonical's prior frontmatter so
+ * that metadata the mirror format can't carry (tier on cursor .mdc, origin on
+ * every adapter today) survives round-trip edits.
+ *
+ * Priority: mirror value > prior canonical value > default. For origin, default
+ * is `fallbackOrigin` — callers pass "user-created" for adoption, and the prior
+ * origin (via prior.origin) for promotion, so auto-created never silently
+ * downgrades to user-created.
+ */
+function mergeFrontmatter(
+  mirror: SkillFrontmatter,
+  prior: SkillFrontmatter | null,
+  fallbackOrigin: SkillOrigin
+): SkillFrontmatter {
+  return {
+    name: mirror.name,
+    description: mirror.description,
+    tier: mirror.tier ?? prior?.tier,
+    license: mirror.license ?? prior?.license,
+    origin: mirror.origin ?? prior?.origin ?? fallbackOrigin,
+  };
 }
 
 /**
  * Write a ParsedSkill back to the canonical store (after promotion or adoption
- * from a non-Claude-Code mirror). Only writes SKILL.md; doesn't touch other
- * files that may coexist in the canonical dir for per-dir layouts.
+ * from a mirror). Only writes SKILL.md; doesn't touch other files that may
+ * coexist in the canonical dir for per-dir layouts.
+ *
+ * Reads the prior canonical frontmatter (if any) to preserve tier/license/origin
+ * when the mirror format can't carry them.
  */
-async function writeCanonicalSkillFile(skill: ParsedSkill): Promise<void> {
+async function writeCanonicalSkillFile(
+  skill: ParsedSkill,
+  fallbackOrigin: SkillOrigin
+): Promise<void> {
   const dir = storeSkillDir(skill.frontmatter.name);
   await mkdir(dir, { recursive: true });
-  const fm = [
-    "---",
-    `name: ${skill.frontmatter.name}`,
-    `description: ${JSON.stringify(skill.frontmatter.description)}`,
-  ];
-  if (skill.frontmatter.license) {
-    fm.push(`license: ${JSON.stringify(skill.frontmatter.license)}`);
+  let prior: SkillFrontmatter | null = null;
+  if (existsSync(join(dir, "SKILL.md"))) {
+    try {
+      const parsedPrior = await readSkillMd(dir);
+      prior = parsedPrior.frontmatter;
+    } catch {
+      prior = null;
+    }
   }
-  fm.push("---", "");
-  const body = skill.body.trim();
-  await writeFile(join(dir, "SKILL.md"), fm.join("\n") + body + "\n", "utf8");
+  const merged = mergeFrontmatter(skill.frontmatter, prior, fallbackOrigin);
+  await writeFile(join(dir, "SKILL.md"), renderSkillMd(merged, skill.body), "utf8");
+}
+
+/**
+ * When 2+ mirrors of the same skill have diverged from canonical, the newest
+ * mtime wins; the rest are archived to ~/.skillset/conflicts/<ts>/<skill>/<adapter>/
+ * with a CONTEXT.md describing the conflict, so the user can recover lost work.
+ */
+async function archiveLosers(
+  skillName: string,
+  losers: Array<{
+    link: Link;
+    adapter: AgentAdapter;
+    key: string;
+    hash: string;
+    mtime: number;
+  }>,
+  canonicalHashBefore: string,
+  winner: { link: Link; key: string; mtime: number }
+): Promise<string> {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const archiveRoot = join(CONFLICTS_DIR, ts, skillName);
+  await mkdir(archiveRoot, { recursive: true });
+  for (const loser of losers) {
+    const adapterDir = join(archiveRoot, loser.link.agent);
+    await mkdir(adapterDir, { recursive: true });
+    const parsed = loser.adapter.readMirrorSkill
+      ? await loser.adapter.readMirrorSkill(skillName, loser.link.path)
+      : null;
+    if (parsed) {
+      await writeFile(
+        join(adapterDir, "SKILL.md"),
+        renderSkillMd(parsed.frontmatter, parsed.body),
+        "utf8"
+      );
+    }
+    const ctx = [
+      `# Conflict — ${skillName}`,
+      ``,
+      `Recorded at: ${new Date().toISOString()}`,
+      `This mirror lost the conflict (older mtime).`,
+      ``,
+      `- Loser adapter: ${loser.link.agent} (${loser.link.path})`,
+      `- Loser mtime: ${new Date(loser.mtime).toISOString()}`,
+      `- Loser hash:  ${loser.hash}`,
+      ``,
+      `- Winner adapter: ${winner.link.agent} (${winner.link.path})`,
+      `- Winner mtime:   ${new Date(winner.mtime).toISOString()}`,
+      ``,
+      `- Canonical hash before conflict: ${canonicalHashBefore || "(none — first sync)"}`,
+      ``,
+      `Recover by editing the canonical store at ~/.skillset/skills/${skillName}/SKILL.md and merging desired content from this archive.`,
+      ``,
+    ].join("\n");
+    await writeFile(join(adapterDir, "CONTEXT.md"), ctx, "utf8");
+  }
+  return archiveRoot;
 }
 
 /** Adoption pass: any skill that exists in a per-skill mirror but not in the
  *  canonical store gets promoted into canonical.  Aggregate-file mirrors are
- *  skipped — v1 doesn't support user-edit promotion from a shared file. */
+ *  skipped — v1 doesn't support user-edit promotion from a shared file.
+ *
+ *  Mirror-born skills are tagged origin="user-created" — the user put them there,
+ *  so automation must never touch them. */
 async function adoptFromMirrors(
   config: { links: Link[] },
   state: State,
@@ -72,7 +163,12 @@ async function adoptFromMirrors(
       if (state.skills[name]) continue; // already tracked
       const parsed = await adapter.readMirrorSkill(name, link.path);
       if (!parsed) continue;
-      await writeCanonicalSkillFile(parsed);
+      await writeCanonicalSkillFile(parsed, "user-created");
+      // Seed state so the next pass treats the skill as tracked. canonicalHash
+      // and mirrorHashes get filled in the main loop below.
+      state.skills[name] = initialSkillState("user-created", {
+        createdBy: "manual",
+      });
       actions.push({ kind: "adopted", skill: name, from: link });
     }
   }
@@ -96,17 +192,32 @@ export async function sync(): Promise<SyncReport> {
 
   const storeSkillNames = await listStoreSkills();
 
-  // Per-skill layouts: canonical → each mirror, with user-edit promotion.
   for (const name of storeSkillNames) {
     await validateStoreSkill(name);
     const canonicalDir = storeSkillDir(name);
-    const prior = state.skills[name] ?? initialSkillState();
+    // When state lacks this skill (first sync after promote / manual add), seed
+    // origin from canonical frontmatter — which is the source of truth. Missing
+    // frontmatter origin falls back to "user-created" (safest default).
+    let prior = state.skills[name];
+    if (!prior) {
+      const canonicalParsed = await readSkillMd(canonicalDir).catch(() => null);
+      const fmOrigin: SkillOrigin =
+        canonicalParsed?.frontmatter.origin ?? "user-created";
+      prior = initialSkillState(fmOrigin);
+    }
     const current: SkillState = {
       ...prior,
       mirrorHashes: { ...prior.mirrorHashes },
     };
 
-    // Detect and promote user edits from per-skill mirrors.
+    const canonicalHashBefore = prior.canonicalHash;
+    const divergences: Array<{
+      link: Link;
+      adapter: AgentAdapter;
+      key: string;
+      hash: string;
+      mtime: number;
+    }> = [];
     for (const link of config.links) {
       const adapter = getAdapter(link.agent);
       if (adapter.layout === "aggregate-file") continue;
@@ -114,22 +225,56 @@ export async function sync(): Promise<SyncReport> {
       const key = linkKey(link);
       const recorded = prior.mirrorHashes[key];
       const mirrorHash = await adapter.hashMirrorSkill(name, link.path);
-      if (mirrorHash && recorded && mirrorHash !== recorded) {
-        const mirrorParsed = adapter.readMirrorSkill
-          ? await adapter.readMirrorSkill(name, link.path)
-          : null;
-        if (mirrorParsed) {
-          await writeCanonicalSkillFile(mirrorParsed);
-          current.userModified = true;
-          actions.push({ kind: "promoted", skill: name, from: link });
-        }
-      }
+      if (!mirrorHash || !recorded || mirrorHash === recorded) continue;
+      const mtime = adapter.mirrorSkillMtimeMs
+        ? (await adapter.mirrorSkillMtimeMs(name, link.path)) ?? 0
+        : 0;
+      divergences.push({ link, adapter, key, hash: mirrorHash, mtime });
     }
 
-    // Recompute canonical hash after any promotion.
+    if (divergences.length === 1) {
+      const { link, adapter } = divergences[0]!;
+      const mirrorParsed = adapter.readMirrorSkill
+        ? await adapter.readMirrorSkill(name, link.path)
+        : null;
+      if (mirrorParsed) {
+        // Preserve the prior origin — a user edit on an auto-created skill does
+        // NOT make it user-created; it sets userEdited=true instead.
+        await writeCanonicalSkillFile(mirrorParsed, prior.origin);
+        current.userEdited = true;
+        current.lastEditedAt = new Date().toISOString();
+        actions.push({ kind: "promoted", skill: name, from: link });
+      }
+    } else if (divergences.length >= 2) {
+      divergences.sort((a, b) => b.mtime - a.mtime);
+      const winner = divergences[0]!;
+      const losers = divergences.slice(1);
+      const archive = await archiveLosers(name, losers, canonicalHashBefore, winner);
+      const winnerParsed = winner.adapter.readMirrorSkill
+        ? await winner.adapter.readMirrorSkill(name, winner.link.path)
+        : null;
+      if (winnerParsed) {
+        await writeCanonicalSkillFile(winnerParsed, prior.origin);
+        current.userEdited = true;
+        current.lastEditedAt = new Date().toISOString();
+      }
+      const record: ConflictRecord = {
+        at: new Date().toISOString(),
+        winnerAdapter: winner.key,
+        loserCount: losers.length,
+      };
+      current.conflictHistory = [...(prior.conflictHistory ?? []), record];
+      actions.push({
+        kind: "conflict",
+        skill: name,
+        winner: winner.link,
+        losers: losers.map((l) => l.link),
+        archive,
+      });
+    }
+
     current.canonicalHash = await hashSkillDir(canonicalDir);
 
-    // Push canonical → per-skill mirrors.
     const freshParsed = await readSkillMd(canonicalDir);
     for (const link of config.links) {
       const adapter = getAdapter(link.agent);
@@ -191,7 +336,14 @@ export async function sync(): Promise<SyncReport> {
 }
 
 export async function status(): Promise<{
-  skills: Array<{ name: string; userModified: boolean; mirrors: string[] }>;
+  skills: Array<{
+    name: string;
+    userEdited: boolean;
+    origin: SkillOrigin;
+    mirrors: string[];
+    conflicts: number;
+    lastConflictAt?: string;
+  }>;
   links: Array<Link & { layout: AgentAdapter["layout"] }>;
 }> {
   const config = await readConfig();
@@ -200,10 +352,14 @@ export async function status(): Promise<{
   return {
     skills: storeSkillNames.map((name) => {
       const s: State["skills"][string] | undefined = state.skills[name];
+      const history = s?.conflictHistory ?? [];
       return {
         name,
-        userModified: s?.userModified ?? false,
+        userEdited: s?.userEdited ?? false,
+        origin: s?.origin ?? "user-created",
         mirrors: Object.keys(s?.mirrorHashes ?? {}),
+        conflicts: history.length,
+        lastConflictAt: history.length > 0 ? history[history.length - 1]!.at : undefined,
       };
     }),
     links: config.links.map((link) => {

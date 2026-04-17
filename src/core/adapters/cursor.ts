@@ -8,7 +8,7 @@
 
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import matter from "gray-matter";
@@ -87,6 +87,13 @@ export const cursorAdapter: AgentAdapter = {
     if (!existsSync(path)) return null;
     const raw = await readFile(path, "utf8");
     return createHash("sha256").update(raw).digest("hex").slice(0, 16);
+  },
+
+  async mirrorSkillMtimeMs(name: string, targetRoot: string): Promise<number | null> {
+    const path = filePath(targetRoot, name);
+    if (!existsSync(path)) return null;
+    const s = await stat(path);
+    return s.mtimeMs;
   },
 
   async readMirrorSkill(name: string, targetRoot: string): Promise<ParsedSkill | null> {

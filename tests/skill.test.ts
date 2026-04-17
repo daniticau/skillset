@@ -27,4 +27,18 @@ describe("parseSkillMd", () => {
     const src = `---\nname: x\n---\n\nbody`;
     expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
   });
+
+  it("parses missing tier as undefined (legacy compat)", () => {
+    expect(parseSkillMd(VALID).frontmatter.tier).toBeUndefined();
+  });
+
+  it.each(["high", "medium", "low"] as const)("accepts tier=%s", (tier) => {
+    const src = `---\nname: x\ndescription: y\ntier: ${tier}\n---\n\nbody`;
+    expect(parseSkillMd(src).frontmatter.tier).toBe(tier);
+  });
+
+  it("rejects invalid tier value", () => {
+    const src = `---\nname: x\ndescription: y\ntier: critical\n---\n\nbody`;
+    expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
+  });
 });
