@@ -26,5 +26,9 @@ export {
   triageUserPrompt,
   editRewriteSystemPrompt,
   editRewriteUserPrompt,
+  conflictDetectSystemPrompt,
+  conflictDetectUserPrompt,
+  mergePairSystemPrompt,
+  mergePairUserPrompt,
 } from "./prompts.js";
 export type { ConversationWindow } from "./prompts.js";

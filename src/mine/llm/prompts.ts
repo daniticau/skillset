@@ -256,3 +256,89 @@ export function editRewriteUserPrompt(currentSkill: string, cluster: NuggetClust
     "Write the updated SKILL.md. Keep it tight.",
   ].join("\n");
 }
+
+const CONFLICT_DETECT_SYSTEM = `You compare two SKILL.md rules to decide if they directly CONTRADICT each other.
+
+A true conflict means: applying both rules at once is impossible — one says do X, the other says do NOT X, or they give opposing defaults on the same question.
+
+Two rules that touch the same topic but are compatible (e.g. both about commit style, but one says "use imperative" and the other says "don't mention yourself") are NOT a conflict — they're complementary.
+
+Output JSON only:
+{
+  "conflict": boolean,
+  "confidence": 0.0-1.0,
+  "quoteA": "<exact substring of skill A that contradicts B, or empty>",
+  "quoteB": "<exact substring of skill B that contradicts A, or empty>",
+  "rationale": "<one sentence>"
+}
+
+Rules:
+- quoteA and quoteB MUST be verbatim substrings of their respective skills. If you can't quote a contradiction, the answer is not-conflict.
+- confidence < 0.8 = leave it alone. Only flag obvious contradictions.
+- Never flag stylistic overlap (both about naming, both about git) unless the rules actually give opposing instructions.`;
+
+export function conflictDetectSystemPrompt(): string {
+  return CONFLICT_DETECT_SYSTEM;
+}
+
+export function conflictDetectUserPrompt(
+  a: { name: string; body: string },
+  b: { name: string; body: string }
+): string {
+  return [
+    `Skill A: ${a.name}`,
+    "---8<---",
+    a.body.slice(0, 3000),
+    "---8<---",
+    "",
+    `Skill B: ${b.name}`,
+    "---8<---",
+    b.body.slice(0, 3000),
+    "---8<---",
+    "",
+    "Do these directly contradict each other? JSON only.",
+  ].join("\n");
+}
+
+const MERGE_PAIR_SYSTEM = `You are given two SKILL.md rules that overlap heavily and appear to be near-duplicates. Decide whether to merge, and if yes, produce a single combined SKILL.md.
+
+Output JSON only:
+{
+  "merge": boolean,
+  "confidence": 0.0-1.0,
+  "rationale": "<one sentence>",
+  "merged": {
+    "name": "<slug>",
+    "description": "<one sentence>",
+    "body": "<markdown body, no frontmatter>"
+  } | null
+}
+
+Rules:
+- Merge only when the rules are genuine duplicates (same rule phrased two ways) or strict subsets. If they make different-but-compatible points, don't merge.
+- Confidence < 0.8 = don't merge. Conservative beats aggressive.
+- Preserve every distinct nuance from both inputs. If a point appears in exactly one input and isn't implied by the other, it belongs in the merged body.
+- Keep the merged name short and representative.`;
+
+export function mergePairSystemPrompt(): string {
+  return MERGE_PAIR_SYSTEM;
+}
+
+export function mergePairUserPrompt(
+  a: { name: string; body: string },
+  b: { name: string; body: string }
+): string {
+  return [
+    `Skill A: ${a.name}`,
+    "---8<---",
+    a.body.slice(0, 3000),
+    "---8<---",
+    "",
+    `Skill B: ${b.name}`,
+    "---8<---",
+    b.body.slice(0, 3000),
+    "---8<---",
+    "",
+    "Merge or not? JSON only.",
+  ].join("\n");
+}

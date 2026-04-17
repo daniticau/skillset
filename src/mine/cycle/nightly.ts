@@ -49,7 +49,10 @@ import type {
   CycleReport,
   CycleCreatedSkill,
   CycleEditedSkill,
+  CycleMergedSkills,
+  CyclePrunedSkill,
 } from "../../core/audit/git.js";
+import { runCleanup } from "../cleanup/index.js";
 import {
   startCheckpoint,
   advanceCheckpoint,
@@ -266,9 +269,32 @@ export async function runNightlyCycle(
     }
     await advanceCheckpoint("synthesized");
 
-    // 8. Cleanup pass — phase 4 will plug in real conflict/dedup/prune. For
-    //    now we noop but still advance so the stage machine stays consistent.
-    onStage("cleanup", "deferred to phase 4");
+    // 8. Cleanup pass — conflict detection + dedup merge + dry-run prune.
+    //    origin=user-created skills are excluded inside runCleanup.
+    const merged: CycleMergedSkills[] = [];
+    const pruned: CyclePrunedSkill[] = [];
+    if (!options.dryRun && llmAvail.reachable) {
+      onStage("cleanup", "conflict + dedup + prune");
+      const cleanup = await runCleanup({
+        llmConfig,
+        mergeCap: cfg.cycleDefaults.mergeCap,
+        pruneEnabled: cfg.cleanup.pruneEnabled,
+        pruneCap: cfg.cycleDefaults.pruneCap,
+        onEvent: (evt, detail) => onStage(evt, detail),
+      });
+      // Conflicts become "merges" semantically for the audit report (2 in, 1 out).
+      for (const c of cleanup.conflictsResolved) {
+        merged.push({ from: [c.winner, c.loser], into: c.winner });
+      }
+      for (const m of cleanup.merges) {
+        merged.push({ from: m.replaced, into: m.produced });
+      }
+      for (const p of cleanup.prunedCandidates) {
+        pruned.push({ name: p.name, reason: p.reason });
+      }
+    } else {
+      onStage("cleanup", "skipped (dry-run or LLM unavailable)");
+    }
     await advanceCheckpoint("triaged"); // stage name retained for ordering
 
     // 9. Sync + commit
@@ -282,8 +308,8 @@ export async function runNightlyCycle(
         llmProvider: llmConfig.provider,
         createdSkills: created,
         editedSkills: edited,
-        mergedSkills: [],
-        prunedSkills: [],
+        mergedSkills: merged,
+        prunedSkills: pruned,
       };
       const commit = await stageAndCommitCycle(report);
       if (commit) onStage("committed", commit.sha.slice(0, 8));
@@ -292,6 +318,8 @@ export async function runNightlyCycle(
       // 10. Record today's rollup
       await recordReviewedToday({
         skillsProduced: created.length,
+        skillsMerged: merged.length,
+        skillsPruned: pruned.length,
       });
     }
 
@@ -305,8 +333,8 @@ export async function runNightlyCycle(
       llmProvider: llmConfig.provider,
       createdSkills: created,
       editedSkills: edited,
-      mergedSkills: [],
-      prunedSkills: [],
+      mergedSkills: merged,
+      prunedSkills: pruned,
     };
     return { ran: true, report };
   } finally {
