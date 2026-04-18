@@ -11,7 +11,7 @@
  */
 
 import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import pc from "picocolors";
 import { STORE_ROOT, SESSIONS_DIR } from "../../core/paths.js";
@@ -24,8 +24,7 @@ import {
   isAvailable,
   detectEmbeddingModel,
 } from "../index.js";
-import type { LLMConfig, Nugget, NuggetCluster } from "../index.js";
-import { llmExtractFromSessions } from "../llm-extract.js";
+import type { LLMConfig, Nugget, NuggetCluster, ParsedSession } from "../index.js";
 import { deduplicateAndRank } from "../dedup.js";
 import {
   loadExistingSkillSummaries,
@@ -49,15 +48,43 @@ const NUGGETS_DIR = join(STORE_ROOT, "nuggets");
 const NUGGETS_FILE = join(NUGGETS_DIR, "nuggets.json");
 const CLUSTERS_FILE = join(NUGGETS_DIR, "clusters.json");
 
+/**
+ * Max sessions fed into heuristic extraction. Users often have 500–1000
+ * sessions on disk; for a FAST foundational pass we want the most recent
+ * window only. Nightly cycles pick up everything else over time.
+ */
+const DEEP_DIVE_SESSION_CAP = 300;
+
 export interface DeepDiveOptions {
   /** Cap on new skills created in this run (default 10). */
   maxSkills?: number;
+  /** Cap on sessions to process (default 300 most-recent). */
+  maxSessions?: number;
   /** Restart from scratch even if a checkpoint exists. */
   restart?: boolean;
   /** Dry-run — print plan without mutating anything. */
   dryRun?: boolean;
   /** Progress callback for stage transitions. */
   onStage?: (stage: string, detail?: string) => void;
+}
+
+/**
+ * Return only the most-recent N sessions by file mtime. Sessions without a
+ * readable mtime go to the end. Sorted descending (newest first).
+ */
+function sampleRecent(sessions: ParsedSession[], cap: number): ParsedSession[] {
+  if (sessions.length <= cap) return sessions;
+  const scored = sessions.map((s) => {
+    let mtime = 0;
+    try {
+      mtime = statSync(s.filePath).mtimeMs;
+    } catch {
+      mtime = 0;
+    }
+    return { session: s, mtime };
+  });
+  scored.sort((a, b) => b.mtime - a.mtime);
+  return scored.slice(0, cap).map((x) => x.session);
 }
 
 async function saveNuggets(nuggets: Nugget[]): Promise<void> {
@@ -103,6 +130,7 @@ export async function runDeepDive(
   options: DeepDiveOptions = {}
 ): Promise<CycleReport> {
   const maxSkills = options.maxSkills ?? 10;
+  const maxSessions = options.maxSessions ?? DEEP_DIVE_SESSION_CAP;
   const onStage = options.onStage ?? (() => {});
   const startTime = Date.now();
 
@@ -134,11 +162,18 @@ export async function runDeepDive(
       checkpoint = await advanceCheckpoint("scraped");
     }
 
-    // Stage: heuristic-done
-    const sessions = readAllSessions();
+    // Stage: heuristic-done — sample most-recent sessions for a fast pass.
+    // Nightly cycles pick up older + LLM-validated signal over time, so this
+    // deep-dive pass is designed to complete in 5–10 minutes on a typical
+    // machine regardless of total history size.
+    const allSessions = readAllSessions();
+    const sessions = sampleRecent(allSessions, maxSessions);
     let nuggets: Nugget[] = await loadNuggets();
     if (shouldRunStage(checkpoint.stage, "heuristic-done")) {
-      onStage("extract-heuristic", `${sessions.length} sessions`);
+      onStage(
+        "extract-heuristic",
+        `${sessions.length}/${allSessions.length} sessions (recent-first)`
+      );
       if (!options.dryRun) {
         const { nuggets: heuristic } = extractSignal(sessions);
         nuggets = heuristic;
@@ -146,26 +181,24 @@ export async function runDeepDive(
       }
       checkpoint = await advanceCheckpoint("heuristic-done", {
         sessionCount: sessions.length,
+        totalSessions: allSessions.length,
         nuggetCount: nuggets.length,
       });
     }
 
-    // Stage: llm-done (optional — skipped if LLM unavailable)
+    // Stage: llm-done — INTENTIONALLY NO-OP on deep-dive.
+    // Full LLM extraction across every session × every window takes hours on
+    // a CLI-backed subscription; it's deferred to nightly cycles where the
+    // per-night incremental cost is small. The stage name is kept in the
+    // checkpoint sequence so existing checkpoints from prior versions resume
+    // cleanly (they'll just advance past this no-op).
     const llmConfig = defaultLLMConfig();
     const llmAvail = await isAvailable(llmConfig);
     if (shouldRunStage(checkpoint.stage, "llm-done")) {
-      if (llmAvail.reachable && !options.dryRun) {
-        onStage("extract-llm", `via ${llmConfig.provider}`);
-        const { nuggets: llmNuggets } = await llmExtractFromSessions(
-          sessions,
-          nuggets,
-          llmConfig
-        );
-        nuggets = [...nuggets, ...llmNuggets];
-        await saveNuggets(nuggets);
-      } else {
-        onStage("extract-llm", `skipped (${llmAvail.reason ?? "LLM unavailable"})`);
-      }
+      onStage(
+        "extract-llm",
+        "skipped — nightly cycles handle deep LLM extraction"
+      );
       checkpoint = await advanceCheckpoint("llm-done");
     }
 
@@ -200,7 +233,10 @@ export async function runDeepDive(
         const topClusters = clusters
           .filter((c) => c.score >= 0.4)
           .sort((a, b) => b.score - a.score)
-          .slice(0, maxSkills * 2); // consider 2x budget; triage may SKIP some
+          // Consider ~1.5x budget so triage can SKIP some noisy ones. Keeping
+          // this tight matters: each considered cluster costs a serialized
+          // claude-cli triage call (~10–20s on subscription CLIs).
+          .slice(0, Math.ceil(maxSkills * 1.5));
 
         let budget = maxSkills;
         for (const cluster of topClusters) {

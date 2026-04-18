@@ -163,13 +163,21 @@ program
 
 program
   .command("deep-dive")
-  .description("one-shot onboarding pass: ingest ALL history and generate foundational skills (resumable)")
+  .description("fast onboarding pass: heuristic extraction from recent sessions → up to 10 foundational skills (5–10 min)")
   .option("--max <n>", "cap on new skills this run (default 10)", (v) => parseInt(v, 10))
+  .option("--max-sessions <n>", "cap on recent sessions to process (default 300)", (v) => parseInt(v, 10))
   .option("--restart", "discard any prior checkpoint and start fresh")
   .option("--dry-run", "print the plan without writing files or committing")
-  .action(async (options: { max?: number; restart?: boolean; dryRun?: boolean }) => {
-    await deepDiveCommand(options);
-  });
+  .action(
+    async (options: {
+      max?: number;
+      maxSessions?: number;
+      restart?: boolean;
+      dryRun?: boolean;
+    }) => {
+      await deepDiveCommand(options);
+    }
+  );
 
 program
   .command("drafts")
