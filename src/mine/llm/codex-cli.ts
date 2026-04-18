@@ -57,10 +57,11 @@ export async function codexCliChat(
   opts: ChatOptions
 ): Promise<CompletionResult> {
   const prompt = renderPromptFromMessages(opts.messages);
-  const useStdin = Buffer.byteLength(prompt, "utf8") > STDIN_THRESHOLD;
 
+  // Always stdin — same reasoning as claude-cli (Windows cmd.exe mangles
+  // argv with newlines/quotes).
+  void STDIN_THRESHOLD;
   const args: string[] = ["exec"];
-  if (!useStdin) args.push(prompt);
 
   const start = Date.now();
   return new Promise<CompletionResult>((resolve, reject) => {
@@ -115,10 +116,8 @@ export async function codexCliChat(
       });
     });
 
-    if (useStdin) {
-      child.stdin?.write(prompt);
-      child.stdin?.end();
-    }
+    child.stdin?.write(prompt);
+    child.stdin?.end();
   });
 }
 

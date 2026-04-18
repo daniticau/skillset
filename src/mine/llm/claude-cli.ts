@@ -27,15 +27,18 @@ import { STORE_ROOT } from "../../core/paths.js";
 import { join } from "node:path";
 import { classifyCliError, probeCli, IS_WIN_CONST } from "./cli-detect.js";
 
-const STDIN_THRESHOLD = 2048; // bytes above which we switch to stdin
 const PROBE_LOG = join(STORE_ROOT, "logs", "cli-probe.log");
 
-/** True when the binary has been probed (once per process). */
-let probeLogged = false;
+/**
+ * True after we've logged at least one probe event in this process. We still
+ * log subsequent errors but dedupe consecutive identical reasons to keep the
+ * file bounded.
+ */
+let lastLoggedReason: string | null = null;
 
-async function logProbeOnce(reason: string): Promise<void> {
-  if (probeLogged) return;
-  probeLogged = true;
+async function logProbe(reason: string): Promise<void> {
+  if (reason === lastLoggedReason) return;
+  lastLoggedReason = reason;
   try {
     await mkdir(dirname(PROBE_LOG), { recursive: true });
     await appendFile(
@@ -69,15 +72,12 @@ export async function claudeCliChat(
   opts: ChatOptions
 ): Promise<CompletionResult> {
   const prompt = renderPromptFromMessages(opts.messages);
-  const useStdin = Buffer.byteLength(prompt, "utf8") > STDIN_THRESHOLD;
   const model = opts.model ?? config.model;
 
-  const args: string[] = [];
-  if (useStdin) {
-    args.push("-p");
-  } else {
-    args.push("-p", prompt);
-  }
+  // Always deliver the prompt via stdin. On Windows, shell:true routes through
+  // cmd.exe which mangles argv containing newlines, quotes, or shell metachars
+  // — and our prompts have all three. Stdin sidesteps all escaping concerns.
+  const args: string[] = ["-p"];
   if (model) args.push("--model", model);
 
   const start = Date.now();
@@ -111,7 +111,7 @@ export async function claudeCliChat(
       clearTimeout(timer);
       const code = (err as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {
-        void logProbeOnce("claude binary not found on PATH");
+        void logProbe("claude binary not found on PATH");
       }
       reject(err);
     });
@@ -121,22 +121,29 @@ export async function claudeCliChat(
       settled = true;
       clearTimeout(timer);
       if (code !== 0) {
-        void logProbeOnce(`exit ${code}: ${stderr.slice(0, 200)}`);
+        // Log BOTH stderr and stdout so we can diagnose silent exits where the
+        // CLI writes its complaint to stdout or just exits with no output.
+        const diag = [
+          `exit ${code}`,
+          `args=${JSON.stringify(args)}`,
+          `stderr=${stderr.slice(0, 400) || "(empty)"}`,
+          `stdout=${stdout.slice(0, 400) || "(empty)"}`,
+          `prompt_head=${prompt.slice(0, 120).replace(/\n/g, "\\n")}`,
+        ].join(" | ");
+        void logProbe(diag);
         return reject(new Error(classifyCliError(stderr, code, "claude")));
       }
       resolve({
         content: stdout.trim(),
-        tokensIn: 0, // CLI doesn't expose token counts
+        tokensIn: 0,
         tokensOut: 0,
         model,
         latencyMs: Date.now() - start,
       });
     });
 
-    if (useStdin) {
-      child.stdin?.write(prompt);
-      child.stdin?.end();
-    }
+    child.stdin?.write(prompt);
+    child.stdin?.end();
   });
 }
 
