@@ -126,7 +126,7 @@ describe("claudeCliChat", () => {
     await expect(promise).rejects.toThrow(/ENOENT/);
   });
 
-  it("uses stdin for large prompts (>2KB)", async () => {
+  it("always delivers the prompt on stdin (argv never includes prompt text)", async () => {
     const handles = makeChild();
     let writtenPrompt = "";
     (handles.child.stdin as Writable)._write = (chunk, _enc, cb) => {
@@ -135,23 +135,30 @@ describe("claudeCliChat", () => {
     };
     spawnMock.mockReturnValueOnce(handles.child as unknown as ChildProcess);
 
-    const bigContent = "x".repeat(3000);
+    const promptWithNewlines = "line1\nline2\n\"quoted\"\n";
     const promise = claudeCliChat(config, {
-      messages: [{ role: "user", content: bigContent }],
+      messages: [{ role: "user", content: promptWithNewlines }],
     });
     handles.emitStdout("ok");
     handles.close(0);
     await promise;
 
-    // spawn called with `-p` but no positional prompt (stdin path)
     const args = spawnMock.mock.calls[0]![1] as string[];
     expect(args[0]).toBe("-p");
-    expect(args.length).toBeLessThan(4); // -p (--model name) at most
-    expect(writtenPrompt).toContain(bigContent);
+    // argv must not include the prompt body — stdin-only path
+    expect(args.some((a) => a.includes("line1"))).toBe(false);
+    expect(args.some((a) => a.includes("line2"))).toBe(false);
+    expect(writtenPrompt).toContain("line1");
+    expect(writtenPrompt).toContain("line2");
   });
 
-  it("passes small prompts as argv", async () => {
+  it("stdin path used for short prompts too (avoid Windows cmd.exe mangling)", async () => {
     const handles = makeChild();
+    let writtenPrompt = "";
+    (handles.child.stdin as Writable)._write = (chunk, _enc, cb) => {
+      writtenPrompt += chunk.toString();
+      cb();
+    };
     spawnMock.mockReturnValueOnce(handles.child as unknown as ChildProcess);
     const promise = claudeCliChat(config, {
       messages: [{ role: "user", content: "short" }],
@@ -160,8 +167,9 @@ describe("claudeCliChat", () => {
     handles.close(0);
     await promise;
     const args = spawnMock.mock.calls[0]![1] as string[];
-    expect(args[0]).toBe("-p");
-    expect(args[1]).toContain("short");
+    expect(args).toContain("-p");
+    expect(args.some((a) => a === "short" || a.includes("short"))).toBe(false);
+    expect(writtenPrompt).toContain("short");
   });
 });
 
