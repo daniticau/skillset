@@ -3,16 +3,21 @@ import { runDeepDive, consoleStageLogger } from "../mine/cycle/deep-dive.js";
 
 export interface DeepDiveCmdOptions {
   max?: number;
+  maxSessions?: number;
   restart?: boolean;
   dryRun?: boolean;
 }
 
 export async function deepDiveCommand(options: DeepDiveCmdOptions): Promise<void> {
-  console.log(pc.bold("deep-dive: ingesting all history"));
+  console.log(pc.bold("deep-dive: foundational skills from recent history"));
+  console.log(
+    pc.dim("  (heuristic-only extraction; nightly cycles fill in LLM-derived signals)")
+  );
   if (options.dryRun) console.log(pc.yellow("  (dry-run — no writes, no state mutations)"));
 
   const report = await runDeepDive({
     maxSkills: options.max,
+    maxSessions: options.maxSessions,
     restart: options.restart,
     dryRun: options.dryRun,
     onStage: consoleStageLogger,
