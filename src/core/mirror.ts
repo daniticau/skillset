@@ -191,6 +191,8 @@ export async function sync(): Promise<SyncReport> {
   await adoptFromMirrors(config, state, actions);
 
   const storeSkillNames = await listStoreSkills();
+  const storeSkillNameSet = new Set(storeSkillNames);
+  const aggregateParsedSkills: ParsedSkill[] = [];
 
   for (const name of storeSkillNames) {
     await validateStoreSkill(name);
@@ -276,6 +278,7 @@ export async function sync(): Promise<SyncReport> {
     current.canonicalHash = await hashSkillDir(canonicalDir);
 
     const freshParsed = await readSkillMd(canonicalDir);
+    aggregateParsedSkills.push(freshParsed);
     for (const link of config.links) {
       const adapter = getAdapter(link.agent);
       if (adapter.layout === "aggregate-file") continue;
@@ -291,18 +294,10 @@ export async function sync(): Promise<SyncReport> {
   }
 
   // Aggregate-file layouts: rewrite once with the whole canonical set.
-  const allParsed: ParsedSkill[] = [];
-  for (const name of storeSkillNames) {
-    try {
-      allParsed.push(await readSkillMd(storeSkillDir(name)));
-    } catch {
-      // skip malformed — already warned in per-skill pass
-    }
-  }
   for (const link of config.links) {
     const adapter = getAdapter(link.agent);
     if (adapter.layout !== "aggregate-file" || !adapter.mirrorAll) continue;
-    await adapter.mirrorAll(allParsed, link.path);
+    await adapter.mirrorAll(aggregateParsedSkills, link.path);
     for (const name of storeSkillNames) {
       actions.push({ kind: "mirrored", skill: name, to: link });
     }
@@ -315,7 +310,7 @@ export async function sync(): Promise<SyncReport> {
     if (!adapter.listMirrorSkills || !adapter.removeMirrorSkill) continue;
     const mirrorNames = await adapter.listMirrorSkills(link.path);
     for (const name of mirrorNames) {
-      if (storeSkillNames.includes(name)) continue;
+      if (storeSkillNameSet.has(name)) continue;
       await adapter.removeMirrorSkill(name, link.path);
       actions.push({ kind: "removed-from-mirror", skill: name, link });
     }
@@ -323,7 +318,7 @@ export async function sync(): Promise<SyncReport> {
 
   // Prune state entries for skills no longer in the canonical store.
   for (const name of Object.keys(state.skills)) {
-    if (!storeSkillNames.includes(name)) delete state.skills[name];
+    if (!storeSkillNameSet.has(name)) delete state.skills[name];
   }
 
   await writeState(state);

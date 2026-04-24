@@ -1,8 +1,30 @@
 {
   "name": "skillset",
   "version": "0.1.0",
-  "description": "Portable personalization layer for coding agents. Canonical skill store that mirrors to Claude Code, Cursor, and other agent harnesses.",
+  "description": "Portable personalization layer for coding agents. Alpha, Windows + Claude Code first-class today.",
   "type": "module",
+  "license": "MIT",
+  "author": "Daniel Ticau",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daniticau/skillset.git"
+  },
+  "homepage": "https://github.com/daniticau/skillset#readme",
+  "bugs": {
+    "url": "https://github.com/daniticau/skillset/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "cursor",
+    "codex",
+    "agent",
+    "skills",
+    "personalization",
+    "llm"
+  ],
+  "os": [
+    "win32"
+  ],
   "bin": {
     "skillset": "./dist/cli.js",
     "sks": "./dist/cli.js"

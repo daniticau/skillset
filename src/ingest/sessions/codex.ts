@@ -9,6 +9,7 @@ import path from "node:path";
 import { MAX_FILE_SIZE_BYTES } from "../folder.js";
 import type { CodexCursor, PerSourceResult } from "./types.js";
 import { writeSessionJsonl } from "./writer.js";
+import { parseJsonLinesStrict } from "./jsonl.js";
 
 interface IndexEntry {
   id: string;
@@ -114,18 +115,8 @@ export async function scrapeCodex(
       continue;
     }
 
-    const parsed: unknown[] = [];
-    let bad = false;
-    for (const line of content.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        parsed.push(JSON.parse(line));
-      } catch {
-        bad = true;
-        break;
-      }
-    }
-    if (bad) {
+    const parsed = parseJsonLinesStrict(content);
+    if (!parsed) {
       skipped += 1;
       continue;
     }

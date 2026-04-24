@@ -10,11 +10,10 @@
  * If interrupted, re-run picks up from the last committed stage.
  */
 
-import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { statSync } from "node:fs";
 import pc from "picocolors";
-import { STORE_ROOT, SESSIONS_DIR } from "../../core/paths.js";
+import { SESSIONS_DIR } from "../../core/paths.js";
 import { readState, writeState } from "../../core/config.js";
 import { scrapeAll } from "../../ingest/sessions/index.js";
 import {
@@ -24,8 +23,9 @@ import {
   isAvailable,
   detectEmbeddingModel,
 } from "../index.js";
-import type { LLMConfig, Nugget, NuggetCluster, ParsedSession } from "../index.js";
+import type { Nugget, NuggetCluster, ParsedSession } from "../index.js";
 import { deduplicateAndRank } from "../dedup.js";
+import { loadClusters, loadNuggets, saveClusters, saveNuggets } from "../artifacts.js";
 import {
   loadExistingSkillSummaries,
   planSkillAction,
@@ -43,10 +43,6 @@ import {
   registerInterruptHandlers,
   shouldRunStage,
 } from "./checkpoint.js";
-
-const NUGGETS_DIR = join(STORE_ROOT, "nuggets");
-const NUGGETS_FILE = join(NUGGETS_DIR, "nuggets.json");
-const CLUSTERS_FILE = join(NUGGETS_DIR, "clusters.json");
 
 /**
  * Max sessions fed into heuristic extraction. Users often have 500–1000
@@ -85,36 +81,6 @@ function sampleRecent(sessions: ParsedSession[], cap: number): ParsedSession[] {
   });
   scored.sort((a, b) => b.mtime - a.mtime);
   return scored.slice(0, cap).map((x) => x.session);
-}
-
-async function saveNuggets(nuggets: Nugget[]): Promise<void> {
-  await mkdir(NUGGETS_DIR, { recursive: true });
-  await writeFile(NUGGETS_FILE, JSON.stringify(nuggets, null, 2) + "\n", "utf8");
-}
-
-async function saveClusters(clusters: NuggetCluster[]): Promise<void> {
-  await mkdir(NUGGETS_DIR, { recursive: true });
-  await writeFile(CLUSTERS_FILE, JSON.stringify(clusters, null, 2) + "\n", "utf8");
-}
-
-async function loadNuggets(): Promise<Nugget[]> {
-  if (!existsSync(NUGGETS_FILE)) return [];
-  try {
-    const raw = await readFile(NUGGETS_FILE, "utf8");
-    return JSON.parse(raw) as Nugget[];
-  } catch {
-    return [];
-  }
-}
-
-async function loadClusters(): Promise<NuggetCluster[]> {
-  if (!existsSync(CLUSTERS_FILE)) return [];
-  try {
-    const raw = await readFile(CLUSTERS_FILE, "utf8");
-    return JSON.parse(raw) as NuggetCluster[];
-  } catch {
-    return [];
-  }
 }
 
 /** Temporarily zero out scrape cursors so scrapeAll rescans everything. */

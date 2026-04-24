@@ -1,8 +1,6 @@
 import pc from "picocolors";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { STORE_ROOT, SESSIONS_DIR } from "../core/paths.js";
+import { mkdir } from "node:fs/promises";
+import { SESSIONS_DIR } from "../core/paths.js";
 import {
   readAllSessions,
   getSessionStats,
@@ -25,11 +23,14 @@ import {
   needsProcessing,
   sessionFileHash,
 } from "../mine/state.js";
-import type { Nugget, NuggetCategory, NuggetCluster } from "../mine/types.js";
-
-const NUGGETS_DIR = join(STORE_ROOT, "nuggets");
-const NUGGETS_FILE = join(NUGGETS_DIR, "nuggets.json");
-const CLUSTERS_FILE = join(NUGGETS_DIR, "clusters.json");
+import type { Nugget, NuggetCategory } from "../mine/types.js";
+import {
+  CLUSTERS_FILE,
+  NUGGETS_FILE,
+  loadNuggets,
+  saveClusters,
+  saveNuggets,
+} from "../mine/artifacts.js";
 
 export interface MineOptions {
   project?: string;
@@ -58,32 +59,6 @@ function categoryLabel(cat: string): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max - 1) + "…";
-}
-
-async function loadExistingNuggets(): Promise<Nugget[]> {
-  if (!existsSync(NUGGETS_FILE)) return [];
-  try {
-    const raw = await readFile(NUGGETS_FILE, "utf8");
-    const parsed = JSON.parse(raw) as Nugget[];
-    // Backfill new required fields for legacy data
-    return parsed.map((n) => ({
-      ...n,
-      source: n.source ?? "heuristic",
-      createdAt: n.createdAt ?? new Date().toISOString(),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-async function saveNuggets(nuggets: Nugget[]): Promise<void> {
-  await mkdir(NUGGETS_DIR, { recursive: true });
-  await writeFile(NUGGETS_FILE, JSON.stringify(nuggets, null, 2) + "\n", "utf8");
-}
-
-async function saveClusters(clusters: NuggetCluster[]): Promise<void> {
-  await mkdir(NUGGETS_DIR, { recursive: true });
-  await writeFile(CLUSTERS_FILE, JSON.stringify(clusters, null, 2) + "\n", "utf8");
 }
 
 function mergeNuggets(existing: Nugget[], incoming: Nugget[]): Nugget[] {
@@ -272,7 +247,7 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   }
 
   // Merge with existing nuggets file (skip merge on --force: rebuild clean)
-  const existing = options.force ? [] : await loadExistingNuggets();
+  const existing = options.force ? [] : await loadNuggets();
   const merged = mergeNuggets(existing, allNuggets);
   await saveNuggets(merged);
 

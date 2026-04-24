@@ -152,14 +152,18 @@ export function dbscan(
 
     labels[i] = clusterId;
     const seeds = [...neighbors];
-    while (seeds.length > 0) {
-      const j = seeds.shift()!;
+    const queued = new Array<boolean>(n).fill(false);
+    for (const neighbor of neighbors) queued[neighbor] = true;
+    for (let seedIndex = 0; seedIndex < seeds.length; seedIndex++) {
+      const j = seeds[seedIndex]!;
       if (!visited[j]) {
         visited[j] = true;
         const jNeighbors = regionQuery(j);
         if (jNeighbors.length + 1 >= minPts) {
           for (const k of jNeighbors) {
-            if (!seeds.includes(k)) seeds.push(k);
+            if (queued[k]) continue;
+            seeds.push(k);
+            queued[k] = true;
           }
         }
       }

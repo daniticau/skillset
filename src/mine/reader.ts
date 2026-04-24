@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import type { ParsedSession, SessionMessage } from "./types.js";
 import type { ScrapeEnvelope, ScrapeSource } from "../ingest/sessions/types.js";
 import { SESSIONS_DIR } from "../core/paths.js";
+import { parseJsonLinesLenient } from "../ingest/sessions/jsonl.js";
 import { normalizeRecord } from "./normalize/index.js";
 
 const SOURCES: ScrapeSource[] = ["claude-code", "codex", "cursor"];
@@ -65,14 +66,7 @@ function parseSessionFile(file: SourceSessionFile): ParsedSession | null {
   let cwd: string | undefined;
   let sessionId: string | undefined;
 
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let env: ScrapeEnvelope | null = null;
-    try {
-      env = JSON.parse(line) as ScrapeEnvelope;
-    } catch {
-      continue;
-    }
+  for (const env of parseJsonLinesLenient<ScrapeEnvelope>(raw)) {
     if (!env || env.source !== file.source) continue;
     if (!sessionId && typeof env.sessionId === "string") {
       sessionId = env.sessionId;

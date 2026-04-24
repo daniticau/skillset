@@ -13,6 +13,8 @@ import {
 import { defaultLLMConfig, isAvailable } from "../mine/llm/index.js";
 import { DRAFTS_DIR } from "../mine/synthesize.js";
 import { readConfig, readState } from "../core/config.js";
+import type { Link } from "../core/config.js";
+import { getAdapter } from "../core/adapters/index.js";
 import { listSkillDirs } from "../core/skill.js";
 import { getSessionStats } from "../mine/index.js";
 
@@ -46,6 +48,32 @@ async function countDirs(root: string): Promise<number> {
     return entries.filter((e) => e.isDirectory()).length;
   } catch {
     return 0;
+  }
+}
+
+async function describeMirror(link: Link): Promise<{ name: string; detail: string }> {
+  try {
+    const adapter = getAdapter(link.agent);
+    const name = adapter.displayName.padEnd(12);
+    if (adapter.listMirrorSkills) {
+      const count = (await adapter.listMirrorSkills(link.path)).length;
+      return {
+        name,
+        detail: `${count} skill${count === 1 ? "" : "s"}`,
+      };
+    }
+    if (adapter.layout === "aggregate-file") {
+      const managed = adapter.hashAggregate
+        ? await adapter.hashAggregate(link.path)
+        : null;
+      return {
+        name,
+        detail: managed ? "managed aggregate file" : "aggregate file",
+      };
+    }
+    return { name, detail: adapter.layout };
+  } catch {
+    return { name: link.agent.padEnd(12), detail: "unknown mirror" };
   }
 }
 
@@ -137,9 +165,9 @@ async function sectionMirrors(): Promise<void> {
   } else {
     for (const link of config.links) {
       const exists = existsSync(link.path);
-      const count = exists ? (await listSkillDirs(link.path)).length : 0;
+      const mirror = await describeMirror(link);
       console.log(
-        `  ${exists ? OK : ERR} ${pc.bold(link.agent.padEnd(12))} ${pc.dim(link.path)} ${pc.dim(`(${count} skills)`)}`
+        `  ${exists ? OK : ERR} ${pc.bold(mirror.name)} ${pc.dim(link.path)} ${pc.dim(`(${mirror.detail})`)}`
       );
     }
   }

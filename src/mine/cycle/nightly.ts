@@ -12,11 +12,8 @@
  */
 
 import pc from "picocolors";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
 import {
-  STORE_ROOT,
   SESSIONS_DIR,
 } from "../../core/paths.js";
 import {
@@ -33,9 +30,10 @@ import {
   isAvailable,
   detectEmbeddingModel,
 } from "../index.js";
-import type { LLMConfig, Nugget, NuggetCluster } from "../index.js";
+import type { Nugget, NuggetCluster } from "../index.js";
 import { llmExtractFromSessions } from "../llm-extract.js";
 import { deduplicateAndRank } from "../dedup.js";
+import { loadNuggets, saveClusters, saveNuggets } from "../artifacts.js";
 import {
   loadExistingSkillSummaries,
   planSkillAction,
@@ -64,9 +62,6 @@ import { acquireLock } from "./lock.js";
 import { isIdle } from "./idle.js";
 import { recordReviewedToday } from "./reviewed.js";
 
-const NUGGETS_FILE = join(STORE_ROOT, "nuggets", "nuggets.json");
-const CLUSTERS_FILE = join(STORE_ROOT, "nuggets", "clusters.json");
-
 export interface NightlyOptions {
   /** Skip the idle gate (useful for manual runs or tests). */
   noIdleCheck?: boolean;
@@ -92,25 +87,6 @@ function resolveConfig(stateConfig: CycleConfig | undefined): CycleConfig {
     llm: { ...DEFAULT_CYCLE_CONFIG.llm, ...stateConfig.llm },
     cleanup: { ...DEFAULT_CYCLE_CONFIG.cleanup, ...stateConfig.cleanup },
   };
-}
-
-async function saveClusters(clusters: NuggetCluster[]): Promise<void> {
-  await mkdir(join(STORE_ROOT, "nuggets"), { recursive: true });
-  await writeFile(CLUSTERS_FILE, JSON.stringify(clusters, null, 2) + "\n", "utf8");
-}
-
-async function saveNuggets(nuggets: Nugget[]): Promise<void> {
-  await mkdir(join(STORE_ROOT, "nuggets"), { recursive: true });
-  await writeFile(NUGGETS_FILE, JSON.stringify(nuggets, null, 2) + "\n", "utf8");
-}
-
-async function loadNuggets(): Promise<Nugget[]> {
-  if (!existsSync(NUGGETS_FILE)) return [];
-  try {
-    return JSON.parse(await readFile(NUGGETS_FILE, "utf8")) as Nugget[];
-  } catch {
-    return [];
-  }
 }
 
 export async function runNightlyCycle(
