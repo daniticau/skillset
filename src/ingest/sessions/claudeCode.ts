@@ -10,6 +10,7 @@ import {
 import type { FolderCursor } from "../types.js";
 import type { ClaudeCodeCursor, PerSourceResult } from "./types.js";
 import { writeSessionJsonl } from "./writer.js";
+import { parseJsonLinesStrict } from "./jsonl.js";
 
 export async function scrapeClaudeCode(
   root: string,
@@ -30,18 +31,8 @@ export async function scrapeClaudeCode(
       continue;
     }
 
-    const parsed: unknown[] = [];
-    let parseError = false;
-    for (const line of file.content.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        parsed.push(JSON.parse(line));
-      } catch {
-        parseError = true;
-        break;
-      }
-    }
-    if (parseError) {
+    const parsed = parseJsonLinesStrict(file.content);
+    if (!parsed) {
       skipped += 1;
       continue;
     }

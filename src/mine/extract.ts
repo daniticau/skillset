@@ -107,51 +107,130 @@ function recencyWeight(timestamp: string | undefined, now: Date): number {
   return 1 / (1 + daysSince / 14);
 }
 
-/** Extract corrections from a session. */
-function extractCorrections(session: ParsedSession, now: Date): Nugget[] {
+type PatternCategory =
+  | "correction"
+  | "preference"
+  | "workflow"
+  | "style"
+  | "anti-pattern";
+
+interface PatternExtractionSpec {
+  category: PatternCategory;
+  idPrefix: string;
+  patterns: RegExp[];
+  confidence: number;
+  maxInputLength?: number;
+  allowRejectionToolResults?: boolean;
+  context?: (messages: SessionMessage[], index: number) => string | undefined;
+}
+
+function isEligibleUserSignal(
+  message: SessionMessage,
+  options: {
+    allowRejectionToolResults?: boolean;
+    maxInputLength?: number;
+  } = {}
+): boolean {
+  if (message.role !== "user") return false;
+  if (message.isToolResult && !(options.allowRejectionToolResults && message.isRejection)) {
+    return false;
+  }
+  if (message.text.length < MIN_SIGNAL_LENGTH) return false;
+  if (options.maxInputLength && message.text.length > options.maxInputLength) return false;
+  return !isNoise(message.text);
+}
+
+function findPreviousAssistant(
+  messages: SessionMessage[],
+  startIndex: number
+): SessionMessage | undefined {
+  return messages
+    .slice(0, startIndex)
+    .reverse()
+    .find((message) => message.role === "assistant" && message.text.length > 0);
+}
+
+function buildHeuristicNugget(params: {
+  category: PatternCategory;
+  idPrefix: string;
+  session: ParsedSession;
+  project: string;
+  signalText: string;
+  confidence: number;
+  timestamp?: string;
+  context?: string;
+}): Nugget {
+  return {
+    id: hashId(`${params.idPrefix}:${params.signalText.slice(0, 100)}`),
+    category: params.category,
+    signal: params.signalText,
+    evidence: [
+      {
+        sessionId: params.session.sessionId,
+        project: params.project,
+        userMessage: params.signalText,
+        context: params.context,
+        timestamp: params.timestamp,
+      },
+    ],
+    project: params.project,
+    confidence: params.confidence,
+    source: "heuristic",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function extractPatternSignals(
+  session: ParsedSession,
+  now: Date,
+  spec: PatternExtractionSpec
+): Nugget[] {
   const nuggets: Nugget[] = [];
   const project = projectName(session.cwd, session.projectSlug, session.source);
 
   for (let i = 0; i < session.messages.length; i++) {
-    const msg = session.messages[i]!;
-    if (msg.role !== "user") continue;
-    if (msg.isToolResult && !msg.isRejection) continue;
-    if (msg.text.length < MIN_SIGNAL_LENGTH) continue;
-    if (msg.text.length > MAX_SIGNAL_LENGTH * 2) continue; // skip giant pastes
-    if (isNoise(msg.text)) continue;
+    const message = session.messages[i]!;
+    if (
+      !isEligibleUserSignal(message, {
+        allowRejectionToolResults: spec.allowRejectionToolResults,
+        maxInputLength: spec.maxInputLength,
+      })
+    ) {
+      continue;
+    }
+    if (!matchPatterns(message.text, spec.patterns)) continue;
 
-    const pattern = matchPatterns(msg.text, CORRECTION_PATTERNS);
-    if (!pattern) continue;
+    const signalText = message.text.slice(0, MAX_SIGNAL_LENGTH);
+    const weight = recencyWeight(message.timestamp, now);
 
-    const prevAssistant = session.messages
-      .slice(0, i)
-      .reverse()
-      .find((m) => m.role === "assistant" && m.text.length > 0);
-
-    const signalText = msg.text.slice(0, MAX_SIGNAL_LENGTH);
-    const weight = recencyWeight(msg.timestamp, now);
-
-    nuggets.push({
-      id: hashId(`correction:${signalText.slice(0, 100)}`),
-      category: "correction",
-      signal: signalText,
-      evidence: [
-        {
-          sessionId: session.sessionId,
-          project,
-          userMessage: signalText,
-          context: prevAssistant?.text.slice(0, 200),
-          timestamp: msg.timestamp,
-        },
-      ],
-      project,
-      confidence: 0.7 * weight,
-      source: "heuristic",
-      createdAt: new Date().toISOString(),
-    });
+    nuggets.push(
+      buildHeuristicNugget({
+        category: spec.category,
+        idPrefix: spec.idPrefix,
+        session,
+        project,
+        signalText,
+        confidence: spec.confidence * weight,
+        timestamp: message.timestamp,
+        context: spec.context?.(session.messages, i),
+      })
+    );
   }
 
   return nuggets;
+}
+
+/** Extract corrections from a session. */
+function extractCorrections(session: ParsedSession, now: Date): Nugget[] {
+  return extractPatternSignals(session, now, {
+    category: "correction",
+    idPrefix: "correction",
+    patterns: CORRECTION_PATTERNS,
+    confidence: 0.7,
+    maxInputLength: MAX_SIGNAL_LENGTH * 2,
+    allowRejectionToolResults: true,
+    context: (messages, index) => findPreviousAssistant(messages, index)?.text.slice(0, 200),
+  });
 }
 
 /** Multi-turn correction arc: (assistant does X) → (user says stop/wrong) → (user clarifies). */
@@ -208,156 +287,43 @@ function extractMultiTurnCorrections(session: ParsedSession, now: Date): Nugget[
 
 /** Extract preferences from a session. */
 function extractPreferences(session: ParsedSession, now: Date): Nugget[] {
-  const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug, session.source);
-
-  for (const msg of session.messages) {
-    if (msg.role !== "user") continue;
-    if (msg.isToolResult) continue;
-    if (msg.text.length < MIN_SIGNAL_LENGTH) continue;
-    if (msg.text.length > MAX_SIGNAL_LENGTH * 2) continue;
-    if (isNoise(msg.text)) continue;
-
-    const pattern = matchPatterns(msg.text, PREFERENCE_PATTERNS);
-    if (!pattern) continue;
-
-    const signalText = msg.text.slice(0, MAX_SIGNAL_LENGTH);
-    const weight = recencyWeight(msg.timestamp, now);
-
-    nuggets.push({
-      id: hashId(`preference:${signalText.slice(0, 100)}`),
-      category: "preference",
-      signal: signalText,
-      evidence: [
-        {
-          sessionId: session.sessionId,
-          project,
-          userMessage: signalText,
-          timestamp: msg.timestamp,
-        },
-      ],
-      project,
-      confidence: 0.8 * weight,
-      source: "heuristic",
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return nuggets;
+  return extractPatternSignals(session, now, {
+    category: "preference",
+    idPrefix: "preference",
+    patterns: PREFERENCE_PATTERNS,
+    confidence: 0.8,
+    maxInputLength: MAX_SIGNAL_LENGTH * 2,
+  });
 }
 
 /** Extract workflow patterns. */
 function extractWorkflows(session: ParsedSession, now: Date): Nugget[] {
-  const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug, session.source);
-
-  for (const msg of session.messages) {
-    if (msg.role !== "user") continue;
-    if (msg.isToolResult) continue;
-    if (msg.text.length < MIN_SIGNAL_LENGTH) continue;
-    if (isNoise(msg.text)) continue;
-
-    if (!matchPatterns(msg.text, WORKFLOW_PATTERNS)) continue;
-
-    const signalText = msg.text.slice(0, MAX_SIGNAL_LENGTH);
-    const weight = recencyWeight(msg.timestamp, now);
-
-    nuggets.push({
-      id: hashId(`workflow:${signalText.slice(0, 100)}`),
-      category: "workflow",
-      signal: signalText,
-      evidence: [
-        {
-          sessionId: session.sessionId,
-          project,
-          userMessage: signalText,
-          timestamp: msg.timestamp,
-        },
-      ],
-      project,
-      confidence: 0.65 * weight,
-      source: "heuristic",
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return nuggets;
+  return extractPatternSignals(session, now, {
+    category: "workflow",
+    idPrefix: "workflow",
+    patterns: WORKFLOW_PATTERNS,
+    confidence: 0.65,
+  });
 }
 
 /** Extract style preferences. */
 function extractStyle(session: ParsedSession, now: Date): Nugget[] {
-  const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug, session.source);
-
-  for (const msg of session.messages) {
-    if (msg.role !== "user") continue;
-    if (msg.isToolResult) continue;
-    if (msg.text.length < MIN_SIGNAL_LENGTH) continue;
-    if (isNoise(msg.text)) continue;
-
-    if (!matchPatterns(msg.text, STYLE_PATTERNS)) continue;
-
-    const signalText = msg.text.slice(0, MAX_SIGNAL_LENGTH);
-    const weight = recencyWeight(msg.timestamp, now);
-
-    nuggets.push({
-      id: hashId(`style:${signalText.slice(0, 100)}`),
-      category: "style",
-      signal: signalText,
-      evidence: [
-        {
-          sessionId: session.sessionId,
-          project,
-          userMessage: signalText,
-          timestamp: msg.timestamp,
-        },
-      ],
-      project,
-      confidence: 0.75 * weight,
-      source: "heuristic",
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return nuggets;
+  return extractPatternSignals(session, now, {
+    category: "style",
+    idPrefix: "style",
+    patterns: STYLE_PATTERNS,
+    confidence: 0.75,
+  });
 }
 
 /** Extract anti-patterns (things user consistently avoids). */
 function extractAntiPatterns(session: ParsedSession, now: Date): Nugget[] {
-  const nuggets: Nugget[] = [];
-  const project = projectName(session.cwd, session.projectSlug, session.source);
-
-  for (const msg of session.messages) {
-    if (msg.role !== "user") continue;
-    if (msg.isToolResult) continue;
-    if (msg.text.length < MIN_SIGNAL_LENGTH) continue;
-    if (isNoise(msg.text)) continue;
-
-    if (!matchPatterns(msg.text, ANTI_PATTERN_PATTERNS)) continue;
-
-    const signalText = msg.text.slice(0, MAX_SIGNAL_LENGTH);
-    const weight = recencyWeight(msg.timestamp, now);
-
-    nuggets.push({
-      id: hashId(`anti-pattern:${signalText.slice(0, 100)}`),
-      category: "anti-pattern",
-      signal: signalText,
-      evidence: [
-        {
-          sessionId: session.sessionId,
-          project,
-          userMessage: signalText,
-          timestamp: msg.timestamp,
-        },
-      ],
-      project,
-      confidence: 0.75 * weight,
-      source: "heuristic",
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return nuggets;
+  return extractPatternSignals(session, now, {
+    category: "anti-pattern",
+    idPrefix: "anti-pattern",
+    patterns: ANTI_PATTERN_PATTERNS,
+    confidence: 0.75,
+  });
 }
 
 /** Extract raw tool-use rejections (pre-collapse). */
@@ -369,10 +335,7 @@ function extractRawRejections(session: ParsedSession, now: Date): Nugget[] {
     const msg = session.messages[i]!;
     if (!msg.isRejection) continue;
 
-    const prevAssistant = session.messages
-      .slice(0, i)
-      .reverse()
-      .find((m) => m.role === "assistant");
+    const prevAssistant = findPreviousAssistant(session.messages, i);
 
     // Skip rejections we can't attribute to a specific tool — they're just noise.
     if (!prevAssistant?.toolUses || prevAssistant.toolUses.length === 0) continue;
@@ -571,6 +534,16 @@ function dedup(nuggets: Nugget[]): Nugget[] {
   return [...map.values()];
 }
 
+const PER_SESSION_EXTRACTORS = [
+  extractCorrections,
+  extractMultiTurnCorrections,
+  extractPreferences,
+  extractWorkflows,
+  extractStyle,
+  extractAntiPatterns,
+  extractRawRejections,
+] as const;
+
 /** Run full extraction pipeline on a set of sessions. */
 export function extractSignal(
   sessions: ParsedSession[],
@@ -584,13 +557,9 @@ export function extractSignal(
 
   // Per-session extraction
   for (const session of sessions) {
-    allNuggets.push(...extractCorrections(session, now));
-    allNuggets.push(...extractMultiTurnCorrections(session, now));
-    allNuggets.push(...extractPreferences(session, now));
-    allNuggets.push(...extractWorkflows(session, now));
-    allNuggets.push(...extractStyle(session, now));
-    allNuggets.push(...extractAntiPatterns(session, now));
-    allNuggets.push(...extractRawRejections(session, now));
+    for (const extract of PER_SESSION_EXTRACTORS) {
+      allNuggets.push(...extract(session, now));
+    }
   }
 
   // Collapse rejections by tool name (before dedup — same IDs, different signals)

@@ -1,13 +1,9 @@
 import pc from "picocolors";
-import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { STORE_ROOT } from "../core/paths.js";
 import { defaultLLMConfig, isAvailable } from "../mine/llm/index.js";
 import { synthesizeSkills, writeDraftSkill, DRAFTS_DIR } from "../mine/synthesize.js";
 import type { NuggetCluster } from "../mine/types.js";
-
-const CLUSTERS_FILE = join(STORE_ROOT, "nuggets", "clusters.json");
+import { CLUSTERS_FILE, readClusters } from "../mine/artifacts.js";
 
 export interface SynthesizeCmdOptions {
   max?: number;
@@ -22,8 +18,7 @@ export async function synthesizeCommand(options: SynthesizeCmdOptions): Promise<
 
   let clusters: NuggetCluster[];
   try {
-    const raw = await readFile(CLUSTERS_FILE, "utf8");
-    clusters = JSON.parse(raw) as NuggetCluster[];
+    clusters = await readClusters();
   } catch (err) {
     console.log(pc.red(`failed to read clusters: ${err instanceof Error ? err.message : String(err)}`));
     return;

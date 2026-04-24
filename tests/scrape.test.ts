@@ -11,6 +11,17 @@ import { writeSessionJsonl } from "../src/ingest/sessions/writer.js";
 
 let tmp: string;
 let outDir: string;
+const cursorSqliteIt = hasBetterSqliteBindings() ? it : it.skip;
+
+function hasBetterSqliteBindings(): boolean {
+  try {
+    const db = new Database(":memory:");
+    db.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "skillset-scrape-"));
@@ -143,7 +154,7 @@ describe("scrapeCodex", () => {
 });
 
 describe("scrapeCursor", () => {
-  it("extracts composers and their bubbles into per-session JSONL", async () => {
+  cursorSqliteIt("extracts composers and their bubbles into per-session JSONL", async () => {
     const dbPath = join(tmp, "state.vscdb");
     const db = new Database(dbPath);
     db.exec(`
