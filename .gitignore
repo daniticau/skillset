@@ -4,6 +4,7 @@ coverage/
 .env
 .env.*
 !.env.example
+.envrc
 .DS_Store
 *.log
 .vitest/
