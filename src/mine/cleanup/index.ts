@@ -23,6 +23,7 @@ import type { PruneOutcome } from "./prune.js";
 export interface CleanupOptions {
   llmConfig: LLMConfig;
   mergeCap: number;
+  dryRun?: boolean;
   pruneEnabled: boolean;
   pruneCap: number;
   /** Progress callback. */
@@ -54,7 +55,9 @@ export async function runCleanup(options: CleanupOptions): Promise<CleanupReport
   const candidates = await eligibleSkills();
   onEvent("cleanup-start", `${candidates.length} auto-created skills in scope`);
 
-  const conflicts = await runConflictDetection(candidates, options.llmConfig, onEvent);
+  const conflicts = await runConflictDetection(candidates, options.llmConfig, onEvent, {
+    dryRun: options.dryRun,
+  });
   onEvent("conflict-done", `${conflicts.length} conflict(s) resolved`);
 
   const remaining = candidates.filter(
@@ -64,7 +67,8 @@ export async function runCleanup(options: CleanupOptions): Promise<CleanupReport
     remaining,
     options.llmConfig,
     options.mergeCap,
-    onEvent
+    onEvent,
+    { dryRun: options.dryRun }
   );
   onEvent("merge-done", `${merges.length} merge(s)`);
 

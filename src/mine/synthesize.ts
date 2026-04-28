@@ -21,7 +21,7 @@ import {
   renderSkillMd,
   SkillValidationError,
 } from "../core/skill.js";
-import type { SkillTier } from "../core/skill.js";
+import type { SkillOrigin, SkillTier } from "../core/skill.js";
 import { STORE_ROOT, STORE_SKILLS_DIR } from "../core/paths.js";
 
 export const DRAFTS_DIR = join(STORE_ROOT, "drafts");
@@ -31,6 +31,8 @@ export interface SynthesizedSkill {
   description: string;
   body: string;
   tier?: SkillTier;
+  origin?: SkillOrigin;
+  provenance?: Record<string, unknown>;
   sourceClusterIds: string[];
   score: number;
   memberCount: number;
@@ -117,6 +119,45 @@ async function synthesizeOne(
   };
 }
 
+async function writeSkillFiles(root: string, skill: SynthesizedSkill): Promise<string> {
+  const dir = join(root, skill.name);
+  await mkdir(dir, { recursive: true });
+
+  const filePath = join(dir, "SKILL.md");
+  await writeFile(
+    filePath,
+    renderSkillMd(
+      {
+        name: skill.name,
+        description: skill.description,
+        tier: skill.tier,
+        origin: skill.origin ?? "auto-created",
+      },
+      skill.body
+    ),
+    "utf8"
+  );
+
+  const metaPath = join(dir, "meta.json");
+  await writeFile(
+    metaPath,
+    JSON.stringify(
+      {
+        sourceClusterIds: skill.sourceClusterIds,
+        score: skill.score,
+        memberCount: skill.memberCount,
+        createdAt: new Date().toISOString(),
+        ...(skill.provenance ?? {}),
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  return filePath;
+}
+
 /** Synthesize multiple clusters into draft skills. */
 export async function synthesizeSkills(
   clusters: NuggetCluster[],
@@ -153,46 +194,14 @@ export async function synthesizeSkills(
   return [...byName.values()];
 }
 
+/** Write a synthesized skill directly to the canonical store. */
+export async function writeCanonicalSkill(skill: SynthesizedSkill): Promise<string> {
+  return writeSkillFiles(STORE_SKILLS_DIR, skill);
+}
+
 /** Write a synthesized skill to the drafts directory. */
 export async function writeDraftSkill(skill: SynthesizedSkill): Promise<string> {
-  const dir = join(DRAFTS_DIR, skill.name);
-  await mkdir(dir, { recursive: true });
-
-  // Every synthesized draft is origin:auto-created — so when promoted to the
-  // canonical store and observed by sync, state seeds correctly without guessing.
-  const filePath = join(dir, "SKILL.md");
-  await writeFile(
-    filePath,
-    renderSkillMd(
-      {
-        name: skill.name,
-        description: skill.description,
-        tier: skill.tier,
-        origin: "auto-created",
-      },
-      skill.body
-    ),
-    "utf8"
-  );
-
-  // Also write a sidecar metadata file for provenance
-  const metaPath = join(dir, "meta.json");
-  await writeFile(
-    metaPath,
-    JSON.stringify(
-      {
-        sourceClusterIds: skill.sourceClusterIds,
-        score: skill.score,
-        memberCount: skill.memberCount,
-        createdAt: new Date().toISOString(),
-      },
-      null,
-      2
-    ) + "\n",
-    "utf8"
-  );
-
-  return filePath;
+  return writeSkillFiles(DRAFTS_DIR, skill);
 }
 
 /** List all draft skills. */

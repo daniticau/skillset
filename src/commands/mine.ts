@@ -1,19 +1,17 @@
-import pc from "picocolors";
-import { mkdir } from "node:fs/promises";
 import { SESSIONS_DIR } from "../core/paths.js";
+import pc from "picocolors";
 import {
   readAllSessions,
   getSessionStats,
   extractSignal,
 } from "../mine/index.js";
-import { scrapeAll } from "../ingest/sessions/index.js";
-import { readState, writeState } from "../core/config.js";
 import { deduplicateAndRank } from "../mine/dedup.js";
 import { llmExtractFromSessions } from "../mine/llm-extract.js";
 import {
   defaultLLMConfig,
   isAvailable,
   detectEmbeddingModel,
+  ollamaEmbeddingConfig,
 } from "../mine/llm/index.js";
 import {
   readMineState,
@@ -31,6 +29,7 @@ import {
   saveClusters,
   saveNuggets,
 } from "../mine/artifacts.js";
+import { runScrape } from "./scrape.js";
 
 export interface MineOptions {
   project?: string;
@@ -93,30 +92,7 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   // scrape store unless explicitly disabled. Incremental by default; --full
   // rescans everything.
   if (!options.noScrape) {
-    const state = await readState();
-    await mkdir(SESSIONS_DIR, { recursive: true });
-    console.log(pc.dim("scraping transcripts from linked agents…"));
-    const { summary, nextCursors } = await scrapeAll(
-      SESSIONS_DIR,
-      state.scrape ?? {},
-      { full: options.fullScrape }
-    );
-    await writeState({ ...state, scrape: nextCursors });
-    let totalWritten = 0;
-    for (const r of summary.perSource) {
-      totalWritten += r.sessionsWritten;
-      if (!r.available) {
-        console.log(`  ${pc.dim(r.source.padEnd(12))} ${pc.dim(r.reason ?? "unavailable")}`);
-        continue;
-      }
-      const bits = [`${r.sessionsWritten} written`];
-      if (r.sessionsSkipped) bits.push(`${r.sessionsSkipped} skipped`);
-      if (r.locked) bits.push(pc.yellow(`${r.locked} locked`));
-      console.log(`  ${pc.dim(r.source.padEnd(12))} ${bits.join(", ")}`);
-    }
-    console.log(
-      pc.green(`✓ scraped ${totalWritten} session(s) in ${(summary.totalMs / 1000).toFixed(1)}s`)
-    );
+    await runScrape({ full: options.fullScrape });
   }
 
   const stats = getSessionStats();
@@ -255,7 +231,7 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   // Auto-detect an Ollama embedding model — embeddings work far better than
   // TF-IDF for short signals, and are worth using whenever available (no --llm
   // flag required).
-  const clusterConfig = defaultLLMConfig();
+  const clusterConfig = ollamaEmbeddingConfig(defaultLLMConfig());
   const embedModel = await detectEmbeddingModel(clusterConfig).catch(() => undefined);
   if (embedModel && !clusterConfig.embeddingModel) {
     clusterConfig.embeddingModel = embedModel;

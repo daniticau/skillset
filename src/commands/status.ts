@@ -1,9 +1,21 @@
 import pc from "picocolors";
 import { status } from "../core/mirror.js";
 import { getAdapter } from "../core/adapters/index.js";
+import { readUsageEvents, summarizeUsage } from "../usage/events.js";
 
-export async function statusCommand(): Promise<void> {
+export interface StatusCmdOptions {
+  usage?: boolean;
+}
+
+function usageLabel(count: number): string {
+  return `${count} ${count === 1 ? "use" : "uses"}`;
+}
+
+export async function statusCommand(options: StatusCmdOptions = {}): Promise<void> {
   const s = await status();
+  const usage = options.usage
+    ? summarizeUsage(await readUsageEvents())
+    : new Map();
 
   if (s.links.length === 0) {
     console.log(pc.yellow("no mirrors linked"));
@@ -31,7 +43,13 @@ export async function statusCommand(): Promise<void> {
       sk.conflicts > 0
         ? ` ${pc.yellow(`⚠ ${sk.conflicts} conflict(s), last ${sk.lastConflictAt}`)}`
         : "";
-    console.log(`  ${marker} ${sk.name}${conflict}`);
+    const use = usage.get(sk.name);
+    const usageText = options.usage
+      ? use
+        ? ` ${pc.dim(`${usageLabel(use.count)}, last ${use.lastUsedAt?.slice(0, 10)}`)}`
+        : ` ${pc.dim("0 uses")}`
+      : "";
+    console.log(`  ${marker} ${sk.name}${usageText}${conflict}`);
   }
   console.log(
     pc.dim(

@@ -1,106 +1,70 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { codexAdapter } from "../src/core/adapters/codex.js";
 
 const ROOT = join(tmpdir(), `skillset-codex-test-${process.pid}`);
-const AGENTS = join(ROOT, "AGENTS.md");
+const MIRROR = join(ROOT, ".agents", "skills");
+const STORE = join(ROOT, "store");
+const SKILLS = join(STORE, "skills");
+
+vi.mock("../src/core/paths.js", () => ({
+  STORE_ROOT: STORE,
+  STORE_SKILLS_DIR: SKILLS,
+  SESSIONS_DIR: join(STORE, "sessions"),
+  CONFLICTS_DIR: join(STORE, "conflicts"),
+  CONFIG_FILE: join(STORE, "config.json"),
+  STATE_FILE: join(STORE, "state.json"),
+  DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
+  DEFAULT_CODEX_SKILLS_DIR: MIRROR,
+}));
+
+const { codexAdapter } = await import("../src/core/adapters/codex.js");
 
 beforeEach(() => {
   rmSync(ROOT, { recursive: true, force: true });
-  mkdirSync(ROOT, { recursive: true });
+  mkdirSync(MIRROR, { recursive: true });
+  mkdirSync(SKILLS, { recursive: true });
 });
 
 afterAll(() => {
   rmSync(ROOT, { recursive: true, force: true });
 });
 
-describe("codex aggregate adapter", () => {
-  it("creates AGENTS.md with the managed block when target is new", async () => {
-    await codexAdapter.mirrorAll!(
-      [{ frontmatter: { name: "alpha", description: "a" }, body: "alpha body" }],
-      AGENTS
+describe("codex skills adapter", () => {
+  it("mirrors a SKILL.md directory into the Codex user skills root", async () => {
+    const canonical = join(SKILLS, "alpha");
+    mkdirSync(canonical, { recursive: true });
+    writeFileSync(
+      join(canonical, "SKILL.md"),
+      "---\nname: alpha\ndescription: a\n---\n\nalpha body\n"
     );
-    const raw = readFileSync(AGENTS, "utf8");
-    expect(raw).toContain("<!-- skillset:begin");
-    expect(raw).toContain("<!-- skillset:end -->");
-    expect(raw).toContain("## alpha");
+
+    await codexAdapter.mirrorSkill!(
+      { frontmatter: { name: "alpha", description: "a" }, body: "alpha body" },
+      MIRROR
+    );
+
+    const raw = readFileSync(join(MIRROR, "alpha", "SKILL.md"), "utf8");
     expect(raw).toContain("alpha body");
   });
 
-  it("preserves user content above + below the managed block", async () => {
-    const initial = [
-      "# My Codex rules",
-      "",
-      "## user notes",
-      "keep me around",
-      "",
-      "<!-- skillset:begin — do not edit this block -->",
-      "",
-      "# Skills (managed by skillset)",
-      "",
-      "## old",
-      "",
-      "old body",
-      "",
-      "<!-- skillset:end -->",
-      "",
-      "## footer",
-      "still here",
-      "",
-    ].join("\n");
-    writeFileSync(AGENTS, initial);
-
-    await codexAdapter.mirrorAll!(
-      [{ frontmatter: { name: "fresh", description: "" }, body: "fresh body" }],
-      AGENTS
-    );
-    const raw = readFileSync(AGENTS, "utf8");
-    expect(raw).toContain("## user notes");
-    expect(raw).toContain("keep me around");
-    expect(raw).toContain("## footer");
-    expect(raw).toContain("still here");
-    expect(raw).toContain("## fresh");
-    expect(raw).not.toContain("## old");
+  it("uses the per-skill-dir layout so user edits can be promoted", async () => {
+    expect(codexAdapter.layout).toBe("per-skill-dir");
+    expect(codexAdapter.defaultPath).toContain(join(".agents", "skills"));
+    expect(codexAdapter.listMirrorSkills).toBeDefined();
+    expect(codexAdapter.readMirrorSkill).toBeDefined();
   });
 
-  it("hashAggregate changes when canonical skills change", async () => {
-    await codexAdapter.mirrorAll!(
-      [{ frontmatter: { name: "a", description: "" }, body: "first" }],
-      AGENTS
-    );
-    const h1 = await codexAdapter.hashAggregate!(AGENTS);
-
-    await codexAdapter.mirrorAll!(
-      [{ frontmatter: { name: "a", description: "" }, body: "second" }],
-      AGENTS
-    );
-    const h2 = await codexAdapter.hashAggregate!(AGENTS);
-    expect(h1).not.toBe(h2);
-  });
-
-  it("hashAggregate ignores user content outside the block", async () => {
-    await codexAdapter.mirrorAll!(
-      [{ frontmatter: { name: "a", description: "" }, body: "body" }],
-      AGENTS
-    );
-    const h1 = await codexAdapter.hashAggregate!(AGENTS);
-
-    // Append user text OUTSIDE the block
+  it("lists and reads existing Codex skills", async () => {
+    mkdirSync(join(MIRROR, "beta"), { recursive: true });
     writeFileSync(
-      AGENTS,
-      readFileSync(AGENTS, "utf8") + "\n\n## user scratch\nmore user text\n"
+      join(MIRROR, "beta", "SKILL.md"),
+      "---\nname: beta\ndescription: b\n---\n\nbeta body\n"
     );
-    const h2 = await codexAdapter.hashAggregate!(AGENTS);
-    expect(h1).toBe(h2);
-  });
 
-  it("is aggregate-file layout (confirms adoption is not supported by design)", () => {
-    expect(codexAdapter.layout).toBe("aggregate-file");
-    // These hooks MUST be undefined for aggregate-file layout so mirror.ts's
-    // adoption loop skips codex cleanly.
-    expect(codexAdapter.listMirrorSkills).toBeUndefined();
-    expect(codexAdapter.readMirrorSkill).toBeUndefined();
+    await expect(codexAdapter.listMirrorSkills!(MIRROR)).resolves.toEqual(["beta"]);
+    const parsed = await codexAdapter.readMirrorSkill!("beta", MIRROR);
+    expect(parsed?.body).toContain("beta body");
   });
 });

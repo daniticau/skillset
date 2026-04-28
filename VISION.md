@@ -1,51 +1,59 @@
 # Vision: skillset
 
-## What is this?
+## What Is This?
 
-A coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, it reads your entire coding history — Claude Code, Codex, Cursor — and writes the foundational skills that would have saved you the friction you've already lived through. Every night after that, it reviews the day's work, notices what went sideways, and drafts small improvements. Over time, the friction fades.
+A coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have, consolidates them into a store you own, and mirrors them back into the tools you use. When you ask it to tailor, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make future agents better at you.
 
 ## The Problem
 
-Every conversation you have with a coding agent is training data about you — your stack, your taste, your pet peeves, the recurring mistakes your agent keeps making. Almost none of it gets captured. You correct the same things on Monday that you corrected on Friday. You switch from Claude Code to Cursor for an afternoon and start from zero.
+Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch from Claude Code to Codex or Cursor and start from zero.
 
-The harness you work inside every day doesn't learn. That's the gap.
+The agent learns only inside one harness, if it learns at all. Your personalization should not be trapped there.
 
 ## How It Works
 
-You work with your agent normally. In the background — at 2am, when your machine is idle and your subscriptions aren't busy — another process reads the sessions from that day, looking for moments where things went wrong: a rejected plan, a correction, a redo, a visible sigh. It traces the failure back to its cause and drafts a small skill that would have prevented it.
+`sks init` creates a canonical skill store on disk, detects the coding agents you have installed, asks which ones to connect, imports existing skills from those stores, resolves same-name conflicts by newest edit time, and mirrors the consolidated result back out.
 
-At the end of each nightly pass, skillset also cleans up after itself: if two skills contradict each other, it picks the most recent (because your preferences evolve). If two skills say the same thing twice, it merges them. Stale auto-generated skills that haven't mattered in a while get marked for pruning.
+After that, the loop is explicit and simple:
 
-Some skills get installed silently because they're obviously safe. Others get surfaced for you to approve, edit, or throw away. You decide the threshold.
+```sh
+sks tailor
+```
 
-The skills themselves live in a canonical store that you own. Every agent harness you use — Claude Code, Cursor, Codex today, whatever else tomorrow — is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical, then out to all the others.
+`tailor` scrapes past sessions, mines corrections and preferences, clusters recurring signals, asks an LLM whether each signal should edit an existing skill or create a new one, writes the result directly to canonical, and mirrors it automatically. There is no draft/promote ceremony. `--dry-run` is the preview escape hatch.
 
-## The Daily Loop
+The skills themselves live in a canonical store that you own. Every agent harness you use is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical before the next write, then out to all the others.
 
-**Day 0: deep dive.** `sks init` walks you through setup — which agents to link, whether to run the deep dive now, whether to register the nightly task. The deep dive reads every session on disk (could be months of history) and generates up to ten foundational skills that capture what you've already taught your agents the hard way. It's resumable: interrupt it and re-running picks up where it left off.
+## The User Loop
 
-**Every day after.** A scheduled task fires at 2am. If your machine is idle (CPU quiet, no recent input), the cycle starts: scrape new sessions from that day, mine for signals, draft zero to three new skills, run a cleanup pass (dedup, conflict resolution, stale pruning), sync to all your mirrors, and commit the result to the canonical store's internal git log. Wake up the next morning and find your harness a little better at you than it was yesterday.
+**First run.** `npx skillset-cli init` sets up the store, connects detected agents, imports existing skills, and mirrors the consolidated store back out.
 
-If you're still up at 2am, the cycle waits until the next night rather than stealing compute.
+**When you want it to learn.** Run `sks tailor`. It turns past session friction into skills and installs them directly.
+
+**When you notice a rule in the moment.** Run `sks tailor "prefer pnpm over npm"` or pipe a fuller instruction into `sks tailor --stdin`.
+
+**When something looks off.** Run `sks doctor --repair`. It reconciles canonical and connected mirrors, promotes mirror-side edits, archives conflicts, and mirrors the repaired store.
 
 ## Who It's For
 
-Right now: me, and people who work with coding agents enough that the friction starts to compound. People who've noticed they keep repeating themselves. People who switch between agent tools and resent starting over each time.
+Right now: people who work with coding agents enough that the friction compounds. People who notice they keep repeating themselves. People who switch between agent tools and resent starting over each time.
 
-Later, maybe: anyone who interacts with agents often enough that their chat history is a meaningful signal about who they are.
+Later: anyone whose agent history contains enough signal to become a useful personal operating manual.
 
 ## What Success Looks Like
 
-The agent I work with in six months knows things about how I work that I never explicitly told it — because it watched, noticed, and wrote them down on its own. The friction of onboarding a new agent tool is near zero, because my personalization isn't trapped in any one vendor's harness. I own it. It follows me.
+The agent I work with in six months knows things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Onboarding a new agent tool is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
 
 ## Principles
 
-**Your personalization is yours.** It shouldn't live in one vendor's database. It shouldn't vanish when you switch tools. The canonical store is on your disk, in a git repo you control. Any agent that wants access is a mirror, not an owner.
+**Your personalization is yours.** It should live on your disk, in a git-backed store you control. Any agent that wants access is a mirror, not an owner.
 
-**Boundaries are explicit.** Skills you author yourself are never touched by automation. Skills the system generated can evolve, but if you edit one, the edit is preserved unless a later pass finds real contradictory evidence. You always know which rules are yours and which are the system's — every skill carries its origin.
+**The public surface is small.** `init`, `tailor`, `list`, `status`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
 
 **User edits are sacred.** If you edit a skill directly in a mirror, that edit gets promoted back to canonical. The system never silently overwrites something you changed by hand.
 
-**No magic by default.** The nightly cycle runs only because you installed its scheduled task. Skills get auto-installed only in tiers you've marked safe. Everything else waits for you.
+**Mirrors are automatic.** Commands that mutate canonical skills or connected mirrors reconcile and mirror as part of the command.
 
-**Start boring.** Every layer sits on a boring-and-correct one below it. The canonical store is a git repo. The mirrors are files. The nightly cycle is a scheduled task. Nothing exotic — nothing you can't inspect.
+**No draft ceremony.** Generated skills install directly with tier metadata. The user can preview with `--dry-run`, edit with `sks edit`, or remove with `sks remove`.
+
+**Start boring.** Canonical skills are files. The store is a git repo. Conflicts are archived on disk. Nothing exotic, nothing you cannot inspect.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   defaultLLMConfig,
+  ollamaEmbeddingConfig,
   isAvailable,
   chatCompletion,
   parseLLMJson,
@@ -10,6 +11,7 @@ describe("defaultLLMConfig", () => {
   const origProvider = process.env.SKILLSET_LLM_PROVIDER;
   const origUrl = process.env.SKILLSET_LLM_URL;
   const origModel = process.env.SKILLSET_LLM_MODEL;
+  const origEmbedModel = process.env.SKILLSET_EMBED_MODEL;
 
   afterEach(() => {
     if (origProvider) process.env.SKILLSET_LLM_PROVIDER = origProvider;
@@ -18,6 +20,8 @@ describe("defaultLLMConfig", () => {
     else delete process.env.SKILLSET_LLM_URL;
     if (origModel) process.env.SKILLSET_LLM_MODEL = origModel;
     else delete process.env.SKILLSET_LLM_MODEL;
+    if (origEmbedModel) process.env.SKILLSET_EMBED_MODEL = origEmbedModel;
+    else delete process.env.SKILLSET_EMBED_MODEL;
   });
 
   it("uses Anthropic defaults when SKILLSET_LLM_PROVIDER=anthropic", () => {
@@ -75,6 +79,22 @@ describe("defaultLLMConfig", () => {
     const cfg = defaultLLMConfig();
     expect(cfg.provider).toBe("anthropic");
     expect(cfg.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("uses an explicit Ollama config for embedding discovery even when chat uses a CLI provider", () => {
+    process.env.SKILLSET_LLM_PROVIDER = "claude-cli";
+    delete process.env.SKILLSET_LLM_URL;
+    delete process.env.SKILLSET_LLM_MODEL;
+    process.env.SKILLSET_EMBED_MODEL = "nomic-embed-text";
+
+    const chatCfg = defaultLLMConfig();
+    const embedCfg = ollamaEmbeddingConfig(chatCfg);
+
+    expect(chatCfg.provider).toBe("claude-cli");
+    expect(chatCfg.baseUrl).toBe("");
+    expect(embedCfg.provider).toBe("ollama");
+    expect(embedCfg.baseUrl).toBe("http://localhost:11434/v1");
+    expect(embedCfg.embeddingModel).toBe("nomic-embed-text");
   });
 });
 

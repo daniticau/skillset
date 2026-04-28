@@ -89,12 +89,12 @@ async function ensureGitIdentity(): Promise<void> {
 
 /**
  * Returns true if staging + commit should proceed — i.e., there are changes
- * under ~/.skillset/skills or ~/.skillset/drafts that we care about. State-only
+ * under ~/.skillset/skills that we care about. State-only
  * changes are filtered out here to avoid churn commits; they still land on the
  * NEXT meaningful cycle.
  */
 async function hasMeaningfulChanges(): Promise<boolean> {
-  const res = await runGit(["status", "--porcelain", "--", "skills", "drafts"]);
+  const res = await runGit(["status", "--porcelain", "--", "skills"]);
   if (!res) return false;
   return res.stdout.trim().length > 0;
 }
@@ -178,7 +178,7 @@ export function formatCycleCommitMessage(report: CycleReport): string {
 /**
  * Stage and commit the outcome of a cycle. Skips cleanly when:
  *   - ~/.skillset/.git doesn't exist (store was init'd without git),
- *   - there are no changes under skills/ or drafts/,
+ *   - there are no changes under skills/,
  *   - git is unavailable on the host.
  * Returns { sha } on success, null on skip.
  */
@@ -190,10 +190,10 @@ export async function stageAndCommitCycle(
 
   if (!(await hasMeaningfulChanges())) return null;
 
-  // Stage skills, drafts, and state.json independently. `git add <path>`
+  // Stage skills and state.json independently. `git add <path>`
   // errors when the path doesn't exist, so we add one at a time and ignore
   // ENOENT-style failures.
-  for (const path of ["skills", "drafts", "state.json"]) {
+  for (const path of ["skills", "state.json"]) {
     if (existsSync(join(STORE_ROOT, path))) {
       await runGit(["add", "--", path]);
     }

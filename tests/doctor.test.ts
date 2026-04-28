@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,16 +8,19 @@ const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const CLAUDE_MIRROR = join(TEST_ROOT, "claude-mirror");
 const CURSOR_MIRROR = join(TEST_ROOT, "cursor-mirror");
-const CODEX_FILE = join(TEST_ROOT, "AGENTS.md");
+const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
 
 vi.mock("../src/core/paths.js", () => ({
   STORE_ROOT: STORE,
   STORE_SKILLS_DIR: SKILLS,
   SESSIONS_DIR: join(STORE, "sessions"),
+  USAGE_DIR: join(STORE, "usage"),
+  USAGE_EVENTS_FILE: join(STORE, "usage", "events.jsonl"),
   CONFLICTS_DIR: join(STORE, "conflicts"),
   CONFIG_FILE: join(STORE, "config.json"),
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: CLAUDE_MIRROR,
+  DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
 }));
 
 vi.mock("../src/mine/llm/index.js", () => ({
@@ -49,7 +52,7 @@ vi.mock("../src/mine/index.js", () => ({
 }));
 
 const { writeConfig, writeState } = await import("../src/core/config.js");
-const { doctorCommand } = await import("../src/commands/doctor.js");
+const { doctorCommand, llmProviderLabel } = await import("../src/commands/doctor.js");
 
 describe("doctorCommand", () => {
   beforeEach(async () => {
@@ -57,6 +60,7 @@ describe("doctorCommand", () => {
     mkdirSync(SKILLS, { recursive: true });
     mkdirSync(CLAUDE_MIRROR, { recursive: true });
     mkdirSync(CURSOR_MIRROR, { recursive: true });
+    mkdirSync(CODEX_MIRROR, { recursive: true });
 
     mkdirSync(join(CLAUDE_MIRROR, "alpha"), { recursive: true });
     writeFileSync(
@@ -69,20 +73,10 @@ describe("doctorCommand", () => {
       "---\ndescription: \"beta\"\nglobs: []\nalwaysApply: false\nskillset-name: beta\n---\n\nbeta body\n"
     );
 
+    mkdirSync(join(CODEX_MIRROR, "gamma"), { recursive: true });
     writeFileSync(
-      CODEX_FILE,
-      [
-        "<!-- skillset:begin — do not edit this block -->",
-        "",
-        "# Skills (managed by skillset)",
-        "",
-        "## gamma",
-        "",
-        "gamma body",
-        "",
-        "<!-- skillset:end -->",
-        "",
-      ].join("\n")
+      join(CODEX_MIRROR, "gamma", "SKILL.md"),
+      "---\nname: gamma\ndescription: gamma\n---\n\ngamma body\n"
     );
 
     await writeConfig({
@@ -90,7 +84,7 @@ describe("doctorCommand", () => {
       links: [
         { agent: "claude-code", path: CLAUDE_MIRROR },
         { agent: "cursor", path: CURSOR_MIRROR },
-        { agent: "codex", path: CODEX_FILE },
+        { agent: "codex", path: CODEX_MIRROR },
       ],
     });
     await writeState({ version: 2, skills: {}, reviewedDates: {} });
@@ -101,7 +95,7 @@ describe("doctorCommand", () => {
     rmSync(TEST_ROOT, { recursive: true, force: true });
   });
 
-  it("reports mirror layouts without crashing on aggregate-file links", async () => {
+  it("reports mirror layouts for Claude, Cursor, and Codex links", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
@@ -112,6 +106,23 @@ describe("doctorCommand", () => {
     expect(output).toContain("Cursor");
     expect(output).toContain("Codex");
     expect(output).toContain("(1 skill)");
-    expect(output).toContain("(managed aggregate file)");
+  });
+
+  it("repairs by importing connected mirror skills into canonical", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    await doctorCommand({ repair: true });
+
+    const imported = join(SKILLS, "alpha", "SKILL.md");
+    expect(existsSync(imported)).toBe(true);
+    expect(readFileSync(imported, "utf8")).toContain("alpha body");
+  });
+
+  it("labels each LLM provider accurately", () => {
+    expect(llmProviderLabel("claude-cli")).toBe("Claude CLI");
+    expect(llmProviderLabel("codex-cli")).toBe("Codex CLI");
+    expect(llmProviderLabel("anthropic")).toBe("Anthropic API");
+    expect(llmProviderLabel("ollama")).toBe("local Ollama");
   });
 });

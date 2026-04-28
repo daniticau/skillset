@@ -1,11 +1,17 @@
 import pc from "picocolors";
 import { sync } from "../core/mirror.js";
+import type { SyncReport } from "../core/mirror.js";
 import { getAdapter } from "../core/adapters/index.js";
+import type { AgentKind } from "../core/config.js";
 
-export async function syncCommand(): Promise<void> {
-  const report = await sync();
+function displaySourceLabel(label: string): string {
+  if (label === "canonical") return "canonical";
+  return getAdapter(label as AgentKind).displayName;
+}
+
+export function printSyncReport(report: SyncReport): void {
   if (report.linkCount === 0) {
-    console.log(pc.yellow("no mirrors linked yet — run `skillset link claude-code`"));
+    console.log(pc.yellow("no mirrors connected yet — run `sks connect claude-code` or `sks connect codex`"));
     return;
   }
 
@@ -16,11 +22,20 @@ export async function syncCommand(): Promise<void> {
 
   for (const a of conflicts) {
     if (a.kind !== "conflict") continue;
-    const winnerName = getAdapter(a.winner.agent).displayName;
-    const loserNames = a.losers.map((l) => getAdapter(l.agent).displayName).join(", ");
+    const winnerName = a.winnerLabel
+      ? a.winnerLabel === "canonical"
+        ? "canonical"
+        : getAdapter(a.winner.agent).displayName
+      : getAdapter(a.winner.agent).displayName;
+    const loserNames = a.loserLabels
+      ? a.loserLabels
+          .map(displaySourceLabel)
+          .join(", ")
+      : a.losers.map((l) => getAdapter(l.agent).displayName).join(", ");
+    const loserCount = a.archivedLoserCount ?? a.losers.length;
     console.log(
       pc.yellow(
-        `⚠ conflict on "${a.skill}" — ${winnerName} won (newest mtime); archived ${a.losers.length} loser(s) [${loserNames}] to ${a.archive}`
+        `⚠ conflict on "${a.skill}" — ${winnerName} won (newest mtime); archived ${loserCount} version(s) [${loserNames}] to ${a.archive}`
       )
     );
   }
@@ -44,5 +59,16 @@ export async function syncCommand(): Promise<void> {
     pc.green(
       `✓ synced ${report.skillCount} skill(s) → ${report.linkCount} mirror(s) (${mirrored.length} writes)`
     )
+  );
+}
+
+export async function syncCommand(
+  options: { importExisting?: boolean; adoptUntracked?: boolean } = {}
+): Promise<void> {
+  printSyncReport(
+    await sync({
+      importExisting: options.importExisting,
+      adoptUntracked: options.adoptUntracked,
+    })
   );
 }

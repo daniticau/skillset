@@ -4,6 +4,7 @@ export {
   embed,
   parseLLMJson,
   detectEmbeddingModel,
+  ollamaEmbeddingConfig,
 } from "./client.js";
 export type {
   LLMConfig,

@@ -6,17 +6,21 @@ import {
   STORE_ROOT,
   STORE_SKILLS_DIR,
   SESSIONS_DIR,
+  USAGE_EVENTS_FILE,
   CONFLICTS_DIR,
   CONFIG_FILE,
   STATE_FILE,
 } from "../core/paths.js";
 import { defaultLLMConfig, isAvailable } from "../mine/llm/index.js";
-import { DRAFTS_DIR } from "../mine/synthesize.js";
+import type { Provider } from "../mine/llm/index.js";
 import { readConfig, readState } from "../core/config.js";
 import type { Link } from "../core/config.js";
 import { getAdapter } from "../core/adapters/index.js";
 import { listSkillDirs } from "../core/skill.js";
 import { getSessionStats } from "../mine/index.js";
+import { readUsageEvents } from "../usage/events.js";
+import { sync } from "../core/mirror.js";
+import { printSyncReport } from "./sync.js";
 
 const OK = pc.green("✓");
 const MISS = pc.yellow("•");
@@ -87,8 +91,7 @@ async function sectionPaths(): Promise<void> {
 
 async function sectionLLM(verbose: boolean): Promise<void> {
   const config = defaultLLMConfig();
-  const providerLabel =
-    config.provider === "anthropic" ? "Anthropic API" : "local Ollama";
+  const providerLabel = llmProviderLabel(config.provider);
   console.log(pc.bold(`LLM (${providerLabel})`));
   console.log(`  ${label("provider")} ${pc.dim(config.provider)}`);
   const modelFromEnv = process.env.SKILLSET_LLM_MODEL === config.model;
@@ -116,9 +119,11 @@ async function sectionLLM(verbose: boolean): Promise<void> {
     console.log(`  ${label("reachable")} ${ERR} ${pc.red(avail.reason ?? "unknown")}`);
     if (config.provider === "anthropic") {
       console.log(pc.dim(`    Set ANTHROPIC_API_KEY in ~/.skillset/.env or your shell.`));
-    } else {
+    } else if (config.provider === "ollama") {
       console.log(pc.dim(`    Is Ollama running on the host? Try:`));
       console.log(pc.dim(`      curl ${config.baseUrl.replace(/\/v1\/?$/, "")}/api/tags`));
+    } else {
+      console.log(pc.dim(`    Is ${config.provider === "claude-cli" ? "Claude Code" : "Codex"} installed and logged in?`));
     }
   } else {
     console.log(`  ${label("reachable")} ${OK}`);
@@ -140,10 +145,22 @@ async function sectionLLM(verbose: boolean): Promise<void> {
   console.log();
 }
 
+export function llmProviderLabel(provider: Provider): string {
+  switch (provider) {
+    case "claude-cli":
+      return "Claude CLI";
+    case "codex-cli":
+      return "Codex CLI";
+    case "anthropic":
+      return "Anthropic API";
+    case "ollama":
+      return "local Ollama";
+  }
+}
+
 async function sectionStore(): Promise<void> {
   console.log(pc.bold("Store"));
   const skillDirs = existsSync(STORE_SKILLS_DIR) ? await listSkillDirs(STORE_SKILLS_DIR) : [];
-  const draftCount = await countDirs(DRAFTS_DIR);
 
   const nuggetsFile = join(STORE_ROOT, "nuggets", "nuggets.json");
   const clustersFile = join(STORE_ROOT, "nuggets", "clusters.json");
@@ -151,7 +168,6 @@ async function sectionStore(): Promise<void> {
   const clusterCount = await countFile(clustersFile);
 
   console.log(`  ${label("skills")} ${pc.dim(String(skillDirs.length))}`);
-  console.log(`  ${label("drafts")} ${pc.dim(String(draftCount))}`);
   console.log(`  ${label("nuggets")} ${pc.dim(String(nuggetCount))}`);
   console.log(`  ${label("clusters")} ${pc.dim(String(clusterCount))}`);
   console.log();
@@ -161,7 +177,7 @@ async function sectionMirrors(): Promise<void> {
   console.log(pc.bold("Mirrors"));
   const config = await readConfig();
   if (config.links.length === 0) {
-    console.log(pc.dim(`  (none linked — run ${pc.bold("skillset init")} or ${pc.bold("skillset link <agent>")})`));
+    console.log(pc.dim(`  (none connected — run ${pc.bold("sks init")} or ${pc.bold("sks connect <agent>")})`));
   } else {
     for (const link of config.links) {
       const exists = existsSync(link.path);
@@ -179,7 +195,7 @@ async function sectionSessions(): Promise<void> {
   const stats = getSessionStats();
   if (stats.userSessions === 0) {
     console.log(
-      pc.dim(`  no scraped sessions in ${SESSIONS_DIR} — run ${pc.bold("skillset mine")} to scrape + mine`)
+      pc.dim(`  no scraped sessions in ${SESSIONS_DIR} — run ${pc.bold("sks tailor")} to scrape + mine`)
     );
     console.log();
     return;
@@ -204,7 +220,7 @@ async function sectionMine(): Promise<void> {
   const state = await readState();
   const mine = state.mine;
   if (!mine) {
-    console.log(pc.dim(`  (nothing mined yet — run ${pc.bold("skillset mine")})`));
+    console.log(pc.dim(`  (nothing mined yet — run ${pc.bold("sks tailor")})`));
   } else {
     const processed = Object.keys(mine.processedSessions).length;
     console.log(`  ${label("pipeline")} ${pc.dim(`v${mine.pipelineVersion}`)}`);
@@ -213,6 +229,27 @@ async function sectionMine(): Promise<void> {
       console.log(`  ${label("last run")} ${pc.dim(mine.lastRunAt)}`);
     }
   }
+  console.log();
+}
+
+async function sectionUsage(): Promise<void> {
+  console.log(pc.bold("Usage"));
+  const events = await readUsageEvents();
+  const state = await readState();
+  if (events.length === 0) {
+    console.log(pc.dim("  0 events"));
+  } else {
+    const last = events.reduce<string | undefined>(
+      (latest, event) => (!latest || event.usedAt > latest ? event.usedAt : latest),
+      undefined
+    );
+    console.log(`  ${label("events")} ${pc.dim(String(events.length))}`);
+    if (last) console.log(`  ${label("last use")} ${pc.dim(last)}`);
+  }
+  if (state.usage?.lastScanAt) {
+    console.log(`  ${label("last scan")} ${pc.dim(state.usage.lastScanAt)}`);
+  }
+  console.log(`  ${label("file")} ${present(USAGE_EVENTS_FILE)} ${pc.dim(USAGE_EVENTS_FILE)}`);
   console.log();
 }
 
@@ -241,14 +278,21 @@ async function sectionConflicts(): Promise<void> {
 
 export interface DoctorOptions {
   verbose?: boolean;
+  repair?: boolean;
 }
 
 export async function doctorCommand(options: DoctorOptions = {}): Promise<void> {
+  if (options.repair) {
+    console.log(pc.bold("Repair"));
+    printSyncReport(await sync({ importExisting: true }));
+    console.log();
+  }
   await sectionPaths();
   await sectionLLM(options.verbose ?? false);
   await sectionStore();
   await sectionMirrors();
   await sectionSessions();
   await sectionMine();
+  await sectionUsage();
   await sectionConflicts();
 }

@@ -22,6 +22,7 @@ import {
   defaultLLMConfig,
   isAvailable,
   detectEmbeddingModel,
+  ollamaEmbeddingConfig,
 } from "../index.js";
 import type { Nugget, NuggetCluster, ParsedSession } from "../index.js";
 import { deduplicateAndRank } from "../dedup.js";
@@ -31,7 +32,6 @@ import {
   planSkillAction,
   executeCreate,
 } from "../make.js";
-import { promoteDraft } from "../synthesize.js";
 import { sync } from "../../core/mirror.js";
 import { stageAndCommitCycle } from "../../core/audit/git.js";
 import type { CycleReport, CycleCreatedSkill } from "../../core/audit/git.js";
@@ -173,7 +173,7 @@ export async function runDeepDive(
     if (shouldRunStage(checkpoint.stage, "clusters-done")) {
       onStage("clustering", `${nuggets.length} nuggets`);
       if (!options.dryRun) {
-        const clusterCfg = defaultLLMConfig();
+        const clusterCfg = ollamaEmbeddingConfig(defaultLLMConfig());
         const embedModel = await detectEmbeddingModel(clusterCfg).catch(() => undefined);
         if (embedModel) clusterCfg.embeddingModel = embedModel;
         clusters = await deduplicateAndRank(nuggets, {
@@ -216,7 +216,6 @@ export async function runDeepDive(
             const action = await planSkillAction(cluster, summaries, llmConfig, budget);
             if (action.kind !== "create") continue;
             const { skill } = await executeCreate(action, cluster, llmConfig);
-            await promoteDraft(skill.name);
             created.push({ name: skill.name, description: skill.description });
             summaries.push({ name: skill.name, description: skill.description });
             budget -= 1;

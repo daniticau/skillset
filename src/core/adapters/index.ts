@@ -25,4 +25,8 @@ export function supportedAgents(): AgentKind[] {
   return (Object.keys(ADAPTERS) as AgentKind[]).filter((k) => ADAPTERS[k]);
 }
 
+export function defaultAutoLinkAgents(): AgentKind[] {
+  return supportedAgents();
+}
+
 export type { AgentAdapter } from "./types.js";

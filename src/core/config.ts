@@ -78,6 +78,16 @@ export interface MakeState {
   lastRunAt?: string;
 }
 
+export interface UsageProcessedSession {
+  fileHash: string;
+  scannedAt: string;
+}
+
+export interface UsageState {
+  processedSessions: Record<string, UsageProcessedSession>;
+  lastScanAt?: string;
+}
+
 export type CycleKind = "deep-dive" | "nightly" | "cleanup";
 
 export type CheckpointStage =
@@ -150,6 +160,7 @@ export interface State {
   scrape?: ScrapeCursors;
   mine?: MineState;
   make?: MakeState;
+  usage?: UsageState;
   reviewedDates?: Record<string, ReviewedDateRecord>;
   currentCycle?: CurrentCycle;
   config?: CycleConfig;
@@ -233,6 +244,7 @@ export function migrateState(raw: unknown): State {
     scrape: data.scrape as ScrapeCursors | undefined,
     mine: data.mine as MineState | undefined,
     make: data.make as MakeState | undefined,
+    usage: data.usage as UsageState | undefined,
     reviewedDates: (data.reviewedDates as Record<string, ReviewedDateRecord> | undefined) ?? {},
     currentCycle: data.currentCycle as CurrentCycle | undefined,
     config: data.config as CycleConfig | undefined,

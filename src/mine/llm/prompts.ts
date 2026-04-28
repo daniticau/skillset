@@ -84,7 +84,7 @@ export function extractionUserPrompt(window: ConversationWindow): string {
 const TIER_DEFINITIONS = `Tier definitions (used in YAML frontmatter \`tier\` field):
 - high: narrow style/typography rules, single-fact corrections, anything where being wrong has trivial cost (e.g. "no em-dashes", "use pnpm not npm"). Auto-installed silently.
 - medium: workflow preferences, tool-routing rules, anti-patterns at a single tool/library level (e.g. "before X, run Y", "don't mock the database in tests"). Auto-installed with a notice.
-- low: broad behavior changes that affect how the AI reasons about a class of problems (e.g. "always start with TDD", "decompose long tasks into sub-agents"). Held as a draft for human review.
+- low: broad behavior changes that affect how the AI reasons about a class of problems (e.g. "always start with TDD", "decompose long tasks into sub-agents"). Installed directly, but marked low for conservative future handling.
 
 When in doubt between two tiers, choose the lower (more conservative) one.`;
 
@@ -152,7 +152,7 @@ A signal is valid if it describes a persistent preference, style, workflow, or c
  * Triage prompt: given an observed cluster, decide whether to EDIT an existing
  * skill, CREATE a new one, or SKIP. The existing skill list goes in the system
  * prompt so Anthropic prompt caching can amortize it across all clusters in a
- * single `sks make` run.
+ * single tailoring run.
  */
 export function triageSystemPrompt(
   existingSkills: Array<{ name: string; description: string }>

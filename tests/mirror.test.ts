@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mkdirSync,
   rmSync,
@@ -16,6 +16,7 @@ const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const MIRROR = join(TEST_ROOT, "mirror");
 const CURSOR_MIRROR = join(TEST_ROOT, "cursor-mirror");
+const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
 const CONFLICTS = join(STORE, "conflicts");
 
 vi.mock("../src/core/paths.js", () => ({
@@ -25,11 +26,14 @@ vi.mock("../src/core/paths.js", () => ({
   CONFIG_FILE: join(STORE, "config.json"),
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: MIRROR,
+  DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
 }));
 
 // eager imports so the mocked paths module is loaded once
 const { writeConfig } = await import("../src/core/config.js");
 const { sync } = await import("../src/core/mirror.js");
+const { connectCommand } = await import("../src/commands/link.js");
+const { removeCommand } = await import("../src/commands/manage.js");
 
 function makeSkill(root: string, name: string, body: string) {
   const dir = join(root, name);
@@ -45,6 +49,11 @@ beforeEach(() => {
   mkdirSync(SKILLS, { recursive: true });
   mkdirSync(MIRROR, { recursive: true });
   mkdirSync(CURSOR_MIRROR, { recursive: true });
+  mkdirSync(CODEX_MIRROR, { recursive: true });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function setMtime(path: string, secondsAgo: number): void {
@@ -60,6 +69,15 @@ describe("mirror sync", () => {
     const report = await sync();
     expect(report.skillCount).toBe(1);
     expect(readFileSync(join(MIRROR, "alpha", "SKILL.md"), "utf8")).toContain("alpha body");
+  });
+
+  it("copies canonical skills to the Codex user skills mirror", async () => {
+    await writeConfig({ version: 1, links: [{ agent: "codex", path: CODEX_MIRROR }] });
+    makeSkill(SKILLS, "alpha", "alpha body");
+
+    const report = await sync();
+    expect(report.skillCount).toBe(1);
+    expect(readFileSync(join(CODEX_MIRROR, "alpha", "SKILL.md"), "utf8")).toContain("alpha body");
   });
 
   it("promotes user edits in the mirror back to canonical", async () => {
@@ -140,5 +158,94 @@ describe("mirror sync", () => {
     );
     expect(ctx).toContain("Winner adapter: cursor");
     expect(ctx).toContain("Loser adapter: claude-code");
+  });
+
+  it("initial import conflict: newest mirror wins before first write", async () => {
+    await writeConfig({
+      version: 1,
+      links: [
+        { agent: "claude-code", path: MIRROR },
+        { agent: "cursor", path: CURSOR_MIRROR },
+      ],
+    });
+
+    makeSkill(MIRROR, "epsilon", "older mirror body");
+    setMtime(join(MIRROR, "epsilon", "SKILL.md"), 60);
+    writeFileSync(
+      join(CURSOR_MIRROR, "epsilon.mdc"),
+      `---\ndescription: "Test skill for epsilon."\nglobs: []\nalwaysApply: false\nskillset-name: epsilon\n---\n\nnewer cursor body\n`
+    );
+    setMtime(join(CURSOR_MIRROR, "epsilon.mdc"), 5);
+
+    const report = await sync({ importExisting: true });
+    const conflicts = report.actions.filter((a) => a.kind === "conflict");
+    expect(conflicts).toHaveLength(1);
+    expect(readFileSync(join(SKILLS, "epsilon", "SKILL.md"), "utf8")).toContain("newer cursor body");
+    expect(readFileSync(join(MIRROR, "epsilon", "SKILL.md"), "utf8")).toContain("newer cursor body");
+    expect(existsSync(CONFLICTS)).toBe(true);
+  });
+
+  it("does not double-promote after an import conflict against canonical", async () => {
+    await writeConfig({ version: 1, links: [{ agent: "codex", path: CODEX_MIRROR }] });
+    makeSkill(SKILLS, "theta", "original body");
+    await sync();
+
+    const canonicalPath = join(SKILLS, "theta", "SKILL.md");
+    writeFileSync(
+      canonicalPath,
+      `---\nname: theta\ndescription: Test skill for theta.\n---\n\nolder canonical body\n`
+    );
+    setMtime(canonicalPath, 60);
+
+    const mirrorPath = join(CODEX_MIRROR, "theta", "SKILL.md");
+    writeFileSync(
+      mirrorPath,
+      `---\nname: theta\ndescription: Test skill for theta.\n---\n\nnewer codex body\n`
+    );
+    setMtime(mirrorPath, 5);
+
+    const report = await sync({ importExisting: true });
+
+    const conflicts = report.actions.filter((a) => a.kind === "conflict");
+    expect(conflicts).toHaveLength(1);
+    const conflict = conflicts[0]!;
+    if (conflict.kind !== "conflict") throw new Error("expected conflict");
+    expect(conflict.winner.agent).toBe("codex");
+    expect(conflict.archivedLoserCount).toBe(1);
+    expect(conflict.loserLabels).toEqual(["canonical"]);
+    expect(
+      report.actions.filter((a) => a.kind === "promoted" && a.skill === "theta")
+    ).toHaveLength(0);
+    expect(readFileSync(join(SKILLS, "theta", "SKILL.md"), "utf8")).toContain(
+      "newer codex body"
+    );
+  });
+
+  it("connect imports an existing mirror before mirroring back out", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await writeConfig({ version: 1, links: [] });
+    makeSkill(MIRROR, "zeta", "preexisting mirror body");
+
+    await connectCommand("claude-code", { path: MIRROR });
+
+    expect(readFileSync(join(SKILLS, "zeta", "SKILL.md"), "utf8")).toContain(
+      "preexisting mirror body"
+    );
+    expect(readFileSync(join(MIRROR, "zeta", "SKILL.md"), "utf8")).toContain(
+      "preexisting mirror body"
+    );
+  });
+
+  it("remove deletes canonical and prunes linked mirrors", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await writeConfig({ version: 1, links: [{ agent: "claude-code", path: MIRROR }] });
+    makeSkill(SKILLS, "eta", "remove me");
+    await sync();
+    expect(existsSync(join(MIRROR, "eta", "SKILL.md"))).toBe(true);
+
+    await removeCommand("eta");
+
+    expect(existsSync(join(SKILLS, "eta"))).toBe(false);
+    expect(existsSync(join(MIRROR, "eta"))).toBe(false);
   });
 });

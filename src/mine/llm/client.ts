@@ -121,6 +121,28 @@ export function defaultLLMConfig(overrides: Partial<LLMConfig> = {}): LLMConfig 
   };
 }
 
+/**
+ * Embeddings are currently Ollama-only. Build an explicit Ollama config for
+ * embedding discovery instead of reusing chat config, because chat may be a
+ * subprocess provider (claude-cli/codex-cli) with an intentionally empty URL.
+ */
+export function ollamaEmbeddingConfig(base: Partial<LLMConfig> = {}): LLMConfig {
+  const inheritedOllamaUrl =
+    base.provider === "ollama" && base.baseUrl ? base.baseUrl : undefined;
+  return {
+    provider: "ollama",
+    baseUrl:
+      process.env.SKILLSET_EMBED_URL ??
+      inheritedOllamaUrl ??
+      defaultBaseUrlFor("ollama"),
+    model: "qwen3-coder",
+    apiKey: undefined,
+    embeddingModel: process.env.SKILLSET_EMBED_MODEL ?? base.embeddingModel,
+    timeout: base.timeout ?? 120_000,
+    maxRetries: base.maxRetries ?? 3,
+  };
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
