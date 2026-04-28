@@ -1,11 +1,9 @@
 /**
- * sks make — turn mined clusters into EDIT/CREATE/SKIP actions on canonical skills.
+ * Skill generation helpers — turn mined clusters into EDIT/CREATE/SKIP actions.
  *
  * For each cluster: ask the LLM to triage against existing skills, then execute
- * the chosen action. EDITs rewrite the canonical SKILL.md directly; CREATEs
- * are written as drafts here and auto-promoted by the make command (unless
- * --draft is passed); SKIPs are recorded so the cluster isn't reconsidered
- * for 30 days.
+ * the chosen action. EDITs and CREATEs both write the canonical store directly;
+ * SKIPs are recorded by callers so the cluster isn't reconsidered too often.
  */
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -30,7 +28,8 @@ import {
   renderSkillMd,
 } from "../core/skill.js";
 import type { SkillTier } from "../core/skill.js";
-import { writeDraftSkill, DRAFTS_DIR } from "./synthesize.js";
+import type { SkillOrigin } from "../core/skill.js";
+import { writeCanonicalSkill, DRAFTS_DIR } from "./synthesize.js";
 import type { SynthesizedSkill } from "./synthesize.js";
 
 export interface SkillSummary {
@@ -247,15 +246,12 @@ export async function executeEdit(
   return { path: skillPath };
 }
 
-/**
- * Generate a brand-new SKILL.md in ~/.skillset/drafts/<name>/. The make command
- * auto-promotes it to canonical by default; pass `--draft` on make to keep it
- * in drafts for manual review.
- */
+/** Generate a brand-new SKILL.md directly in the canonical store. */
 export async function executeCreate(
   action: Extract<SkillAction, { kind: "create" }>,
   cluster: NuggetCluster,
-  config: LLMConfig
+  config: LLMConfig,
+  options: { origin?: SkillOrigin } = {}
 ): Promise<{ path: string; skill: SynthesizedSkill }> {
   const result = await chat(config, {
     messages: [
@@ -295,11 +291,12 @@ export async function executeCreate(
     description,
     body,
     tier,
+    origin: options.origin,
     sourceClusterIds: [cluster.id],
     score: cluster.score,
     memberCount: cluster.members.length,
   };
-  const path = await writeDraftSkill(skill);
+  const path = await writeCanonicalSkill(skill);
   return { path, skill };
 }
 

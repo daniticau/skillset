@@ -29,6 +29,7 @@ import {
   defaultLLMConfig,
   isAvailable,
   detectEmbeddingModel,
+  ollamaEmbeddingConfig,
 } from "../index.js";
 import type { Nugget, NuggetCluster } from "../index.js";
 import { llmExtractFromSessions } from "../llm-extract.js";
@@ -40,7 +41,6 @@ import {
   executeCreate,
   executeEdit,
 } from "../make.js";
-import { promoteDraft } from "../synthesize.js";
 import { sync } from "../../core/mirror.js";
 import { stageAndCommitCycle } from "../../core/audit/git.js";
 import type {
@@ -172,7 +172,7 @@ export async function runNightlyCycle(
     // 6. Cluster + rank
     let clusters: NuggetCluster[] = [];
     if (nuggets.length > 0 && !options.dryRun) {
-      const clusterCfg = defaultLLMConfig();
+      const clusterCfg = ollamaEmbeddingConfig(defaultLLMConfig());
       const embed = await detectEmbeddingModel(clusterCfg).catch(() => undefined);
       if (embed) clusterCfg.embeddingModel = embed;
       clusters = await deduplicateAndRank(nuggets, {
@@ -232,7 +232,6 @@ export async function runNightlyCycle(
           }
           if (action.kind === "create") {
             const { skill } = await executeCreate(action, cluster, llmConfig);
-            await promoteDraft(skill.name);
             created.push({ name: skill.name, description: skill.description });
             eligibleSummaries.push({ name: skill.name, description: skill.description });
             budget -= 1;
@@ -254,6 +253,7 @@ export async function runNightlyCycle(
       const cleanup = await runCleanup({
         llmConfig,
         mergeCap: cfg.cycleDefaults.mergeCap,
+        dryRun: false,
         pruneEnabled: cfg.cleanup.pruneEnabled,
         pruneCap: cfg.cycleDefaults.pruneCap,
         onEvent: (evt, detail) => onStage(evt, detail),

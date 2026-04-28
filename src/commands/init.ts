@@ -7,12 +7,11 @@ import pc from "picocolors";
 import { readConfig, writeConfig } from "../core/config.js";
 import type { AgentKind, Link } from "../core/config.js";
 import { ensureStore, storeRoot } from "../core/store.js";
-import { getAdapter, supportedAgents } from "../core/adapters/index.js";
-import { confirm, checkbox } from "../core/ux/prompt.js";
-import { installTask } from "../core/scheduler/windows.js";
-import { runDeepDive, consoleStageLogger } from "../mine/cycle/deep-dive.js";
-import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { ensureBuiltinSkills } from "../core/builtin-skills.js";
+import { defaultAutoLinkAgents, getAdapter } from "../core/adapters/index.js";
+import { checkbox } from "../core/ux/prompt.js";
+import { sync } from "../core/mirror.js";
+import { printSyncReport } from "./sync.js";
 
 const execFileP = promisify(execFile);
 
@@ -23,20 +22,28 @@ export interface InitOptions {
   nonInteractive?: boolean;
 }
 
-function resolveCliPath(): string {
-  try {
-    return resolve(fileURLToPath(import.meta.url));
-  } catch {
-    return join(process.cwd(), "dist", "cli.js");
-  }
+interface LinkCandidate extends Link {
+  checked: boolean;
+  detected: boolean;
 }
 
-async function detectAgents(): Promise<Link[]> {
-  const links: Link[] = [];
-  for (const kind of supportedAgents()) {
+async function detectAgents(includeOptional: boolean): Promise<LinkCandidate[]> {
+  const links: LinkCandidate[] = [];
+  for (const kind of defaultAutoLinkAgents()) {
     const adapter = getAdapter(kind as AgentKind);
     const hit = await adapter.detect();
-    if (hit) links.push({ agent: adapter.kind, path: hit.path });
+    if (hit) {
+      links.push({ agent: adapter.kind, path: hit.path, checked: true, detected: true });
+      continue;
+    }
+    if (includeOptional && adapter.kind === "claude-code") {
+      links.push({
+        agent: adapter.kind,
+        path: adapter.defaultPath,
+        checked: false,
+        detected: false,
+      });
+    }
   }
   return links;
 }
@@ -65,32 +72,50 @@ async function setupStore(): Promise<void> {
 
   const config = await readConfig();
   await writeConfig(config);
+  const installed = await ensureBuiltinSkills();
+  for (const skill of installed) {
+    console.log(pc.green(`✓ installed built-in skill ${skill.name}`));
+  }
   console.log(pc.green(`✓ canonical store ready at ${root}`));
 }
 
-async function doLinks(detected: Link[], interactive: boolean): Promise<number> {
-  if (detected.length === 0) {
-    console.log(pc.dim("  no coding agents detected"));
-    return 0;
-  }
-
-  let pickedLinks: Link[];
-  if (interactive) {
-    pickedLinks = await checkbox(
-      "Which agents should be linked as mirror targets?",
-      detected.map((link) => ({
-        label: `${getAdapter(link.agent).displayName} ${pc.dim(`(${link.path})`)}`,
-        value: link,
-        checked: true,
-      }))
-    );
-  } else {
-    pickedLinks = detected;
-  }
-
+async function doLinks(candidates: LinkCandidate[], interactive: boolean): Promise<number> {
   const fresh = await readConfig();
   const linkKey = (l: Link) => `${l.agent}:${l.path}`;
   const existing = new Set(fresh.links.map(linkKey));
+  const alreadyLinked = candidates.filter((link) => existing.has(linkKey(link)));
+  const linkable = candidates.filter((link) => !existing.has(linkKey(link)));
+
+  if (alreadyLinked.length > 0) {
+    const names = alreadyLinked.map((link) => getAdapter(link.agent).displayName).join(", ");
+    console.log(pc.dim(`  already connected: ${names}`));
+  }
+
+  if (candidates.length === 0) {
+    console.log(pc.dim("  no coding agents detected"));
+    return 0;
+  }
+  if (linkable.length === 0) {
+    console.log(pc.dim("  no new agent mirrors to link"));
+    return 0;
+  }
+
+  let pickedLinks: LinkCandidate[];
+  if (interactive) {
+    pickedLinks = await checkbox(
+      "Which agents should be linked as mirror targets?",
+      linkable.map((link) => ({
+        label: `${getAdapter(link.agent).displayName} ${pc.dim(
+          `(${link.path}${link.detected ? "" : " — optional"})`
+        )}`,
+        value: link,
+        checked: link.checked,
+      }))
+    );
+  } else {
+    pickedLinks = linkable.filter((link) => link.checked);
+  }
+
   let added = 0;
   for (const link of pickedLinks) {
     if (!existing.has(linkKey(link))) {
@@ -106,41 +131,8 @@ async function doLinks(detected: Link[], interactive: boolean): Promise<number> 
     }
   }
   if (added > 0) await writeConfig(fresh);
+  if (added === 0) console.log(pc.dim("  no new mirrors linked"));
   return added;
-}
-
-async function maybeInstallScheduler(interactive: boolean): Promise<void> {
-  if (process.platform !== "win32") return;
-  const shouldInstall = interactive
-    ? await confirm("Register Windows nightly scheduled task (fires 2am)?", true)
-    : false;
-  if (!shouldInstall) return;
-  try {
-    const cliPath = resolveCliPath();
-    const { taskName } = await installTask({ cliPath });
-    console.log(pc.green(`✓ scheduled task installed: ${taskName}`));
-  } catch (err) {
-    console.log(
-      pc.yellow(
-        `• could not install scheduled task: ${err instanceof Error ? err.message : String(err)}`
-      )
-    );
-    console.log(pc.dim(`  run \`sks schedule install\` manually later`));
-  }
-}
-
-async function maybeRunDeepDive(interactive: boolean): Promise<void> {
-  const shouldRun = interactive
-    ? await confirm(
-        "Run the deep-dive now? (reads all Claude Code / Codex / Cursor history — can take tens of minutes)",
-        false
-      )
-    : false;
-  if (!shouldRun) {
-    console.log(pc.dim("  (skipped — run `sks deep-dive` when ready)"));
-    return;
-  }
-  await runDeepDive({ onStage: consoleStageLogger });
 }
 
 export async function initCommand(options: InitOptions = {}): Promise<void> {
@@ -149,19 +141,19 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   await setupStore();
 
   if (options.noAutoLink) {
-    console.log(pc.dim("  auto-link skipped (run `skillset link <agent>` manually)"));
+    console.log(pc.dim("  auto-connect skipped (run `sks connect <agent>` manually)"));
+    printSyncReport(await sync({ importExisting: true }));
     return;
   }
 
-  const detected = await detectAgents();
+  const detected = await detectAgents(interactive);
   await doLinks(detected, interactive);
 
-  await maybeInstallScheduler(interactive);
-  await maybeRunDeepDive(interactive);
+  console.log(pc.dim("reconciling existing skills from connected agents..."));
+  printSyncReport(await sync({ importExisting: true }));
 
   console.log();
   console.log(pc.dim("next:"));
-  console.log(pc.dim(`  • ${pc.bold("sks sync")} to push canonical → mirrors`));
+  console.log(pc.dim(`  • ${pc.bold("sks tailor")} to learn from past sessions`));
   console.log(pc.dim(`  • ${pc.bold("sks status")} to see what's tracked`));
-  console.log(pc.dim(`  • ${pc.bold("sks cycle --nightly")} to run a cycle manually`));
 }

@@ -9,6 +9,7 @@ export {
   embed,
   parseLLMJson,
   detectEmbeddingModel,
+  ollamaEmbeddingConfig,
   resolveProvider,
   extractionSystemPrompt,
   extractionUserPrompt,

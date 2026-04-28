@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="skillset is a portable personalization layer for coding agents. Own your agent skills on disk and mirror them across Codex, Claude Code, and Cursor."
+    />
+    <meta property="og:title" content="skillset" />
+    <meta
+      property="og:description"
+      content="A portable personalization layer for coding agents. Try it in one step with npx skillset-cli init."
+    />
+    <meta property="og:image" content="./assets/skillset-preview.png" />
+    <meta
+      property="og:image:alt"
+      content="A terminal-style preview of skillset connecting coding agents and mirroring portable skills."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="skillset" />
+    <meta
+      name="twitter:description"
+      content="A portable personalization layer for coding agents. Try it in one step with npx skillset-cli init."
+    />
+    <meta name="twitter:image" content="./assets/skillset-preview.png" />
+    <meta name="theme-color" content="#f7f6f1" />
+    <title>skillset</title>
+    <link rel="icon" href="./assets/skillset-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./script.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header" aria-label="Primary">
+      <a class="brand" href="#" aria-label="skillset home">
+        <img
+          class="brand-icon"
+          src="./assets/skillset-icon.svg"
+          alt=""
+          width="32"
+          height="32"
+          aria-hidden="true"
+        />
+        <span>skillset</span>
+      </a>
+      <nav class="nav-links" aria-label="Site links">
+        <a href="#how">How it works</a>
+        <a href="#commands">Commands</a>
+        <a href="https://github.com/daniticau/skillset">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">skillset</h1>
+          <p class="lede">
+            Own your agent skills on disk, tailor them from past sessions, and mirror
+            them across Codex, Claude Code, and Cursor.
+          </p>
+
+          <div class="install" aria-label="Install skillset">
+            <div class="command-row">
+              <code id="install-command">npx skillset-cli init</code>
+              <button class="copy-button" type="button" data-copy-target="install-command">
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <figure class="product-visual">
+          <img
+            src="./assets/skillset-preview.png"
+            alt="A terminal-style preview showing skillset initializing, connecting agents, tailoring sessions, and mirroring skills."
+            width="1200"
+            height="760"
+          />
+        </figure>
+      </section>
+
+      <section class="section" id="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <h3>Store</h3>
+            <p>Skills live in a canonical <code>~/.skillset</code> store you own.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Import</h3>
+            <p>Existing agent skills are consolidated before anything is mirrored.</p>
+          </article>
+          <article class="feature-card">
+            <h3>Tailor</h3>
+            <p><code>sks tailor</code> learns from past sessions and mirrors automatically.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section command-section" id="commands" aria-labelledby="commands-title">
+        <h2 id="commands-title">Commands</h2>
+        <div class="command-list">
+          <div><code>sks init</code><span>Set up the store and connect detected agents.</span></div>
+          <div><code>sks tailor</code><span>Mine past sessions and create useful skills.</span></div>
+          <div><code>sks list</code><span>See every current skill and short description.</span></div>
+          <div><code>sks doctor --repair</code><span>Reconcile mirrors if something looks off.</span></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>MIT licensed.</span>
+      <a href="https://github.com/daniticau/skillset">github.com/daniticau/skillset</a>
+    </footer>
+  </body>
+</html>

@@ -31,6 +31,7 @@ import {
 } from "../llm/index.js";
 import { storeSkillDir } from "../../core/store.js";
 import { readSkillMd, renderSkillMd } from "../../core/skill.js";
+import { jaccardSimilarity, tokenSet } from "./similarity.js";
 
 export interface MergeFinding {
   merge: boolean;
@@ -42,27 +43,12 @@ export interface MergeFinding {
 export interface MergeOutcome {
   replaced: string[];
   produced: string;
-  archivePath: string;
+  archivePath?: string;
   finding: MergeFinding;
+  dryRun: boolean;
 }
 
 const MIN_CONFIDENCE = 0.8;
-
-function tokens(s: string): Set<string> {
-  return new Set(
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, " ")
-      .split(/\s+/)
-      .filter((t) => t.length > 2)
-  );
-}
-
-function jaccard(a: Set<string>, b: Set<string>): number {
-  const inter = [...a].filter((x) => b.has(x)).length;
-  const uni = new Set([...a, ...b]).size;
-  return uni === 0 ? 0 : inter / uni;
-}
 
 async function readSkill(
   name: string
@@ -158,7 +144,8 @@ export async function runDedupMerge(
   names: string[],
   config: LLMConfig,
   cap: number,
-  onEvent: (event: string, detail?: string) => void
+  onEvent: (event: string, detail?: string) => void,
+  options: { dryRun?: boolean } = {}
 ): Promise<MergeOutcome[]> {
   if (names.length < 2 || cap <= 0) return [];
 
@@ -173,13 +160,13 @@ export async function runDedupMerge(
   const nameList = Object.keys(infos);
   const tokenCache: Record<string, Set<string>> = {};
   for (const n of nameList) {
-    tokenCache[n] = tokens(n + " " + infos[n]!.description);
+    tokenCache[n] = tokenSet(n + " " + infos[n]!.description);
   }
 
   const pairs: Array<{ a: string; b: string; score: number }> = [];
   for (let i = 0; i < nameList.length; i++) {
     for (let j = i + 1; j < nameList.length; j++) {
-      const score = jaccard(tokenCache[nameList[i]!]!, tokenCache[nameList[j]!]!);
+      const score = jaccardSimilarity(tokenCache[nameList[i]!]!, tokenCache[nameList[j]!]!);
       if (score >= 0.3) pairs.push({ a: nameList[i]!, b: nameList[j]!, score });
     }
   }
@@ -208,19 +195,29 @@ export async function runDedupMerge(
     }
 
     const mergedName = slugify(finding.merged.name) || a;
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const archiveDir = join(CONFLICTS_DIR, ts, "cleanup-merge", mergedName);
+    const dryRun = options.dryRun === true;
+    const archiveDir = dryRun
+      ? undefined
+      : join(
+          CONFLICTS_DIR,
+          new Date().toISOString().replace(/[:.]/g, "-"),
+          "cleanup-merge",
+          mergedName
+        );
 
-    await archiveAndRetire(a, archiveDir);
-    await archiveAndRetire(b, archiveDir);
-    await writeMergedSkill(mergedName, finding.merged.description, finding.merged.body);
+    if (archiveDir) {
+      await archiveAndRetire(a, archiveDir);
+      await archiveAndRetire(b, archiveDir);
+      await writeMergedSkill(mergedName, finding.merged.description, finding.merged.body);
+    }
 
-    onEvent("merged", `${a} + ${b} → ${mergedName}`);
+    onEvent(dryRun ? "merge-candidate" : "merged", `${a} + ${b} → ${mergedName}`);
     outcomes.push({
       replaced: [a, b],
       produced: mergedName,
       archivePath: archiveDir,
       finding,
+      dryRun,
     });
     consumed.add(a);
     consumed.add(b);

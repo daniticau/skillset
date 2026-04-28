@@ -6,6 +6,7 @@
  * Interface or a provided iterator/string source. No TTY raw-mode tricks.
  */
 
+import { emitKeypressEvents } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
@@ -21,6 +22,28 @@ function defaultIO(): PromptIO {
 
 function makeRl(io: PromptIO): ReadlineInterface {
   return createInterface({ input: io.input, output: io.output, terminal: false });
+}
+
+type TtyReadable = Readable & {
+  isTTY?: boolean;
+  setRawMode?: (mode: boolean) => void;
+  resume?: () => void;
+  pause?: () => void;
+};
+
+type TtyWritable = Writable & {
+  isTTY?: boolean;
+};
+
+function supportsInteractiveChecklist(io: PromptIO): io is {
+  input: TtyReadable;
+  output: TtyWritable;
+} {
+  return (
+    (io.input as TtyReadable).isTTY === true &&
+    (io.output as TtyWritable).isTTY === true &&
+    typeof (io.input as TtyReadable).setRawMode === "function"
+  );
 }
 
 export async function confirm(
@@ -55,6 +78,10 @@ export async function checkbox<T = string>(
   io: PromptIO = defaultIO()
 ): Promise<T[]> {
   if (items.length === 0) return [];
+  if (supportsInteractiveChecklist(io)) {
+    return interactiveCheckbox(message, items, io);
+  }
+
   const rl = makeRl(io);
   try {
     io.output.write(`${message}\n`);
@@ -90,6 +117,94 @@ export async function checkbox<T = string>(
   } finally {
     rl.close();
   }
+}
+
+async function interactiveCheckbox<T>(
+  message: string,
+  items: CheckboxItem<T>[],
+  io: { input: TtyReadable; output: TtyWritable }
+): Promise<T[]> {
+  const checked = new Set(
+    items
+      .map((it, idx) => (it.checked ? idx : null))
+      .filter((idx): idx is number => idx !== null)
+  );
+  let cursor = 0;
+  let renderedLines = 0;
+
+  const render = () => {
+    if (renderedLines > 0) io.output.write(`\x1b[${renderedLines}F`);
+    const lines = [
+      `${message}`,
+      `  Use ↑/↓ to move, Space to toggle, Enter to continue.`,
+      ...items.map((it, idx) => {
+        const pointer = idx === cursor ? "❯" : " ";
+        const mark = checked.has(idx) ? "◉" : "○";
+        return `  ${pointer} ${mark} ${it.label}`;
+      }),
+      `  a: all  n: none`,
+    ];
+    for (const line of lines) {
+      io.output.write(`\x1b[2K${line}\n`);
+    }
+    renderedLines = lines.length;
+  };
+
+  return new Promise<T[]>((resolve, reject) => {
+    const cleanup = () => {
+      io.input.off("keypress", onKeypress);
+      io.input.setRawMode?.(false);
+      io.output.write("\n");
+    };
+
+    const finish = () => {
+      cleanup();
+      resolve(items.filter((_, idx) => checked.has(idx)).map((it) => it.value));
+    };
+
+    const onKeypress = (str: string, key?: { name?: string; ctrl?: boolean }) => {
+      if (key?.ctrl && key.name === "c") {
+        cleanup();
+        reject(new Error("cancelled"));
+        return;
+      }
+      if (key?.name === "up") {
+        cursor = (cursor - 1 + items.length) % items.length;
+        render();
+        return;
+      }
+      if (key?.name === "down") {
+        cursor = (cursor + 1) % items.length;
+        render();
+        return;
+      }
+      if (key?.name === "space") {
+        if (checked.has(cursor)) checked.delete(cursor);
+        else checked.add(cursor);
+        render();
+        return;
+      }
+      if (key?.name === "return" || key?.name === "enter") {
+        finish();
+        return;
+      }
+      if (str.toLowerCase() === "a") {
+        items.forEach((_, idx) => checked.add(idx));
+        render();
+        return;
+      }
+      if (str.toLowerCase() === "n") {
+        checked.clear();
+        render();
+      }
+    };
+
+    emitKeypressEvents(io.input);
+    io.input.on("keypress", onKeypress);
+    io.input.setRawMode?.(true);
+    io.input.resume?.();
+    render();
+  });
 }
 
 export async function textInput(

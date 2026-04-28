@@ -2,8 +2,10 @@ import pc from "picocolors";
 import type { AgentKind } from "../core/config.js";
 import { readConfig, writeConfig } from "../core/config.js";
 import { getAdapter, supportedAgents } from "../core/adapters/index.js";
+import { sync } from "../core/mirror.js";
+import { printSyncReport } from "./sync.js";
 
-export async function linkCommand(
+export async function connectCommand(
   rawAgent: string,
   options: { path?: string }
 ): Promise<void> {
@@ -25,16 +27,17 @@ export async function linkCommand(
     (l) => l.agent === agent && l.path === path
   );
   if (existingIndex >= 0) {
-    console.log(pc.dim(`• ${adapter.displayName} already linked at ${path}`));
+    console.log(pc.dim(`• ${adapter.displayName} already connected at ${path}`));
     return;
   }
 
   config.links.push({ agent, path });
   await writeConfig(config);
-  console.log(pc.green(`✓ linked ${adapter.displayName} mirror at ${path}`));
+  console.log(pc.green(`✓ connected ${adapter.displayName} mirror at ${path}`));
+  printSyncReport(await sync({ importExisting: true }));
 }
 
-export async function unlinkCommand(rawAgent: string, options: { path?: string }): Promise<void> {
+export async function disconnectCommand(rawAgent: string, options: { path?: string }): Promise<void> {
   const agent = rawAgent as AgentKind;
   const config = await readConfig();
   const before = config.links.length;
@@ -43,9 +46,13 @@ export async function unlinkCommand(rawAgent: string, options: { path?: string }
   );
   await writeConfig(config);
   const removed = before - config.links.length;
-  console.log(
-    removed > 0
-      ? pc.green(`✓ unlinked ${removed} mirror(s) for ${agent}`)
-      : pc.dim(`• no matching link for ${agent}`)
-  );
+  if (removed === 0) {
+    console.log(pc.dim(`• no matching connection for ${agent}`));
+    return;
+  }
+  console.log(pc.green(`✓ disconnected ${removed} mirror(s) for ${agent}`));
+  printSyncReport(await sync());
 }
+
+export const linkCommand = connectCommand;
+export const unlinkCommand = disconnectCommand;

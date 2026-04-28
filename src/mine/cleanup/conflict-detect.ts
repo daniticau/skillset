@@ -13,15 +13,13 @@
  * to ~/.skillset/conflicts/<ts>/cleanup/<loser>/ with a ConflictFinding.json
  * sidecar, then removed from the canonical store.
  *
- * Caps: conflicts are processed in descending confidence; total resolutions
- * per run capped at mergeCap (reused from cycleDefaults since conflicts are
- * functionally a merge with zero-keep).
+ * Dry-run reports the same confirmed candidates without archiving or deleting.
  */
 
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { CONFLICTS_DIR, STORE_ROOT } from "../../core/paths.js";
+import { CONFLICTS_DIR } from "../../core/paths.js";
 import {
   readState,
   writeState,
@@ -35,6 +33,7 @@ import {
 } from "../llm/index.js";
 import { storeSkillDir } from "../../core/store.js";
 import { readSkillMd } from "../../core/skill.js";
+import { jaccardSimilarity, tokenSet } from "./similarity.js";
 
 export interface ConflictFinding {
   conflict: boolean;
@@ -47,19 +46,25 @@ export interface ConflictFinding {
 export interface ConflictOutcome {
   winner: string;
   loser: string;
-  archivePath: string;
+  archivePath?: string;
   finding: ConflictFinding;
   winnerModifiedAt: string;
   loserModifiedAt: string;
+  dryRun: boolean;
 }
 
 const MIN_CONFIDENCE = 0.8;
 const MIN_QUOTE_LENGTH = 10;
 
-async function readBody(name: string): Promise<string | null> {
+async function readSkillInfo(
+  name: string
+): Promise<{ body: string; description: string } | null> {
   try {
     const parsed = await readSkillMd(storeSkillDir(name));
-    return parsed.body;
+    return {
+      body: parsed.body,
+      description: parsed.frontmatter.description,
+    };
   } catch {
     return null;
   }
@@ -166,11 +171,23 @@ async function retireSkill(name: string, archivePath: string): Promise<void> {
  * description-token overlap. Keeps the pair count manageable without needing
  * embeddings.
  */
-function candidatePairs(names: string[]): Array<[string, string]> {
+function candidatePairs(
+  infos: Record<string, { body: string; description: string }>
+): Array<[string, string]> {
+  const names = Object.keys(infos);
+  const tokenCache: Record<string, Set<string>> = {};
+  for (const name of names) {
+    tokenCache[name] = tokenSet(`${name} ${infos[name]!.description}`);
+  }
+
   const pairs: Array<[string, string]> = [];
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
-      pairs.push([names[i]!, names[j]!]);
+      const a = names[i]!;
+      const b = names[j]!;
+      if (jaccardSimilarity(tokenCache[a]!, tokenCache[b]!) >= 0.3) {
+        pairs.push([a, b]);
+      }
     }
   }
   return pairs;
@@ -179,24 +196,25 @@ function candidatePairs(names: string[]): Array<[string, string]> {
 export async function runConflictDetection(
   names: string[],
   config: LLMConfig,
-  onEvent: (event: string, detail?: string) => void
+  onEvent: (event: string, detail?: string) => void,
+  options: { dryRun?: boolean } = {}
 ): Promise<ConflictOutcome[]> {
   if (names.length < 2) return [];
 
   // Load bodies upfront.
-  const bodies: Record<string, string> = {};
+  const infos: Record<string, { body: string; description: string }> = {};
   for (const n of names) {
-    const body = await readBody(n);
-    if (body) bodies[n] = body;
+    const info = await readSkillInfo(n);
+    if (info) infos[n] = info;
   }
 
   const outcomes: ConflictOutcome[] = [];
   const retired = new Set<string>();
 
-  for (const [a, b] of candidatePairs(Object.keys(bodies))) {
+  for (const [a, b] of candidatePairs(infos)) {
     if (retired.has(a) || retired.has(b)) continue;
-    const bodyA = bodies[a]!;
-    const bodyB = bodies[b]!;
+    const bodyA = infos[a]!.body;
+    const bodyB = infos[b]!.body;
     const finding = await judgePair({ name: a, body: bodyA }, { name: b, body: bodyB }, config);
     if (!finding || !finding.conflict) continue;
     if (finding.confidence < MIN_CONFIDENCE) {
@@ -211,10 +229,16 @@ export async function runConflictDetection(
     const mtA = await modifiedAt(a);
     const mtB = await modifiedAt(b);
     const [winner, loser] = mtA >= mtB ? [a, b] : [b, a];
-    onEvent("conflict-resolved", `${winner} over ${loser} (confidence ${finding.confidence.toFixed(2)})`);
+    const dryRun = options.dryRun === true;
+    onEvent(
+      dryRun ? "conflict-candidate" : "conflict-resolved",
+      `${winner} over ${loser} (confidence ${finding.confidence.toFixed(2)})`
+    );
 
-    const archivePath = await archiveLoser(loser, winner, finding);
-    await retireSkill(loser, archivePath);
+    const archivePath = dryRun ? undefined : await archiveLoser(loser, winner, finding);
+    if (archivePath) {
+      await retireSkill(loser, archivePath);
+    }
     retired.add(loser);
 
     outcomes.push({
@@ -224,9 +248,8 @@ export async function runConflictDetection(
       finding,
       winnerModifiedAt: winner === a ? mtA : mtB,
       loserModifiedAt: loser === a ? mtA : mtB,
+      dryRun,
     });
   }
-
-  void STORE_ROOT;
   return outcomes;
 }

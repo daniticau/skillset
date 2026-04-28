@@ -26,7 +26,8 @@ export async function cleanupCommand(options: CleanupCmdOptions): Promise<void> 
   const report = await runCleanup({
     llmConfig,
     mergeCap: cfg.cycleDefaults.mergeCap,
-    pruneEnabled: cfg.cleanup.pruneEnabled,
+    dryRun: options.dryRun,
+    pruneEnabled: !options.dryRun && cfg.cleanup.pruneEnabled,
     pruneCap: cfg.cycleDefaults.pruneCap,
     onEvent: (event, detail) => {
       const icon = event.endsWith("-error")
