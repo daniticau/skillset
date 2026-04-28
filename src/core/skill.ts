@@ -108,6 +108,55 @@ export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): stri
   return fm.join("\n") + "\n\n" + body.trim() + "\n";
 }
 
+function looksLikeSkillMarkdown(text: string): boolean {
+  return /^(#{1,6}\s|[-*]\s|\d+\.\s|\*\*|When\b|Always\b|Never\b|Do\b|Use\b|Prefer\b|Avoid\b|Before\b|After\b|If\b|For\b)/i.test(
+    text.trimStart()
+  );
+}
+
+function looksLikeWrappedSkillMarkdown(text: string): boolean {
+  const clean = text.trimStart();
+  return (
+    /^#{1,6}\s.+\n\s*\n/.test(clean) ||
+    /^([-*]\s|\d+\.\s|\*\*|When\b|Always\b|Never\b|Do\b|Use\b|Prefer\b|Avoid\b|Before\b|After\b|If\b|For\b)/i.test(
+      clean
+    )
+  );
+}
+
+/**
+ * Clean common LLM markdown wrappers from generated skill bodies without
+ * touching ordinary body text or real code examples.
+ */
+export function normalizeGeneratedSkillBody(body: string): string {
+  const clean = body.trim();
+
+  const fencedWrapper = clean.match(/^```(?:markdown|md)\s*\n([\s\S]*?)\n```\s*$/i);
+  if (fencedWrapper) {
+    return fencedWrapper[1]!.trim();
+  }
+
+  const bareFencedWrapper = clean.match(/^```\s*\n([\s\S]*?)\n```\s*$/);
+  if (bareFencedWrapper) {
+    const inner = bareFencedWrapper[1]!.trim();
+    return looksLikeWrappedSkillMarkdown(inner) ? inner : clean;
+  }
+
+  const markdownOpeningFence = clean.match(/^```(?:markdown|md)\s*\n?/i);
+  if (markdownOpeningFence) {
+    const rest = clean.slice(markdownOpeningFence[0].length).trimStart();
+    if (looksLikeSkillMarkdown(rest)) return rest.trim();
+  }
+
+  const bareOpeningFence = clean.match(/^```\s*\n?/);
+  if (bareOpeningFence) {
+    const rest = clean.slice(bareOpeningFence[0].length).trimStart();
+    if (looksLikeSkillMarkdown(rest)) return rest.trim();
+  }
+
+  return clean;
+}
+
 export async function readSkillMd(skillDir: string): Promise<ParsedSkill> {
   const path = join(skillDir, "SKILL.md");
   if (!existsSync(path)) {

@@ -25,6 +25,7 @@ import {
   readSkillMd,
   parseSkillMd,
   isSkillTier,
+  normalizeGeneratedSkillBody,
   renderSkillMd,
 } from "../core/skill.js";
 import type { SkillTier } from "../core/skill.js";
@@ -239,7 +240,7 @@ export async function executeEdit(
       license: rewritten.frontmatter.license ?? existingLicense,
       origin: existingOrigin,
     },
-    rewritten.body
+    normalizeGeneratedSkillBody(rewritten.body)
   );
 
   await writeFile(skillPath, body, "utf8");
@@ -273,13 +274,13 @@ export async function executeCreate(
   let parsedTier: SkillTier | undefined;
   try {
     const parsed = parseSkillMd(raw);
-    body = parsed.body.trim();
+    body = normalizeGeneratedSkillBody(parsed.body);
     if (parsed.frontmatter.description && parsed.frontmatter.description.length > 0) {
       description = parsed.frontmatter.description;
     }
     parsedTier = parsed.frontmatter.tier;
   } catch {
-    // keep raw body + action-supplied description
+    body = normalizeGeneratedSkillBody(raw);
   }
 
   // Triage tier wins over whatever the synthesis prompt emitted — triage saw

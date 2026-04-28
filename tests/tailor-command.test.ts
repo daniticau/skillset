@@ -82,4 +82,30 @@ describe("tailorCommand explicit capture", () => {
     expect(existsSync(join(SKILLS, "prefer-pnpm"))).toBe(false);
     expect(existsSync(join(STORE, "drafts"))).toBe(false);
   });
+
+  it("removes stray opening fences from generated skill bodies", async () => {
+    mocks.chat.mockReset();
+    mocks.chat
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          kind: "create",
+          name: "terminal-screen-recordings",
+          description: "Apply when creating terminal recordings.",
+          tier: "medium",
+        }),
+      })
+      .mockResolvedValueOnce({
+        content:
+          "---\nname: terminal-screen-recordings\ndescription: Apply when creating terminal recordings.\ntier: medium\n---\n\n```\n\n# Real Terminal Screen Recordings\n\nKeep the crop still while typing.\n",
+      });
+
+    await tailorCommand(["Screen recording in terminal."], {});
+
+    const raw = readFileSync(
+      join(SKILLS, "terminal-screen-recordings", "SKILL.md"),
+      "utf8"
+    );
+    expect(raw).toContain("# Real Terminal Screen Recordings");
+    expect(raw).not.toContain("\n```\n\n# Real Terminal Screen Recordings");
+  });
 });

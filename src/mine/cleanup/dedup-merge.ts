@@ -30,7 +30,7 @@ import {
   mergePairUserPrompt,
 } from "../llm/index.js";
 import { storeSkillDir } from "../../core/store.js";
-import { readSkillMd, renderSkillMd } from "../../core/skill.js";
+import { normalizeGeneratedSkillBody, readSkillMd, renderSkillMd } from "../../core/skill.js";
 import { jaccardSimilarity, tokenSet } from "./similarity.js";
 
 export interface MergeFinding {
@@ -129,7 +129,7 @@ async function writeMergedSkill(
         description,
         origin: "auto-created",
       },
-      body
+      normalizeGeneratedSkillBody(body)
     ),
     "utf8"
   );
