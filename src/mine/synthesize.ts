@@ -17,6 +17,7 @@ import {
 } from "./llm/index.js";
 import type { LLMConfig } from "./llm/index.js";
 import {
+  normalizeGeneratedSkillBody,
   parseSkillMd,
   renderSkillMd,
   SkillValidationError,
@@ -73,7 +74,7 @@ function parseSynthesizedContent(raw: string): { name: string; description: stri
     return {
       name: slugify(parsed.frontmatter.name) || "unnamed-skill",
       description: parsed.frontmatter.description,
-      body: parsed.body.trim(),
+      body: normalizeGeneratedSkillBody(parsed.body),
     };
   } catch (err) {
     if (err instanceof SkillValidationError) {
@@ -84,7 +85,7 @@ function parseSynthesizedContent(raw: string): { name: string; description: stri
       const description =
         typeof data.description === "string" ? data.description : null;
       if (name && description) {
-        return { name, description, body: content.trim() };
+        return { name, description, body: normalizeGeneratedSkillBody(content) };
       }
     }
     return null;
@@ -133,7 +134,7 @@ async function writeSkillFiles(root: string, skill: SynthesizedSkill): Promise<s
         tier: skill.tier,
         origin: skill.origin ?? "auto-created",
       },
-      skill.body
+      normalizeGeneratedSkillBody(skill.body)
     ),
     "utf8"
   );

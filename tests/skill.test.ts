@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseSkillMd, SkillValidationError } from "../src/core/skill.js";
+import {
+  normalizeGeneratedSkillBody,
+  parseSkillMd,
+  SkillValidationError,
+} from "../src/core/skill.js";
 
 const VALID = `---
 name: example
@@ -40,5 +44,29 @@ describe("parseSkillMd", () => {
   it("rejects invalid tier value", () => {
     const src = `---\nname: x\ndescription: y\ntier: critical\n---\n\nbody`;
     expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
+  });
+});
+
+describe("normalizeGeneratedSkillBody", () => {
+  it("strips an orphan opening fence before generated skill markdown", () => {
+    expect(normalizeGeneratedSkillBody("```\n\n# Heading\nBody")).toBe("# Heading\nBody");
+  });
+
+  it("strips a markdown wrapper around generated skill markdown", () => {
+    expect(normalizeGeneratedSkillBody("```markdown\n# Heading\nBody\n```")).toBe("# Heading\nBody");
+  });
+
+  it("strips a bare wrapper around generated skill markdown", () => {
+    expect(normalizeGeneratedSkillBody("```\n# Heading\n\nBody\n```")).toBe("# Heading\n\nBody");
+  });
+
+  it("keeps ordinary code blocks intact", () => {
+    const body = "```sh\npnpm test\n```\n\nUse the output to decide the next step.";
+    expect(normalizeGeneratedSkillBody(body)).toBe(body);
+  });
+
+  it("keeps bare code block bodies intact", () => {
+    const body = "```\n# install deps\npnpm install\n```";
+    expect(normalizeGeneratedSkillBody(body)).toBe(body);
   });
 });

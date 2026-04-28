@@ -1,14 +1,51 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build and test output
 dist/
 dist-site/
 coverage/
+.vitest/
+*.tsbuildinfo
+.turbo/
+
+# Environment, secrets, and credentials
 .env
 .env.*
 !.env.example
 .envrc
-.DS_Store
-*.log
-.vitest/
-.tsbuildinfo
+*.pem
+*.key
+*.p8
+*.p12
+
+# Local tool state
+.vercel/
 .claude/
-.vercel
+.codex/
+.cursor/
+.skillset/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# OS and editor metadata
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local demo captures and screen recordings
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi
+*.gif
+*.cast
+recordings/
+captures/

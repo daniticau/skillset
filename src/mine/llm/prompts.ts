@@ -102,7 +102,7 @@ Rules:
 - Group related signals into coherent sections.
 - Include a "Do NOT" section for anti-patterns.
 - The AI reading this file must be able to act on it directly without guessing.
-- Output format: \`\`\`yaml frontmatter block, then markdown body. No commentary before or after.
+- Output format: complete SKILL.md with YAML frontmatter followed by the markdown body. No commentary before or after. No code fences.
 
 The skill should be broadly applicable across projects unless the signals are project-specific.`;
 
