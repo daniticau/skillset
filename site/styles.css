@@ -199,15 +199,6 @@ h3 {
   padding: clamp(54px, 8vw, 96px) 0 0;
 }
 
-.not-found {
-  min-height: 56vh;
-}
-
-.text-link {
-  color: var(--ink);
-  font-weight: 700;
-}
-
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
