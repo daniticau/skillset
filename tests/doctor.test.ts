@@ -7,7 +7,6 @@ const TEST_ROOT = join(tmpdir(), "skillset-doctor-fixed");
 const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const CLAUDE_MIRROR = join(TEST_ROOT, "claude-mirror");
-const CURSOR_MIRROR = join(TEST_ROOT, "cursor-mirror");
 const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
 
 vi.mock("../src/core/paths.js", () => ({
@@ -46,7 +45,6 @@ vi.mock("../src/mine/index.js", () => ({
     bySource: {
       "claude-code": { sessions: 0, bytes: 0 },
       codex: { sessions: 0, bytes: 0 },
-      cursor: { sessions: 0, bytes: 0 },
     },
   }),
 }));
@@ -59,18 +57,12 @@ describe("doctorCommand", () => {
     rmSync(TEST_ROOT, { recursive: true, force: true });
     mkdirSync(SKILLS, { recursive: true });
     mkdirSync(CLAUDE_MIRROR, { recursive: true });
-    mkdirSync(CURSOR_MIRROR, { recursive: true });
     mkdirSync(CODEX_MIRROR, { recursive: true });
 
     mkdirSync(join(CLAUDE_MIRROR, "alpha"), { recursive: true });
     writeFileSync(
       join(CLAUDE_MIRROR, "alpha", "SKILL.md"),
       "---\nname: alpha\ndescription: alpha\n---\n\nalpha body\n"
-    );
-
-    writeFileSync(
-      join(CURSOR_MIRROR, "beta.mdc"),
-      "---\ndescription: \"beta\"\nglobs: []\nalwaysApply: false\nskillset-name: beta\n---\n\nbeta body\n"
     );
 
     mkdirSync(join(CODEX_MIRROR, "gamma"), { recursive: true });
@@ -83,7 +75,6 @@ describe("doctorCommand", () => {
       version: 1,
       links: [
         { agent: "claude-code", path: CLAUDE_MIRROR },
-        { agent: "cursor", path: CURSOR_MIRROR },
         { agent: "codex", path: CODEX_MIRROR },
       ],
     });
@@ -95,7 +86,7 @@ describe("doctorCommand", () => {
     rmSync(TEST_ROOT, { recursive: true, force: true });
   });
 
-  it("reports mirror layouts for Claude, Cursor, and Codex links", async () => {
+  it("reports mirror layouts for Claude and Codex links", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
@@ -103,7 +94,6 @@ describe("doctorCommand", () => {
 
     const output = logSpy.mock.calls.map((args) => args.join(" ")).join("\n");
     expect(output).toContain("Claude Code");
-    expect(output).toContain("Cursor");
     expect(output).toContain("Codex");
     expect(output).toContain("(1 skill)");
   });

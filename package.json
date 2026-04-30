@@ -16,7 +16,6 @@
   },
   "keywords": [
     "claude-code",
-    "cursor",
     "codex",
     "agent",
     "skills",
@@ -49,13 +48,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
-    "better-sqlite3": "^12.9.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",

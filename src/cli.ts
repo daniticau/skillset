@@ -76,7 +76,7 @@ export function createProgram(): Command {
 
   program
     .command("connect <agent>")
-    .description("connect an agent mirror (claude-code | cursor | codex)")
+    .description("connect an agent mirror (claude-code | codex)")
     .option("-p, --path <path>", "override the default mirror path")
     .action(async (agent: string, options: { path?: string }) => {
       await connectCommand(agent, options);

@@ -52,8 +52,8 @@ export interface ParsedSession {
   /** Absolute cwd of the session, read from the first record that has one.
    *  Authoritative for project naming; slug is lossy. */
   cwd?: string;
-  /** Which agent produced this session (claude-code | codex | cursor). */
-  source?: "claude-code" | "codex" | "cursor";
+  /** Which agent produced this session (claude-code | codex). */
+  source?: "claude-code" | "codex";
 }
 
 /** A flattened user or assistant message. */

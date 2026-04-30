@@ -4,7 +4,7 @@ A portable personalization layer for coding agents. skillset keeps your reusable
 
 ## Why
 
-Every conversation with a coding agent contains signals about how you work: corrections, rejected plans, repeated preferences, tool choices, and workflows. skillset turns those signals into small `SKILL.md` files that follow you across Codex, Claude Code, Cursor, and future agents instead of staying trapped in one vendor's memory.
+Every conversation with a coding agent contains signals about how you work: corrections, rejected plans, repeated preferences, tool choices, and workflows. skillset turns those signals into small `SKILL.md` files that follow you across Codex, Claude Code, and future agents instead of staying trapped in one vendor's memory.
 
 ## What It Does
 
@@ -30,6 +30,12 @@ sks tailor
 ```
 
 That one command scrapes past sessions, finds repeated agent mistakes or preferences, writes useful skills directly into canonical, and mirrors them to connected agents.
+
+## Codex Plugin
+
+This repo includes a thin Codex plugin at `plugins/skillset`. It teaches Codex when to use the existing `sks` CLI for capture, tailoring, inspection, and mirror repair.
+
+The plugin assumes `sks` is installed or otherwise available on `PATH`. It does not add an MCP server or a second store; `~/.skillset/skills/` remains canonical.
 
 ## Commands
 

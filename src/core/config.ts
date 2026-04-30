@@ -5,7 +5,7 @@ import { CONFIG_FILE, STATE_FILE } from "./paths.js";
 import type { ScrapeCursors } from "../ingest/sessions/types.js";
 import type { SkillOrigin } from "./skill.js";
 
-export type AgentKind = "claude-code" | "cursor" | "codex" | "copilot";
+export type AgentKind = "claude-code" | "codex" | "copilot";
 
 export interface Link {
   agent: AgentKind;

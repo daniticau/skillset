@@ -4,7 +4,7 @@
 
 import type { FolderCursor } from "../types.js";
 
-export type ScrapeSource = "claude-code" | "codex" | "cursor";
+export type ScrapeSource = "claude-code" | "codex";
 
 export interface ScrapeEnvelope<T = unknown> {
   source: ScrapeSource;
@@ -38,12 +38,7 @@ export interface CodexCursor {
   lastUpdatedAt?: string;
 }
 
-export interface CursorIdeCursor {
-  lastUpdatedAtByComposer?: Record<string, number>;
-}
-
 export interface ScrapeCursors {
   claudeCode?: ClaudeCodeCursor;
   codex?: CodexCursor;
-  cursor?: CursorIdeCursor;
 }

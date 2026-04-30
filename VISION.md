@@ -6,7 +6,7 @@ A coding-agent harness that gets better at working with *you* the more you use i
 
 ## The Problem
 
-Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch from Claude Code to Codex or Cursor and start from zero.
+Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch from Claude Code to Codex or another agent and start from zero.
 
 The agent learns only inside one harness, if it learns at all. Your personalization should not be trapped there.
 

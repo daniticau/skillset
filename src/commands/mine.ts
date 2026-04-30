@@ -88,7 +88,7 @@ function mergeNuggets(existing: Nugget[], incoming: Nugget[]): Nugget[] {
 }
 
 export async function mineCommand(options: MineOptions): Promise<void> {
-  // Step 0: scrape transcripts from Claude Code / Codex / Cursor into the
+  // Step 0: scrape transcripts from Claude Code / Codex into the
   // scrape store unless explicitly disabled. Incremental by default; --full
   // rescans everything.
   if (!options.noScrape) {
@@ -99,13 +99,13 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   if (stats.userSessions === 0) {
     console.log(
       pc.dim(
-        `no session data in ${SESSIONS_DIR} — run without --no-scrape or check that at least one agent (claude-code, codex, cursor) has usage history.`
+        `no session data in ${SESSIONS_DIR} — run without --no-scrape or check that at least one agent (claude-code, codex) has usage history.`
       )
     );
     return;
   }
 
-  const sourceBits = (["claude-code", "codex", "cursor"] as const)
+  const sourceBits = (["claude-code", "codex"] as const)
     .map((src) => {
       const n = stats.bySource[src].sessions;
       return n > 0 ? `${n} ${src}` : null;

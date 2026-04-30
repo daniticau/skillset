@@ -4,7 +4,7 @@ import type { ParsedSkill } from "../skill.js";
 /**
  * How an agent stores its skills on disk.
  *   per-skill-dir   — one directory per skill (Claude Code, Codex)
- *   per-skill-file  — one file per skill (Cursor .mdc)
+ *   per-skill-file  — one file per skill
  *   aggregate-file  — all skills in one managed file
  */
 export type MirrorLayout = "per-skill-dir" | "per-skill-file" | "aggregate-file";

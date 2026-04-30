@@ -6,7 +6,6 @@ import { homedir } from "node:os";
 import { discoverClaudeCodeHistory } from "../discovery.js";
 import { discoverCodexRoot, scrapeCodex } from "./codex.js";
 import { scrapeClaudeCode } from "./claudeCode.js";
-import { scrapeCursor, discoverCursorDatabases } from "./cursor.js";
 import type {
   PerSourceResult,
   ScrapeCursors,
@@ -62,22 +61,6 @@ export async function scrapeAll(
     }
   }
 
-  if (keep("cursor", opts)) {
-    const dbs = discoverCursorDatabases();
-    if (dbs.length === 0) {
-      perSource.push({
-        source: "cursor", available: false, sessionsWritten: 0, sessionsSkipped: 0,
-        reason: "no Cursor state.vscdb found",
-      });
-    } else {
-      const { result, cursorNext } = await scrapeCursor(
-        dbs, cursors.cursor ?? {}, outDir, scrapedAt, full
-      );
-      perSource.push(result);
-      if (result.available) nextCursors.cursor = cursorNext;
-    }
-  }
-
   return {
     summary: { perSource, totalMs: Date.now() - start },
     nextCursors,
@@ -85,5 +68,4 @@ export async function scrapeAll(
 }
 
 export { discoverCodexRoot } from "./codex.js";
-export { discoverCursorDatabases } from "./cursor.js";
 export type { ScrapeEnvelope, ScrapeSource, ScrapeOptions, ScrapeSummary, PerSourceResult, ScrapeCursors } from "./types.js";

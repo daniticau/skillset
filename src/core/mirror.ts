@@ -58,6 +58,18 @@ function linkKey(link: Link): string {
   return `${link.agent}:${link.path}`;
 }
 
+function linkedAdapters(links: Link[]): Array<{ link: Link; adapter: AgentAdapter }> {
+  const out: Array<{ link: Link; adapter: AgentAdapter }> = [];
+  for (const link of links) {
+    try {
+      out.push({ link, adapter: getAdapter(link.agent) });
+    } catch {
+      // Ignore stale links for agents that are no longer supported.
+    }
+  }
+  return out;
+}
+
 function semanticHash(skill: ParsedSkill): string {
   const normalized = JSON.stringify({
     name: skill.frontmatter.name,
@@ -71,8 +83,8 @@ function semanticHash(skill: ParsedSkill): string {
 
 /**
  * Merge a skill parsed from a mirror with a canonical's prior frontmatter so
- * that metadata the mirror format can't carry (tier on cursor .mdc, origin on
- * every adapter today) survives round-trip edits.
+ * that metadata a mirror format can't carry (origin on every adapter today)
+ * survives round-trip edits.
  *
  * Priority: mirror value > prior canonical value > default. For origin, default
  * is `fallbackOrigin` — callers pass "user-created" for adoption, and the prior
@@ -302,8 +314,7 @@ async function importFromMirrors(
     });
   }
 
-  for (const link of config.links) {
-    const adapter = getAdapter(link.agent);
+  for (const { link, adapter } of linkedAdapters(config.links)) {
     if (adapter.layout === "aggregate-file") continue;
     if (!adapter.listMirrorSkills || !adapter.readMirrorSkill) continue;
     const mirrorNames = await adapter.listMirrorSkills(link.path);
@@ -424,7 +435,8 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   const config = await readConfig();
   const state = await readState();
   const actions: SyncAction[] = [];
-  const activeLinkKeys = new Set(config.links.map(linkKey));
+  const links = linkedAdapters(config.links);
+  const activeLinkKeys = new Set(links.map(({ link }) => linkKey(link)));
   let importTouchedSkills = new Set<string>();
 
   if (options.importExisting === true || options.adoptUntracked !== false) {
@@ -469,8 +481,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
       mtime: number;
     }> = [];
     if (!importTouchedSkills.has(name)) {
-      for (const link of config.links) {
-        const adapter = getAdapter(link.agent);
+      for (const { link, adapter } of links) {
         if (adapter.layout === "aggregate-file") continue;
         if (!adapter.hashMirrorSkill) continue;
         const key = linkKey(link);
@@ -532,8 +543,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
 
     const freshParsed = await readSkillMd(canonicalDir);
     aggregateParsedSkills.push(freshParsed);
-    for (const link of config.links) {
-      const adapter = getAdapter(link.agent);
+    for (const { link, adapter } of links) {
       if (adapter.layout === "aggregate-file") continue;
       if (!adapter.mirrorSkill || !adapter.hashMirrorSkill) continue;
       await adapter.mirrorSkill(freshParsed, link.path);
@@ -547,8 +557,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   }
 
   // Aggregate-file layouts: rewrite once with the whole canonical set.
-  for (const link of config.links) {
-    const adapter = getAdapter(link.agent);
+  for (const { link, adapter } of links) {
     if (adapter.layout !== "aggregate-file" || !adapter.mirrorAll) continue;
     await adapter.mirrorAll(aggregateParsedSkills, link.path);
     for (const name of storeSkillNames) {
@@ -557,8 +566,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   }
 
   // Prune mirror-side skills no longer in canonical.
-  for (const link of config.links) {
-    const adapter = getAdapter(link.agent);
+  for (const { link, adapter } of links) {
     if (adapter.layout === "aggregate-file") continue;
     if (!adapter.listMirrorSkills || !adapter.removeMirrorSkill) continue;
     const mirrorNames = await adapter.listMirrorSkills(link.path);
@@ -579,7 +587,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   return {
     actions,
     skillCount: storeSkillNames.length,
-    linkCount: config.links.length,
+    linkCount: links.length,
   };
 }
 

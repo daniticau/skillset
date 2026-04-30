@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 export interface SessionSource {
-  kind: "claude-code" | "codex" | "cursor" | "vscode";
+  kind: "claude-code" | "codex" | "vscode";
   path: string;
   description: string;
 }
@@ -23,14 +23,6 @@ export function discoverClaudeCodeHistory(): string | null {
 export function discoverCodexHistory(): string | null {
   const root = path.join(homedir(), ".codex");
   return existsSync(root) ? root : null;
-}
-
-export function discoverCursorGlobalStorage(): string | null {
-  const dbPath = path.join(
-    homedir(),
-    "AppData", "Roaming", "Cursor", "User", "globalStorage", "state.vscdb"
-  );
-  return existsSync(dbPath) ? dbPath : null;
 }
 
 // Discovers every coding-session source currently present on this machine.
@@ -52,15 +44,6 @@ export function discoverSessionSources(): SessionSource[] {
       kind: "codex",
       path: codex,
       description: "Codex CLI rollout sessions (~/.codex/sessions)",
-    });
-  }
-
-  const cursor = discoverCursorGlobalStorage();
-  if (cursor) {
-    sources.push({
-      kind: "cursor",
-      path: cursor,
-      description: "Cursor IDE chat/composer state (globalStorage/state.vscdb)",
     });
   }
 

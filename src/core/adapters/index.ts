@@ -1,12 +1,10 @@
 import type { AgentKind } from "../config.js";
 import type { AgentAdapter } from "./types.js";
 import { claudeCodeAdapter } from "./claude-code.js";
-import { cursorAdapter } from "./cursor.js";
 import { codexAdapter } from "./codex.js";
 
 const ADAPTERS: Record<AgentKind, AgentAdapter | undefined> = {
   "claude-code": claudeCodeAdapter,
-  cursor: cursorAdapter,
   codex: codexAdapter,
   copilot: undefined,
 };

@@ -16,7 +16,7 @@ import { SESSIONS_DIR } from "../core/paths.js";
 import { parseJsonLinesLenient } from "../ingest/sessions/jsonl.js";
 import { normalizeRecord } from "./normalize/index.js";
 
-const SOURCES: ScrapeSource[] = ["claude-code", "codex", "cursor"];
+const SOURCES: ScrapeSource[] = ["claude-code", "codex"];
 
 interface SourceSessionFile {
   source: ScrapeSource;
@@ -43,7 +43,7 @@ function listSourceFiles(source: ScrapeSource): SourceSessionFile[] {
 
 /**
  * Infer a project slug from the scrape filename stem.
- * Claude-code stems are `<projectSlug>__<basename>`; codex/cursor stems are the
+ * Claude-code stems are `<projectSlug>__<basename>`; codex stems are the
  * sessionId alone, so we fall back to the source name as the slug.
  */
 function deriveProjectSlug(source: ScrapeSource, filenameStem: string): string {
@@ -176,7 +176,7 @@ function prettifySlug(slug: string, source?: ScrapeSource): string {
 
 /**
  * Human-readable project label. Uses cwd as ground truth when available; falls
- * back to the slug (Claude Code) or the source name (Codex/Cursor, which don't
+ * back to the slug (Claude Code) or the source name (Codex, which doesn't
  * carry per-session cwd in their scrape filenames).
  */
 export function projectName(
@@ -215,7 +215,6 @@ export function getSessionStats(): {
   const bySource: Record<ScrapeSource, { sessions: number; bytes: number }> = {
     "claude-code": { sessions: 0, bytes: 0 },
     codex: { sessions: 0, bytes: 0 },
-    cursor: { sessions: 0, bytes: 0 },
   };
   const projects = new Set<string>();
   let total = 0;
@@ -236,7 +235,7 @@ export function getSessionStats(): {
   }
 
   const userSessions =
-    bySource["claude-code"].sessions + bySource.codex.sessions + bySource.cursor.sessions;
+    bySource["claude-code"].sessions + bySource.codex.sessions;
 
   return {
     projects: projects.size,
