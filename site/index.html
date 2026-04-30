@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="skillset is a portable personalization layer for coding agents. Own your agent skills on disk and mirror them across Codex, Claude Code, and Cursor."
+      content="skillset turns agent-session lessons into user-owned SKILL.md files, then mirrors them across Codex, Claude Code, and future coding agents."
     />
     <meta property="og:title" content="skillset" />
     <meta
       property="og:description"
-      content="A portable personalization layer for coding agents. Try it in one step with npx skillset-cli init."
+      content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
     />
     <meta property="og:image" content="./assets/skillset-preview.png" />
     <meta
@@ -21,7 +21,7 @@
     <meta name="twitter:title" content="skillset" />
     <meta
       name="twitter:description"
-      content="A portable personalization layer for coding agents. Try it in one step with npx skillset-cli init."
+      content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
     />
     <meta name="twitter:image" content="./assets/skillset-preview.png" />
     <meta name="theme-color" content="#f7f6f1" />
@@ -55,8 +55,12 @@
         <div class="hero-copy">
           <h1 id="hero-title">skillset</h1>
           <p class="lede">
-            Own your agent skills on disk, tailor them from past sessions, and mirror
-            them across Codex, Claude Code, and Cursor.
+            Turn agent-session lessons into reusable <code>SKILL.md</code> files you
+            own on disk.
+          </p>
+          <p class="hero-note">
+            Corrections, rejected plans, and recurring preferences become portable
+            instructions for Codex, Claude Code, and whatever comes next.
           </p>
 
           <div class="install" aria-label="Install skillset">
@@ -69,7 +73,7 @@
           </div>
         </div>
 
-        <figure class="product-visual">
+        <figure class="product-visual" tabindex="0">
           <img
             src="./assets/skillset-preview.png"
             alt="A terminal-style preview showing skillset initializing, connecting agents, tailoring sessions, and mirroring skills."
@@ -79,31 +83,68 @@
         </figure>
       </section>
 
+      <section class="section intent-section" aria-labelledby="intent-title">
+        <h2 class="intent-title" id="intent-title">Agent memory, owned by you</h2>
+        <div class="intent-grid">
+          <article class="insight-card" tabindex="0">
+            <h3>Why it matters</h3>
+            <p>
+              Useful session friction should not disappear into one chat log or one
+              vendor's memory.
+            </p>
+          </article>
+          <article class="insight-card" tabindex="0">
+            <h3>What stays safe</h3>
+            <p>
+              Canonical skills live in <code>~/.skillset/skills/</code>. Mirror edits
+              are promoted before anything is rewritten.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <section class="section" id="how" aria-labelledby="how-title">
         <h2 id="how-title">How it works</h2>
-        <div class="feature-grid">
-          <article class="feature-card">
-            <h3>Store</h3>
-            <p>Skills live in a canonical <code>~/.skillset</code> store you own.</p>
-          </article>
-          <article class="feature-card">
-            <h3>Import</h3>
-            <p>Existing agent skills are consolidated before anything is mirrored.</p>
-          </article>
-          <article class="feature-card">
-            <h3>Tailor</h3>
-            <p><code>sks tailor</code> learns from past sessions and mirrors automatically.</p>
-          </article>
+        <div class="steps-panel" tabindex="0">
+          <ol class="steps-list">
+            <li>
+              <strong>Create the store.</strong>
+              <span><code>~/.skillset/skills/</code> becomes the canonical source.</span>
+            </li>
+            <li>
+              <strong>Import existing skills.</strong>
+              <span>Connected agent stores are consolidated before mirroring begins.</span>
+            </li>
+            <li>
+              <strong>Learn from sessions.</strong>
+              <span><code>sks tailor</code> mines history or captures direct instructions.</span>
+            </li>
+            <li>
+              <strong>Mirror the result.</strong>
+              <span>Canonical skills are written to each agent's native skills directory.</span>
+            </li>
+            <li>
+              <strong>Protect edits.</strong>
+              <span>Mirror-side changes are promoted before skillset rewrites mirrors.</span>
+            </li>
+          </ol>
         </div>
       </section>
 
       <section class="section command-section" id="commands" aria-labelledby="commands-title">
         <h2 id="commands-title">Commands</h2>
+        <p class="section-note">The public surface is small on purpose.</p>
         <div class="command-list">
-          <div><code>sks init</code><span>Set up the store and connect detected agents.</span></div>
-          <div><code>sks tailor</code><span>Mine past sessions and create useful skills.</span></div>
-          <div><code>sks list</code><span>See every current skill and short description.</span></div>
-          <div><code>sks doctor --repair</code><span>Reconcile mirrors if something looks off.</span></div>
+          <div><code>sks init</code><span>Create the store, connect detected agents, import skills.</span></div>
+          <div><code>sks tailor [text...]</code><span>Mine sessions or capture a direct instruction.</span></div>
+          <div><code>sks list</code><span>Show current skills and descriptions.</span></div>
+          <div><code>sks status</code><span>Show mirrors, skill state, edits, and conflicts.</span></div>
+          <div><code>sks connect &lt;agent&gt;</code><span>Add an agent mirror and import its skills.</span></div>
+          <div><code>sks disconnect &lt;agent&gt;</code><span>Stop mirroring an agent without deleting files.</span></div>
+          <div><code>sks edit &lt;skill&gt;</code><span>Edit canonical, validate, then mirror.</span></div>
+          <div><code>sks remove &lt;skill&gt;</code><span>Delete canonical and prune connected mirrors.</span></div>
+          <div><code>sks doctor</code><span>Check store, LLM, mirrors, sessions, and usage.</span></div>
+          <div><code>sks doctor --repair</code><span>Reconcile mirrors and write the repaired store.</span></div>
         </div>
       </section>
     </main>

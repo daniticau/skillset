@@ -80,12 +80,12 @@ describe("scrapeCommand", () => {
     });
   });
 
-  it("merges new cursors with existing state", async () => {
+  it("merges new scrape cursors with existing state", async () => {
     await writeState({
       version: 2,
       skills: {},
       reviewedDates: {},
-      scrape: { cursor: { lastUpdatedAtByComposer: { c1: 123 } } },
+      scrape: { codex: { lastUpdatedAt: "2026-04-01T00:00:00.000Z" } },
     });
 
     await runScrape({ source: "claude-code", quiet: true });

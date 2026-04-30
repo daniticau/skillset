@@ -53,7 +53,7 @@ function makeSkill(name: string): void {
 }
 
 function writeEnvelope(
-  source: "claude-code" | "codex" | "cursor",
+  source: "claude-code" | "codex",
   stem: string,
   records: unknown[],
   sessionId = stem

@@ -201,7 +201,7 @@ async function sectionSessions(): Promise<void> {
     return;
   }
 
-  for (const src of ["claude-code", "codex", "cursor"] as const) {
+  for (const src of ["claude-code", "codex"] as const) {
     const entry = stats.bySource[src];
     if (entry.sessions === 0) continue;
     const mb = (entry.bytes / 1024 / 1024).toFixed(1);

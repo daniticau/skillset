@@ -22,7 +22,13 @@ export async function statusCommand(options: StatusCmdOptions = {}): Promise<voi
   } else {
     console.log(pc.bold("mirrors:"));
     for (const l of s.links) {
-      const name = getAdapter(l.agent).displayName.padEnd(14);
+      let displayName: string;
+      try {
+        displayName = getAdapter(l.agent).displayName;
+      } catch {
+        displayName = `${l.agent} (unsupported)`;
+      }
+      const name = displayName.padEnd(14);
       const layout = pc.dim(`[${l.layout}]`);
       console.log(`  ${name} ${layout} ${pc.dim(l.path)}`);
     }

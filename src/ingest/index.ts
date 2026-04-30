@@ -1,7 +1,6 @@
 export {
   discoverClaudeCodeHistory,
   discoverCodexHistory,
-  discoverCursorGlobalStorage,
   discoverSessionSources,
   type SessionSource,
 } from "./discovery.js";

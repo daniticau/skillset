@@ -15,7 +15,6 @@ const TEST_ROOT = join(tmpdir(), "skillset-test-fixed");
 const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const MIRROR = join(TEST_ROOT, "mirror");
-const CURSOR_MIRROR = join(TEST_ROOT, "cursor-mirror");
 const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
 const CONFLICTS = join(STORE, "conflicts");
 
@@ -48,7 +47,6 @@ beforeEach(() => {
   rmSync(TEST_ROOT, { recursive: true, force: true });
   mkdirSync(SKILLS, { recursive: true });
   mkdirSync(MIRROR, { recursive: true });
-  mkdirSync(CURSOR_MIRROR, { recursive: true });
   mkdirSync(CODEX_MIRROR, { recursive: true });
 });
 
@@ -111,13 +109,13 @@ describe("mirror sync", () => {
       version: 1,
       links: [
         { agent: "claude-code", path: MIRROR },
-        { agent: "cursor", path: CURSOR_MIRROR },
+        { agent: "codex", path: CODEX_MIRROR },
       ],
     });
     makeSkill(SKILLS, "delta", "original body");
     await sync();
 
-    // Edit both mirrors. claude-code edit is older, cursor edit is newer.
+    // Edit both mirrors. claude-code edit is older, codex edit is newer.
     const claudePath = join(MIRROR, "delta", "SKILL.md");
     writeFileSync(
       claudePath,
@@ -125,24 +123,24 @@ describe("mirror sync", () => {
     );
     setMtime(claudePath, 60); // 60s ago — older
 
-    const cursorPath = join(CURSOR_MIRROR, "delta.mdc");
+    const codexPath = join(CODEX_MIRROR, "delta", "SKILL.md");
     writeFileSync(
-      cursorPath,
-      `---\ndescription: "Test skill for delta."\nglobs: []\nalwaysApply: false\nskillset-name: delta\n---\n\ncursor edit\n`
+      codexPath,
+      `---\nname: delta\ndescription: Test skill for delta.\n---\n\ncodex edit\n`
     );
-    setMtime(cursorPath, 5); // 5s ago — newer; should win
+    setMtime(codexPath, 5); // 5s ago — newer; should win
 
     const report = await sync();
     const conflicts = report.actions.filter((a) => a.kind === "conflict");
     expect(conflicts).toHaveLength(1);
     const conflict = conflicts[0]!;
     if (conflict.kind !== "conflict") throw new Error("expected conflict");
-    expect(conflict.winner.agent).toBe("cursor");
+    expect(conflict.winner.agent).toBe("codex");
     expect(conflict.losers.map((l) => l.agent)).toEqual(["claude-code"]);
 
-    // Canonical should hold the cursor (winner) body.
+    // Canonical should hold the codex (winner) body.
     const canon = readFileSync(join(SKILLS, "delta", "SKILL.md"), "utf8");
-    expect(canon).toContain("cursor edit");
+    expect(canon).toContain("codex edit");
     expect(canon).not.toContain("claude edit");
 
     // Loser should be archived under conflicts/<ts>/delta/claude-code/.
@@ -156,7 +154,7 @@ describe("mirror sync", () => {
       join(CONFLICTS, tsDirs[0]!, "delta", "claude-code", "CONTEXT.md"),
       "utf8"
     );
-    expect(ctx).toContain("Winner adapter: cursor");
+    expect(ctx).toContain("Winner adapter: codex");
     expect(ctx).toContain("Loser adapter: claude-code");
   });
 
@@ -165,23 +163,24 @@ describe("mirror sync", () => {
       version: 1,
       links: [
         { agent: "claude-code", path: MIRROR },
-        { agent: "cursor", path: CURSOR_MIRROR },
+        { agent: "codex", path: CODEX_MIRROR },
       ],
     });
 
     makeSkill(MIRROR, "epsilon", "older mirror body");
     setMtime(join(MIRROR, "epsilon", "SKILL.md"), 60);
+    mkdirSync(join(CODEX_MIRROR, "epsilon"), { recursive: true });
     writeFileSync(
-      join(CURSOR_MIRROR, "epsilon.mdc"),
-      `---\ndescription: "Test skill for epsilon."\nglobs: []\nalwaysApply: false\nskillset-name: epsilon\n---\n\nnewer cursor body\n`
+      join(CODEX_MIRROR, "epsilon", "SKILL.md"),
+      `---\nname: epsilon\ndescription: Test skill for epsilon.\n---\n\nnewer codex body\n`
     );
-    setMtime(join(CURSOR_MIRROR, "epsilon.mdc"), 5);
+    setMtime(join(CODEX_MIRROR, "epsilon", "SKILL.md"), 5);
 
     const report = await sync({ importExisting: true });
     const conflicts = report.actions.filter((a) => a.kind === "conflict");
     expect(conflicts).toHaveLength(1);
-    expect(readFileSync(join(SKILLS, "epsilon", "SKILL.md"), "utf8")).toContain("newer cursor body");
-    expect(readFileSync(join(MIRROR, "epsilon", "SKILL.md"), "utf8")).toContain("newer cursor body");
+    expect(readFileSync(join(SKILLS, "epsilon", "SKILL.md"), "utf8")).toContain("newer codex body");
+    expect(readFileSync(join(MIRROR, "epsilon", "SKILL.md"), "utf8")).toContain("newer codex body");
     expect(existsSync(CONFLICTS)).toBe(true);
   });
 

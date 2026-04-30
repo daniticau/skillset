@@ -3,25 +3,12 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "nod
 import { readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
 import { scrapeClaudeCode } from "../src/ingest/sessions/claudeCode.js";
 import { scrapeCodex } from "../src/ingest/sessions/codex.js";
-import { scrapeCursor } from "../src/ingest/sessions/cursor.js";
 import { writeSessionJsonl } from "../src/ingest/sessions/writer.js";
 
 let tmp: string;
 let outDir: string;
-const cursorSqliteIt = hasBetterSqliteBindings() ? it : it.skip;
-
-function hasBetterSqliteBindings(): boolean {
-  try {
-    const db = new Database(":memory:");
-    db.close();
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "skillset-scrape-"));
@@ -149,55 +136,6 @@ describe("scrapeCodex", () => {
   it("reports unavailable when index is missing", async () => {
     mkdirSync(join(tmp, "codex"));
     const { result } = await scrapeCodex(join(tmp, "codex"), {}, outDir, "now", false);
-    expect(result.available).toBe(false);
-  });
-});
-
-describe("scrapeCursor", () => {
-  cursorSqliteIt("extracts composers and their bubbles into per-session JSONL", async () => {
-    const dbPath = join(tmp, "state.vscdb");
-    const db = new Database(dbPath);
-    db.exec(`
-      CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value BLOB);
-      CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB);
-    `);
-    const composerId = "c1-uuid";
-    db.prepare("INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)").run(
-      `composerData:${composerId}`,
-      JSON.stringify({ composerId, lastUpdatedAt: 1_700_000_000_000, name: "t" })
-    );
-    db.prepare("INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)").run(
-      `bubbleId:${composerId}:b1`,
-      JSON.stringify({ bubbleId: "b1", text: "hi" })
-    );
-    db.prepare("INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)").run(
-      `bubbleId:${composerId}:b2`,
-      JSON.stringify({ bubbleId: "b2", text: "there" })
-    );
-    db.close();
-
-    const { result, cursorNext } = await scrapeCursor(
-      [dbPath], {}, outDir, "now", false
-    );
-    expect(result.available).toBe(true);
-    expect(result.sessionsWritten).toBe(1);
-
-    const files = readdirSync(join(outDir, "cursor"));
-    expect(files).toHaveLength(1);
-    const lines = readJsonlLines(join(outDir, "cursor", files[0]!));
-    // first record is the composer wrapper, then 2 bubbles = 3
-    expect(lines).toHaveLength(3);
-    expect(lines[0]!.source).toBe("cursor");
-    expect(cursorNext.lastUpdatedAtByComposer?.[composerId]).toBe(1_700_000_000_000);
-
-    // second run with same cursor: skipped (lastUpdatedAt unchanged)
-    const second = await scrapeCursor([dbPath], cursorNext, outDir, "now", false);
-    expect(second.result.sessionsWritten).toBe(0);
-    expect(second.result.sessionsSkipped).toBe(1);
-  });
-
-  it("reports unavailable when no dbs are passed", async () => {
-    const { result } = await scrapeCursor([], {}, outDir, "now", false);
     expect(result.available).toBe(false);
   });
 });

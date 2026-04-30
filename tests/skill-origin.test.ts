@@ -121,7 +121,7 @@ describe("migrateState v1 → v2", () => {
           mirrorHashes: {},
           userModified: false,
           conflictHistory: [
-            { at: "2026-04-10T00:00:00Z", winnerAdapter: "cursor:/p", loserCount: 1 },
+            { at: "2026-04-10T00:00:00Z", winnerAdapter: "codex:/p", loserCount: 1 },
           ],
         },
       },
