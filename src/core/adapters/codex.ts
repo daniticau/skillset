@@ -1,7 +1,7 @@
 /**
  * Codex adapter — mirrors canonical skills to the Codex user skills directory.
  *
- * Codex reads user skills from ~/.agents/skills/<skill-name>/SKILL.md. This is
+ * Codex reads user skills from ~/.codex/skills/<skill-name>/SKILL.md. This is
  * separate from ~/.codex/AGENTS.md, which is global instruction guidance rather
  * than the Agent Skills store.
  */
@@ -28,9 +28,8 @@ export const codexAdapter: AgentAdapter = {
 
   async detect() {
     const codexHome = join(homedir(), ".codex");
-    const agentsHome = join(homedir(), ".agents");
-    if (!existsSync(codexHome) && !existsSync(agentsHome)) return null;
-    return { path: DEFAULT_CODEX_SKILLS_DIR };
+    if (existsSync(codexHome)) return { path: DEFAULT_CODEX_SKILLS_DIR };
+    return null;
   },
 
   mirrorSkill: mirrorSkillDir,

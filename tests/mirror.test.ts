@@ -8,7 +8,7 @@ import {
   readdirSync,
   existsSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 const TEST_ROOT = join(tmpdir(), "skillset-test-fixed");
@@ -76,6 +76,39 @@ describe("mirror sync", () => {
     const report = await sync();
     expect(report.skillCount).toBe(1);
     expect(readFileSync(join(CODEX_MIRROR, "alpha", "SKILL.md"), "utf8")).toContain("alpha body");
+  });
+
+  it("migrates the legacy Codex mirror path to the Skills page path before writing", async () => {
+    const legacyCodexMirror = join(homedir(), ".agents", "skills");
+    await writeConfig({ version: 1, links: [{ agent: "codex", path: legacyCodexMirror }] });
+    makeSkill(SKILLS, "codex-page", "visible on the Codex skills page");
+
+    const report = await sync();
+
+    expect(report.linkCount).toBe(1);
+    expect(readFileSync(join(CODEX_MIRROR, "codex-page", "SKILL.md"), "utf8")).toContain(
+      "visible on the Codex skills page"
+    );
+  });
+
+  it("imports Codex Skills page-only skills before mirroring canonical skills back out", async () => {
+    await writeConfig({ version: 1, links: [{ agent: "codex", path: CODEX_MIRROR }] });
+    makeSkill(SKILLS, "canonical", "canonical body");
+    makeSkill(CODEX_MIRROR, "page-only", "already in Codex UI");
+
+    const report = await sync({ importExisting: true });
+
+    expect(report.actions).toContainEqual({
+      kind: "adopted",
+      skill: "page-only",
+      from: { agent: "codex", path: CODEX_MIRROR },
+    });
+    expect(readFileSync(join(SKILLS, "page-only", "SKILL.md"), "utf8")).toContain(
+      "already in Codex UI"
+    );
+    expect(readFileSync(join(CODEX_MIRROR, "canonical", "SKILL.md"), "utf8")).toContain(
+      "canonical body"
+    );
   });
 
   it("promotes user edits in the mirror back to canonical", async () => {

@@ -10,12 +10,11 @@
  *   - userEdited === false
  *   - createdAt older than 60 days
  *   - lastEditedAt absent (no signal that cleanup cares about it)
- *
- * Future: usage telemetry from the runtime (skill-hit counts per mirror) once
- * that signal exists.
+ *   - no observed usage events
  */
 
 import { readState } from "../../core/config.js";
+import { readUsageEvents, summarizeUsage } from "../../usage/events.js";
 
 export interface PruneOutcome {
   name: string;
@@ -45,6 +44,7 @@ export async function runPrune(
   const onEvent = options.onEvent ?? (() => {});
   if (options.cap <= 0) return [];
   const state = await readState();
+  const usage = summarizeUsage(await readUsageEvents());
   const today = new Date().toISOString();
 
   const candidates: PruneOutcome[] = [];
@@ -58,6 +58,7 @@ export async function runPrune(
     const ageDays = daysBetween(s.createdAt, today);
     if (ageDays < STALE_AGE_DAYS) continue;
     if (s.lastEditedAt) continue; // signal that skill has evolved; leave alone
+    if ((usage.get(name)?.count ?? 0) > 0) continue;
 
     const reason = `auto-created, no edits in ${Math.floor(ageDays)}d`;
     candidates.push({ name, reason, dryRun: !options.enabled });

@@ -22,7 +22,7 @@ export async function cycleCommand(options: CycleCmdOptions): Promise<void> {
   if (!outcome.ran) {
     if (options.scheduled) {
       // Scheduled task: lock-busy and idle-skip are NOT errors. Exit 0 so
-      // Windows Task Scheduler doesn't flag the run red.
+      // launchd doesn't treat an intentional skip as a failure.
       console.log(pc.dim(`  (skipped: ${outcome.reason})`));
       return;
     }

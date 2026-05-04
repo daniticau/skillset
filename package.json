@@ -1,7 +1,7 @@
 {
   "name": "skillset-cli",
   "version": "0.1.1",
-  "description": "Portable personalization layer for coding agents. Alpha, macOS/Windows with Claude Code and Codex skills.",
+  "description": "Portable personalization layer for coding agents. Alpha, macOS with Claude Code and Codex skills.",
   "type": "module",
   "packageManager": "pnpm@10.33.2",
   "license": "MIT",
@@ -23,9 +23,7 @@
     "llm"
   ],
   "os": [
-    "darwin",
-    "linux",
-    "win32"
+    "darwin"
   ],
   "bin": {
     "skillset-cli": "dist/cli.js",

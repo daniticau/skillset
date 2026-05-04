@@ -15,6 +15,7 @@ import {
   parseLLMJson,
 } from "./llm/index.js";
 import type { LLMConfig, ConversationWindow } from "./llm/index.js";
+import { focusForCategory } from "./focus.js";
 
 const VALID_CATEGORIES: ReadonlySet<NuggetCategory> = new Set([
   "correction",
@@ -47,6 +48,13 @@ function hashId(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 12);
 }
 
+function mistakeAssistantContext(window: ConversationWindow): string | undefined {
+  const assistant = [...window.messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.text.trim().length > 0);
+  return assistant?.text.slice(0, 240);
+}
+
 async function extractFromWindow(
   window: ConversationWindow,
   config: LLMConfig,
@@ -76,10 +84,17 @@ async function extractFromWindow(
     if (sig.signal.length < 10) continue;
     const conf = typeof sig.confidence === "number" ? Math.min(1, Math.max(0, sig.confidence)) : 0.6;
     if (conf < 0.4) continue;
+    const focus = focusForCategory(sig.category);
+    const assistantContext =
+      focus === "agent-mistake" ? mistakeAssistantContext(window) : undefined;
+    const context = [assistantContext ? `[assistant context] ${assistantContext}` : "", sig.reasoning ?? ""]
+      .filter(Boolean)
+      .join("\n");
 
     nuggets.push({
       id: hashId(`llm:${sig.category}:${sig.signal.slice(0, 100)}`),
       category: sig.category,
+      focus,
       signal: sig.signal,
       evidence: [
         {
@@ -90,7 +105,7 @@ async function extractFromWindow(
             .map((m) => m.text)
             .join(" / ")
             .slice(0, 400),
-          context: sig.reasoning,
+          context: context || undefined,
         },
       ],
       project: window.project,

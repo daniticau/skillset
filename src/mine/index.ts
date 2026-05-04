@@ -40,6 +40,7 @@ export type {
   SessionMessage,
   Nugget,
   NuggetCategory,
+  NuggetFocus,
   NuggetEvidence,
   NuggetCluster,
   MineSummary,

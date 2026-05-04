@@ -9,7 +9,6 @@ import {
   recordAction,
   invalidateDeletedTargets,
   finalizeMakeRun,
-  clusterFingerprint,
 } from "../mine/make-state.js";
 import {
   loadExistingSkillSummaries,
@@ -20,6 +19,7 @@ import {
 import { CLUSTERS_FILE, readClusters } from "../mine/artifacts.js";
 import { syncCommand } from "./sync.js";
 import { readState } from "../core/config.js";
+import { balancedClusterOrder, focusForCluster, isPrimaryFocus } from "../mine/focus.js";
 
 export interface MakeCmdOptions {
   maxNew?: number;
@@ -70,7 +70,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
   const globalState = await readState();
   const protectedNames = new Set(
     Object.entries(globalState.skills)
-      .filter(([, s]) => s.origin === "user-created")
+      .filter(([, s]) => s.origin === "user-created" || s.userEdited)
       .map(([name]) => name)
   );
   const automatableSummaries = summaries.filter((s) => !protectedNames.has(s.name));
@@ -79,6 +79,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
   const maxLimit = options.limit ?? 20;
   let eligible = clusters
     .filter((c) => c.score >= minScore)
+    .filter((c) => isPrimaryFocus(focusForCluster(c)))
     .sort((a, b) => b.score - a.score);
 
   const totalAboveThreshold = eligible.length;
@@ -112,14 +113,17 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
   if (options.dryRun) console.log(pc.yellow("  (dry-run — no files written, state not mutated)"));
   console.log();
 
-  const maxNew = options.maxNew ?? 3;
   let editedCount = 0;
   let highCount = 0;
   let mediumCount = 0;
   let lowCount = 0;
   let skippedCount = 0;
 
-  for (const cluster of eligible) {
+  const maxNew = options.maxNew ?? 3;
+  const ordered = balancedClusterOrder(eligible, maxNew);
+  const handledClusterIds = new Set<string>();
+
+  for (const cluster of ordered) {
     const budget = maxNew - (highCount + mediumCount + lowCount);
     const sig = truncate(cluster.canonical.signal, 90);
     const scoreTag = pc.dim(`[score ${cluster.score.toFixed(2)}]`);
@@ -137,8 +141,6 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
       }
       continue;
     }
-
-    const fp = clusterFingerprint(cluster);
 
     if (action.kind === "skip") {
       console.log(`  ${pc.dim("SKIP  ")} ${scoreTag} ${pc.dim(sig)}`);
@@ -170,6 +172,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
         const { path } = await executeEdit(action.targetName, cluster, config);
         console.log(`         ${pc.dim(`→ ${path}`)}`);
         editedCount += 1;
+        handledClusterIds.add(cluster.id);
         state = recordAction(state, cluster, "edit", { targetSkill: action.targetName });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -202,6 +205,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
         console.log(`         ${pc.dim(`→ ${path}`)}`);
         highCount += 1;
       }
+      handledClusterIds.add(cluster.id);
       state = recordAction(state, cluster, "create", { targetSkill: skill.name });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -209,8 +213,38 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
       skippedCount += 1;
       state = recordAction(state, cluster, "skip", { reason: `create execution failed: ${msg}` });
     }
-    // avoid unused import warning
-    void fp;
+  }
+
+  if (!options.dryRun && automatableSummaries.length > 0) {
+    const createdCount = highCount + mediumCount + lowCount;
+    const tuningCandidates = eligible
+      .filter((cluster) => cluster.score >= minScore)
+      .filter((cluster) => !handledClusterIds.has(cluster.id))
+      .slice(0, Math.max(5, createdCount + editedCount + 3));
+
+    for (const cluster of tuningCandidates) {
+      const sig = truncate(cluster.canonical.signal, 90);
+      const scoreTag = pc.dim(`[score ${cluster.score.toFixed(2)}]`);
+      let action;
+      try {
+        action = await planSkillAction(cluster, automatableSummaries, config, 0);
+      } catch {
+        continue;
+      }
+      if (action.kind !== "edit") continue;
+      if (protectedNames.has(action.targetName)) continue;
+      console.log(`  ${pc.cyan("TUNE  ")} ${scoreTag} ${pc.bold(action.targetName)} ← ${pc.dim(sig)}`);
+      try {
+        const { path } = await executeEdit(action.targetName, cluster, config);
+        console.log(`         ${pc.dim(`→ ${path}`)}`);
+        editedCount += 1;
+        handledClusterIds.add(cluster.id);
+        state = recordAction(state, cluster, "edit", { targetSkill: action.targetName });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`         ${pc.red(`tune failed: ${msg}`)}`);
+      }
+    }
   }
 
   if (!options.dryRun) {

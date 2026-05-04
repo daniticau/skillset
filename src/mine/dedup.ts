@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import type { Nugget, NuggetCluster } from "./types.js";
 import type { LLMConfig } from "./llm/index.js";
 import { embed } from "./llm/index.js";
+import { focusForCategory } from "./focus.js";
 
 // ---------- TF-IDF ----------
 
@@ -327,6 +328,7 @@ export async function deduplicateAndRank(
       clusters.push({
         id: clusterId,
         canonical,
+        focus: canonical.focus ?? focusForCategory(canonical.category),
         members,
         score: computeScore(members, now),
         projects,

@@ -13,11 +13,11 @@ export interface ConversationWindow {
   heuristicHits: string[];
 }
 
-const EXTRACTION_SYSTEM = `You extract personalization signals from developer conversations with an AI coding assistant. Given a conversation window, identify signals that describe how the user wants to work.
+const EXTRACTION_SYSTEM = `You extract personalization signals from developer conversations with an AI coding assistant. Given a conversation window, identify signals that describe how the user wants to work and where the assistant made avoidable mistakes.
 
 Signal categories:
-- correction: user pushes back on something the assistant did ("don't do that", "revert", "I said...")
-- preference: user states how they want things done ("always X", "I prefer Y", "from now on Z")
+- correction: user pushes back on something the assistant did ("don't do that", "revert", "I said..."); preserve what the assistant did wrong in reasoning
+- preference: user states how they want things done ("always X", "I prefer Y", "from now on Z"); phrase as a durable user-owned rule
 - rejection: user blocks or interrupts an assistant action
 - workflow: user describes their process ("first I do X then Y", "before committing I always...")
 - style: user states code style preferences (naming, formatting, tabs vs spaces, no any, etc)
@@ -25,6 +25,7 @@ Signal categories:
 
 Rules:
 - Only extract from user messages, not assistant messages or tool results.
+- Use nearby assistant messages only as context for agent mistakes; never infer a preference from assistant text alone.
 - Ignore pleasantries ("yes", "ok", "thanks", "looks good") — the user must be stating something substantive.
 - Ignore one-off task descriptions ("fix the bug in auth.ts") — these are not personalization signals.
 - Output valid JSON only. No prose, no code fences.

@@ -1,6 +1,6 @@
 # skillset
 
-A portable personalization layer for coding agents. skillset keeps your reusable agent skills in a canonical store on disk, imports existing skills from the agent tools you already use, and mirrors the consolidated store back out automatically.
+A macOS personalization layer for coding agents. skillset keeps your reusable agent skills in a canonical store on disk, imports existing skills from the agent tools you already use, and mirrors the consolidated store back out automatically.
 
 ## Why
 
@@ -12,6 +12,7 @@ Every conversation with a coding agent contains signals about how you work: corr
 - **Imports existing skills during setup** from connected agent stores and consolidates same-name conflicts by newest mtime, archiving older versions.
 - **Mirrors automatically** after every command that changes canonical skills or connected mirrors.
 - **Learns from history** with `sks tailor`: scrape sessions, mine recurring flaws/preferences, create or edit skills, then mirror them.
+- **Dreams nightly** with `sks dream`: install a macOS LaunchAgent that incrementally reviews new sessions, learns from agent mistakes and user preferences, tunes existing skills, and records reviewed/skipped days.
 - **Captures explicit requests** with `sks tailor --stdin` or `sks tailor "prefer pnpm over npm"`.
 - **Protects user edits** by promoting mirror-side edits back to canonical before rewriting mirrors.
 
@@ -37,14 +38,35 @@ This repo includes a thin Codex plugin at `plugins/skillset`. It teaches Codex w
 
 The plugin assumes `sks` is installed or otherwise available on `PATH`. It does not add an MCP server or a second store; `~/.skillset/skills/` remains canonical.
 
+Fastest setup:
+
+```sh
+npx skillset-cli init
+codex plugin marketplace add daniticau/skillset
+```
+
+Start a new Codex thread and say:
+
+```txt
+Remember this as a reusable skill.
+```
+
+If Codex does not enable the plugin automatically, open `/plugins`, choose Skillset, and install it from the Skillset marketplace.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `sks init` | First-run setup: create the store, connect detected agents, import existing skills, mirror back out. |
 | `sks tailor [text...]` | Learn from past sessions, or turn explicit text/stdin into a skill. |
+| `sks dream` | Install/update the macOS nightly improvement LaunchAgent. |
+| `sks dream --run-now` | Run the nightly improvement immediately. |
+| `sks dream --status` | Show the LaunchAgent state and reviewed/tailored days. |
 | `sks list` | List current skills with short descriptions. |
-| `sks status` | Show connected mirrors, skill state, user edits, and conflicts. |
+| `sks status` | Show connected mirrors, skill state, user edits, and conflicts. Use `--usage` to include observed usage counts. |
+| `sks usage` | Show observed skill usage counts and last-used dates. |
+| `sks usage scan` | Infer skill usage from scraped sessions. |
+| `sks usage record <skill>` | Manually record a high-confidence observed skill use. |
 | `sks connect <agent>` | Connect an agent mirror and import/consolidate its existing skills. |
 | `sks disconnect <agent>` | Disconnect an agent mirror without deleting its files. |
 | `sks edit <skill>` | Open a canonical skill in `$VISUAL` or `$EDITOR`, validate, and mirror changes. |
@@ -63,13 +85,34 @@ sks tailor --max 5
 sks tailor --stdin
 ```
 
+Useful `dream` commands:
+
+```sh
+sks dream
+sks dream --at 02:30
+sks dream --run-now
+sks dream --run-now --force
+sks dream --status
+sks dream --off
+```
+
+Useful `usage` commands:
+
+```sh
+sks usage
+sks usage my-skill
+sks usage scan --scrape
+sks usage scan --force --project my-project
+sks usage record my-skill --agent codex --project my-project
+```
+
 ## Architecture
 
 ```txt
 ~/.skillset/
   skills/             canonical SKILL.md directories
   config.json         { links: [{ agent, path }] }
-  state.json          hashes, origins, user edits, conflict history
+  state.json          hashes, origins, user edits, conflict history, reviewed days
   sessions/           JSONL envelope store of scraped transcripts
   usage/events.jsonl  append-only observed skill usage events
   conflicts/          archived losing versions from mirror conflicts
@@ -94,7 +137,7 @@ All tiers install directly into canonical now. The tier remains useful metadata 
 - **User edits are sacred.** Mirror-side edits are promoted, never silently overwritten.
 - **One-way mirrors.** Canonical writes to mirrors after reconciliation; no bidirectional merge UI.
 - **No drafts.** Generated skills install directly; use `--dry-run`, `sks edit`, and `sks remove` to control changes.
-- **Small public surface.** `init`, `tailor`, `list`, `status`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
+- **Small public surface.** `init`, `tailor`, `dream`, `list`, `status`, `usage`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
 
 ## Dev
 

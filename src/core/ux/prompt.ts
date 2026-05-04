@@ -26,6 +26,7 @@ function makeRl(io: PromptIO): ReadlineInterface {
 
 type TtyReadable = Readable & {
   isTTY?: boolean;
+  isRaw?: boolean;
   setRawMode?: (mode: boolean) => void;
   resume?: () => void;
   pause?: () => void;
@@ -69,8 +70,8 @@ export interface CheckboxItem<T = string> {
 }
 
 /**
- * Present a numbered list and accept a comma-separated selection (1,3,4) or
- * "all" / "none". Pre-checked items are the default when the user hits enter.
+ * Present a numbered list and accept a comma-separated selection (1,3,4).
+ * Pre-checked items are the default when the user hits enter.
  */
 export async function checkbox<T = string>(
   message: string,
@@ -95,7 +96,7 @@ export async function checkbox<T = string>(
       .join(",");
     const raw = (
       await rl.question(
-        `  selection (comma-separated, "all", "none", or enter for defaults${
+        `  selection (comma-separated, or enter for defaults${
           defaults ? ` [${defaults}]` : ""
         }): `
       )
@@ -105,8 +106,6 @@ export async function checkbox<T = string>(
     if (!raw) {
       return items.filter((it) => it.checked).map((it) => it.value);
     }
-    if (raw === "all") return items.map((it) => it.value);
-    if (raw === "none") return [];
     const picks = new Set(
       raw
         .split(",")
@@ -131,18 +130,18 @@ async function interactiveCheckbox<T>(
   );
   let cursor = 0;
   let renderedLines = 0;
+  const doneCursor = items.length;
 
   const render = () => {
     if (renderedLines > 0) io.output.write(`\x1b[${renderedLines}F`);
     const lines = [
       `${message}`,
-      `  Use ↑/↓ to move, Space to toggle, Enter to continue.`,
       ...items.map((it, idx) => {
         const pointer = idx === cursor ? "❯" : " ";
         const mark = checked.has(idx) ? "◉" : "○";
         return `  ${pointer} ${mark} ${it.label}`;
       }),
-      `  a: all  n: none`,
+      `  ${cursor === doneCursor ? "❯" : " "} Done`,
     ];
     for (const line of lines) {
       io.output.write(`\x1b[2K${line}\n`);
@@ -151,9 +150,12 @@ async function interactiveCheckbox<T>(
   };
 
   return new Promise<T[]>((resolve, reject) => {
+    const wasRaw = io.input.isRaw === true;
+
     const cleanup = () => {
       io.input.off("keypress", onKeypress);
-      io.input.setRawMode?.(false);
+      io.input.setRawMode?.(wasRaw);
+      io.input.pause?.();
       io.output.write("\n");
     };
 
@@ -162,40 +164,40 @@ async function interactiveCheckbox<T>(
       resolve(items.filter((_, idx) => checked.has(idx)).map((it) => it.value));
     };
 
-    const onKeypress = (str: string, key?: { name?: string; ctrl?: boolean }) => {
-      if (key?.ctrl && key.name === "c") {
+    const onKeypress = (str?: string, key?: { name?: string; ctrl?: boolean; sequence?: string }) => {
+      const char = typeof str === "string" ? str.toLowerCase() : "";
+
+      if ((key?.ctrl && key.name === "c") || key?.sequence === "\u0003" || char === "\u0003") {
         cleanup();
         reject(new Error("cancelled"));
         return;
       }
       if (key?.name === "up") {
-        cursor = (cursor - 1 + items.length) % items.length;
+        cursor = (cursor - 1 + items.length + 1) % (items.length + 1);
         render();
         return;
       }
       if (key?.name === "down") {
-        cursor = (cursor + 1) % items.length;
+        cursor = (cursor + 1) % (items.length + 1);
         render();
         return;
       }
       if (key?.name === "space") {
+        if (cursor === doneCursor) return;
         if (checked.has(cursor)) checked.delete(cursor);
         else checked.add(cursor);
         render();
         return;
       }
       if (key?.name === "return" || key?.name === "enter") {
-        finish();
-        return;
-      }
-      if (str.toLowerCase() === "a") {
-        items.forEach((_, idx) => checked.add(idx));
+        if (cursor === doneCursor) {
+          finish();
+          return;
+        }
+        if (checked.has(cursor)) checked.delete(cursor);
+        else checked.add(cursor);
         render();
         return;
-      }
-      if (str.toLowerCase() === "n") {
-        checked.clear();
-        render();
       }
     };
 

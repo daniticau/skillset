@@ -14,6 +14,7 @@ import type {
   MineSummary,
 } from "./types.js";
 import { projectName } from "./reader.js";
+import { focusForCategory } from "./focus.js";
 
 /** Correction patterns — user pushing back on agent behavior. */
 const CORRECTION_PATTERNS = [
@@ -163,6 +164,7 @@ function buildHeuristicNugget(params: {
   return {
     id: hashId(`${params.idPrefix}:${params.signalText.slice(0, 100)}`),
     category: params.category,
+    focus: focusForCategory(params.category),
     signal: params.signalText,
     evidence: [
       {
@@ -265,6 +267,7 @@ function extractMultiTurnCorrections(session: ParsedSession, now: Date): Nugget[
     nuggets.push({
       id: hashId(`multiturn-correction:${signalText.slice(0, 100)}`),
       category: "correction",
+      focus: focusForCategory("correction"),
       signal: signalText,
       evidence: [
         {
@@ -346,6 +349,7 @@ function extractRawRejections(session: ParsedSession, now: Date): Nugget[] {
     nuggets.push({
       id: hashId(`rejection:${toolNames}`), // id by tool, so duplicates merge
       category: "rejection",
+      focus: focusForCategory("rejection"),
       signal: `Rejected tool: ${toolNames}`,
       evidence: [
         {
@@ -436,6 +440,7 @@ function extractToolPatterns(sessions: ParsedSession[]): Nugget[] {
     nuggets.push({
       id: hashId(`tool-pattern:${tool}`),
       category: "tool-pattern",
+      focus: focusForCategory("tool-pattern"),
       signal: `Tool "${tool}" used ${count} times across ${projects.size} projects: ${[...projects].join(", ")}`,
       evidence: [],
       confidence: 0.5,
@@ -488,6 +493,7 @@ function extractTopics(sessions: ParsedSession[]): Nugget[] {
     nuggets.push({
       id: hashId(`topic:${project}`),
       category: "topic",
+      focus: focusForCategory("topic"),
       signal: `Project "${project}": ${count} sessions`,
       evidence: examples,
       project,

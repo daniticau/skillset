@@ -120,6 +120,7 @@ async function tailorHistory(options: TailorCmdOptions): Promise<void> {
     project: options.project,
     force: options.force,
     fullScrape: options.full,
+    llm: true,
   });
   await makeCommand({
     maxNew: options.max,

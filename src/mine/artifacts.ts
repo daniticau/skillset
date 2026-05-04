@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { STORE_ROOT } from "../core/paths.js";
 import type { Nugget, NuggetCluster } from "./types.js";
+import { focusForCategory, focusForCluster } from "./focus.js";
 
 const NUGGETS_DIR = join(STORE_ROOT, "nuggets");
 
@@ -22,8 +23,19 @@ async function readJsonArtifact<T>(path: string): Promise<T> {
 function normalizeNugget(nugget: Nugget): Nugget {
   return {
     ...nugget,
+    focus: nugget.focus ?? focusForCategory(nugget.category),
     source: nugget.source ?? "heuristic",
     createdAt: nugget.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function normalizeCluster(cluster: NuggetCluster): NuggetCluster {
+  const canonical = normalizeNugget(cluster.canonical);
+  return {
+    ...cluster,
+    canonical,
+    focus: cluster.focus ?? focusForCluster({ ...cluster, canonical }),
+    members: cluster.members.map(normalizeNugget),
   };
 }
 
@@ -56,12 +68,12 @@ export async function loadNuggets(): Promise<Nugget[]> {
 export async function loadClusters(): Promise<NuggetCluster[]> {
   if (!existsSync(CLUSTERS_FILE)) return [];
   try {
-    return await readClusters();
+    return (await readClusters()).map(normalizeCluster);
   } catch {
     return [];
   }
 }
 
 export async function readClusters(): Promise<NuggetCluster[]> {
-  return readJsonArtifact<NuggetCluster[]>(CLUSTERS_FILE);
+  return (await readJsonArtifact<NuggetCluster[]>(CLUSTERS_FILE)).map(normalizeCluster);
 }

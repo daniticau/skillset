@@ -258,7 +258,7 @@ h3::before {
 }
 
 .product-visual:focus-visible,
-.insight-card:focus-visible,
+.plugin-panel:focus-visible,
 .steps-panel:focus-visible {
   outline: 2px solid var(--signal);
   outline-offset: 4px;
@@ -280,43 +280,31 @@ h3::before {
   padding: clamp(54px, 8vw, 96px) 0 0;
 }
 
-.intent-section {
+.codex-section {
   padding-top: clamp(34px, 6vw, 70px);
 }
 
-.intent-title {
-  max-width: none;
-  white-space: nowrap;
-}
-
-.intent-grid {
+.plugin-panel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+  gap: clamp(22px, 4vw, 42px);
+  align-items: start;
   margin-top: 24px;
+  padding: clamp(20px, 4vw, 34px);
 }
 
-.insight-card,
+.plugin-panel,
 .steps-panel {
   position: relative;
   border: 1px solid var(--terminal);
   border-radius: 3px;
   background: rgba(255, 254, 250, 0.82);
-  box-shadow: 6px 6px 0 rgba(23, 23, 23, 0.055);
-}
-
-.insight-card {
-  min-height: 0;
-  padding: 18px 20px;
-}
-
-.insight-card:nth-child(2n),
-.steps-panel {
   box-shadow: 6px 6px 0 var(--signal-soft);
 }
 
-.insight-card p,
+.plugin-panel p,
 .section-note,
+.plugin-steps span,
 .steps-list span {
   margin-bottom: 0;
   color: var(--muted);
@@ -327,6 +315,59 @@ h3::before {
 .section-note {
   max-width: 620px;
   margin-top: 12px;
+}
+
+.plugin-steps {
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-steps > div {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.plugin-steps strong {
+  color: var(--signal);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.plugin-steps > .setup-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.setup-row code {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.plugin-steps > .prompt-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.prompt-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.plugin-fallback {
+  margin-bottom: 0;
+  padding-top: 4px;
 }
 
 .steps-panel {
@@ -464,8 +505,8 @@ h3::before {
     justify-self: start;
   }
 
-  .intent-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .plugin-panel {
+    grid-template-columns: 1fr;
   }
 
   .steps-list li {
@@ -549,12 +590,14 @@ h3::before {
     overflow-wrap: anywhere;
   }
 
-  .intent-grid {
-    grid-template-columns: 1fr;
+  .plugin-panel {
+    padding: 18px;
   }
 
-  .insight-card {
-    min-height: 0;
+  .plugin-steps > .setup-row,
+  .plugin-steps > .prompt-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .steps-panel {

@@ -2,7 +2,7 @@
 
 ## What Is This?
 
-A coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have, consolidates them into a store you own, and mirrors them back into the tools you use. When you ask it to tailor, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make future agents better at you.
+A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have, consolidates them into a store you own, and mirrors them back into the tools you use. When you ask it to tailor or dream nightly, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make future agents better at you.
 
 ## The Problem
 
@@ -22,6 +22,12 @@ sks tailor
 
 `tailor` scrapes past sessions, mines corrections and preferences, clusters recurring signals, asks an LLM whether each signal should edit an existing skill or create a new one, writes the result directly to canonical, and mirrors it automatically. There is no draft/promote ceremony. `--dry-run` is the preview escape hatch.
 
+```sh
+sks dream
+```
+
+`dream` installs a macOS LaunchAgent that runs the same improvement loop nightly. Each run scrapes and mines new or changed sessions, balances agent-mistake and user-preference signals, tunes existing auto-created skills, mirrors changes, commits the canonical store, and records the reviewed or skipped day in `state.json`.
+
 The skills themselves live in a canonical store that you own. Every agent harness you use is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical before the next write, then out to all the others.
 
 ## The User Loop
@@ -29,6 +35,8 @@ The skills themselves live in a canonical store that you own. Every agent harnes
 **First run.** `npx skillset-cli init` sets up the store, connects detected agents, imports existing skills, and mirrors the consolidated store back out.
 
 **When you want it to learn.** Run `sks tailor`. It turns past session friction into skills and installs them directly.
+
+**When you want it to keep learning.** Run `sks dream`. It sets up nightly macOS tailoring and tracks which days have already been reviewed.
 
 **When you notice a rule in the moment.** Run `sks tailor "prefer pnpm over npm"` or pipe a fuller instruction into `sks tailor --stdin`.
 
@@ -48,7 +56,7 @@ The agent I work with in six months knows things about how I work that I never h
 
 **Your personalization is yours.** It should live on your disk, in a git-backed store you control. Any agent that wants access is a mirror, not an owner.
 
-**The public surface is small.** `init`, `tailor`, `list`, `status`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
+**The public surface is small.** `init`, `tailor`, `dream`, `list`, `status`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
 
 **User edits are sacred.** If you edit a skill directly in a mirror, that edit gets promoted back to canonical. The system never silently overwrites something you changed by hand.
 

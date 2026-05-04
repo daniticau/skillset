@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { NuggetCategory, NuggetCluster } from "./types.js";
+import { focusForCategory } from "./focus.js";
 
 function stableId(prefix: string, input: string): string {
   const hash = createHash("sha256").update(input).digest("hex").slice(0, 16);
@@ -19,9 +20,11 @@ export function createDirectSkillCluster(input: string): NuggetCluster {
   const id = stableId("direct", text);
   const now = new Date().toISOString();
   const category = inferDirectSkillCategory(text);
+  const focus = focusForCategory(category);
   const nugget = {
     id: `${id}-nugget`,
     category,
+    focus,
     signal: text,
     evidence: [
       {
@@ -43,6 +46,7 @@ export function createDirectSkillCluster(input: string): NuggetCluster {
   return {
     id,
     canonical: nugget,
+    focus,
     members: [nugget],
     score: 1,
     projects: ["manual"],

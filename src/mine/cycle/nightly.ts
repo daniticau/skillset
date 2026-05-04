@@ -1,7 +1,7 @@
 /**
  * Nightly cycle — the daily self-improvement pass.
  *
- * Flow (invoked by `sks cycle --nightly` and by the scheduled task):
+ * Flow (invoked by `sks dream --run-now` and the macOS LaunchAgent):
  *   acquireLock -> isIdle() gate -> scrape(incremental) -> mine+synthesize ->
  *   make (triage, budget=3) -> cleanup (stub in phase 3) -> sync ->
  *   stageAndCommitCycle -> recordReviewedToday -> releaseLock.
@@ -34,7 +34,16 @@ import {
 import type { Nugget, NuggetCluster } from "../index.js";
 import { llmExtractFromSessions } from "../llm-extract.js";
 import { deduplicateAndRank } from "../dedup.js";
-import { loadNuggets, saveClusters, saveNuggets } from "../artifacts.js";
+import { loadClusters, loadNuggets, saveClusters, saveNuggets } from "../artifacts.js";
+import { mergeNuggets } from "../nuggets.js";
+import {
+  finalizeRun,
+  markProcessed,
+  needsProcessing,
+  readMineState,
+  sessionFileHash,
+  writeMineState,
+} from "../state.js";
 import {
   loadExistingSkillSummaries,
   planSkillAction,
@@ -52,6 +61,13 @@ import type {
 } from "../../core/audit/git.js";
 import { runCleanup } from "../cleanup/index.js";
 import {
+  balancedClusterOrder,
+  cappedFocusCandidates,
+  focusCounts,
+  focusForCluster,
+  isPrimaryFocus,
+} from "../focus.js";
+import {
   startCheckpoint,
   advanceCheckpoint,
   clearCheckpoint,
@@ -60,7 +76,12 @@ import {
 } from "./checkpoint.js";
 import { acquireLock } from "./lock.js";
 import { isIdle } from "./idle.js";
-import { recordReviewedToday } from "./reviewed.js";
+import {
+  hasCompletedReviewToday,
+  markReviewSkipped,
+  markReviewStarted,
+  recordReviewedToday,
+} from "./reviewed.js";
 
 export interface NightlyOptions {
   /** Skip the idle gate (useful for manual runs or tests). */
@@ -69,7 +90,7 @@ export interface NightlyOptions {
   dryRun?: boolean;
   /** Progress callback. */
   onStage?: (stage: string, detail?: string) => void;
-  /** Force the run even if the scheduled task's wrapper would bail. */
+  /** Force the run even if today's review already completed. */
   force?: boolean;
 }
 
@@ -94,6 +115,7 @@ export async function runNightlyCycle(
 ): Promise<NightlyOutcome> {
   const onStage = options.onStage ?? (() => {});
   const start = Date.now();
+  let activeCycleId: string | undefined;
 
   // 1. Acquire lock — bail gracefully if busy.
   const lockResult = await acquireLock("nightly");
@@ -110,6 +132,10 @@ export async function runNightlyCycle(
     // 2. Load config + idle gate
     const stateBefore = await readState();
     const cfg = resolveConfig(stateBefore.config);
+    if (!options.force && !options.dryRun && (await hasCompletedReviewToday())) {
+      onStage("already-reviewed", "today is already completed");
+      return { ran: false, reason: "today is already completed" };
+    }
     if (!options.noIdleCheck && !options.dryRun) {
       const idle = await isIdle({
         cpuPct: cfg.schedule.idleCpuPct,
@@ -117,6 +143,7 @@ export async function runNightlyCycle(
       });
       if (!idle.idle) {
         onStage("idle-skip", idle.reason ?? "machine busy");
+        await markReviewSkipped(idle.reason ?? "machine busy");
         return { ran: false, reason: idle.reason ?? "machine busy" };
       }
       onStage("idle-ok", idle.reason ?? "idle gate passed");
@@ -129,6 +156,10 @@ export async function runNightlyCycle(
       onStage("stale-checkpoint", `clearing stale ${existingCheckpoint.stage}`);
     }
     const cp = await startCheckpoint("nightly");
+    activeCycleId = cp.id;
+    if (!options.dryRun) {
+      await markReviewStarted({ cycleId: cp.id });
+    }
 
     // 4. Scrape (incremental)
     onStage("scrape", "incremental");
@@ -142,36 +173,66 @@ export async function runNightlyCycle(
     }
     await advanceCheckpoint("scraped");
 
-    // 5. Mine (heuristic + LLM if available)
+    // 5. Mine new/changed sessions only (heuristic + LLM if available)
+    const llmConfig = defaultLLMConfig();
+    const llmAvail = await isAvailable(llmConfig);
     const sessions = readAllSessions();
-    onStage("mine", `${sessions.length} sessions`);
-    let nuggets: Nugget[] = await loadNuggets();
-    if (!options.dryRun && sessions.length > 0) {
-      const { nuggets: heuristic } = extractSignal(sessions);
-      nuggets = heuristic;
+    let mineState = await readMineState();
+    const targetStage = llmAvail.reachable ? "llm-validated" : "heuristic";
+    const sessionKey = (s: { source?: string; sessionId: string }) =>
+      `${s.source ?? "unknown"}:${s.sessionId}`;
+    const sessionsToProcess = options.force
+      ? sessions
+      : sessions.filter((session) => {
+          const hash = sessionFileHash(session.filePath);
+          if (!hash) return true;
+          return needsProcessing(sessionKey(session), hash, mineState, targetStage);
+        });
+
+    onStage("mine", `${sessionsToProcess.length}/${sessions.length} sessions`);
+    let nuggets: Nugget[] = options.force ? [] : await loadNuggets();
+    if (!options.dryRun && sessionsToProcess.length > 0) {
+      const { nuggets: heuristic } = extractSignal(sessionsToProcess);
+      let incoming = [...heuristic];
+      nuggets = mergeNuggets(nuggets, incoming);
       await saveNuggets(nuggets);
+      onStage("heuristic", `${heuristic.length} nuggets`);
+    } else if (sessionsToProcess.length === 0) {
+      onStage("mine-skip", `all sessions processed at ${targetStage}`);
     }
     await advanceCheckpoint("heuristic-done");
 
-    const llmConfig = defaultLLMConfig();
-    const llmAvail = await isAvailable(llmConfig);
-    if (llmAvail.reachable && sessions.length > 0 && !options.dryRun) {
+    if (llmAvail.reachable && sessionsToProcess.length > 0 && !options.dryRun) {
       onStage("mine-llm", `via ${llmConfig.provider}`);
       const { nuggets: llmNuggets } = await llmExtractFromSessions(
-        sessions,
+        sessionsToProcess,
         nuggets,
         llmConfig
       );
-      nuggets = [...nuggets, ...llmNuggets];
+      nuggets = mergeNuggets(nuggets, llmNuggets);
       await saveNuggets(nuggets);
+      onStage("llm-nuggets", `${llmNuggets.length}`);
     } else if (!llmAvail.reachable) {
       onStage("mine-llm-skip", llmAvail.reason ?? "LLM unreachable");
     }
     await advanceCheckpoint("llm-done");
 
+    if (!options.dryRun && sessionsToProcess.length > 0) {
+      for (const session of sessionsToProcess) {
+        const hash = sessionFileHash(session.filePath);
+        if (!hash) continue;
+        mineState = markProcessed(mineState, sessionKey(session), hash, targetStage);
+      }
+      await writeMineState(finalizeRun(mineState));
+    }
+
     // 6. Cluster + rank
-    let clusters: NuggetCluster[] = [];
-    if (nuggets.length > 0 && !options.dryRun) {
+    let clusters: NuggetCluster[] = await loadClusters();
+    if (
+      nuggets.length > 0 &&
+      !options.dryRun &&
+      (sessionsToProcess.length > 0 || clusters.length === 0)
+    ) {
       const clusterCfg = ollamaEmbeddingConfig(defaultLLMConfig());
       const embed = await detectEmbeddingModel(clusterCfg).catch(() => undefined);
       if (embed) clusterCfg.embeddingModel = embed;
@@ -182,19 +243,20 @@ export async function runNightlyCycle(
       await saveClusters(clusters);
     }
     onStage("cluster", `${clusters.length} clusters`);
+    const counts = focusCounts(clusters);
     await advanceCheckpoint("clusters-done");
 
     // 7. Triage + synthesize (capped budget)
     const created: CycleCreatedSkill[] = [];
     const edited: CycleEditedSkill[] = [];
-    if (clusters.length > 0 && llmAvail.reachable && !options.dryRun) {
+    if (clusters.length > 0 && sessionsToProcess.length > 0 && llmAvail.reachable && !options.dryRun) {
       const summaries = await loadExistingSkillSummaries();
       // origin=user-created skills are OFF-LIMITS for automation. Filter them
       // from the triage target set so executeEdit never fires on them.
       const state = await readState();
       const protectedNames = new Set(
         Object.entries(state.skills)
-          .filter(([, s]) => s.origin === "user-created")
+          .filter(([, s]) => s.origin === "user-created" || s.userEdited)
           .map(([name]) => name)
       );
       const eligibleSummaries = summaries.filter(
@@ -203,10 +265,20 @@ export async function runNightlyCycle(
 
       const newCap = cfg.cycleDefaults.newCap;
       let budget = newCap;
-      const topClusters = clusters
-        .filter((c) => c.score >= 0.5)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, newCap * 2);
+      const topClusters = balancedClusterOrder(
+        cappedFocusCandidates(
+          clusters
+            .filter((c) => c.score >= 0.5)
+            .filter((c) => isPrimaryFocus(focusForCluster(c))),
+          {
+            mistakeCap: cfg.cycleDefaults.mistakeCap,
+            preferenceCap: cfg.cycleDefaults.preferenceCap,
+            fillCap: newCap * 2,
+          }
+        ).slice(0, newCap * 2),
+        newCap
+      );
+      const handledClusterIds = new Set<string>();
 
       for (const cluster of topClusters) {
         if (budget <= 0) break;
@@ -227,6 +299,7 @@ export async function runNightlyCycle(
             }
             await executeEdit(action.targetName, cluster, llmConfig);
             edited.push({ name: action.targetName, rationale: action.rationale });
+            handledClusterIds.add(cluster.id);
             onStage("edited", action.targetName);
             continue;
           }
@@ -234,11 +307,33 @@ export async function runNightlyCycle(
             const { skill } = await executeCreate(action, cluster, llmConfig);
             created.push({ name: skill.name, description: skill.description });
             eligibleSummaries.push({ name: skill.name, description: skill.description });
+            handledClusterIds.add(cluster.id);
             budget -= 1;
             onStage("created", skill.name);
           }
         } catch (err) {
           onStage("triage-error", err instanceof Error ? err.message : String(err));
+        }
+      }
+
+      const tuningCandidates = topClusters
+        .filter((cluster) => !handledClusterIds.has(cluster.id))
+        .slice(0, Math.max(5, created.length + edited.length + 3));
+      for (const cluster of tuningCandidates) {
+        try {
+          const action = await planSkillAction(
+            cluster,
+            eligibleSummaries,
+            llmConfig,
+            0
+          );
+          if (action.kind !== "edit") continue;
+          if (protectedNames.has(action.targetName)) continue;
+          await executeEdit(action.targetName, cluster, llmConfig);
+          edited.push({ name: action.targetName, rationale: action.rationale });
+          onStage("tuned", action.targetName);
+        } catch (err) {
+          onStage("tune-error", err instanceof Error ? err.message : String(err));
         }
       }
     }
@@ -293,6 +388,13 @@ export async function runNightlyCycle(
 
       // 10. Record today's rollup
       await recordReviewedToday({
+        status: "completed",
+        cycleId: cp.id,
+        sessionsReviewed: sessionsToProcess.length,
+        mistakeClusters: counts["agent-mistake"],
+        preferenceClusters: counts["user-preference"],
+        skillsCreated: created.length,
+        skillsEdited: edited.length,
         skillsProduced: created.length,
         skillsMerged: merged.length,
         skillsPruned: pruned.length,
@@ -313,6 +415,15 @@ export async function runNightlyCycle(
       prunedSkills: pruned,
     };
     return { ran: true, report };
+  } catch (err) {
+    if (!options.dryRun) {
+      await recordReviewedToday({
+        status: "failed",
+        cycleId: activeCycleId,
+        skipReason: err instanceof Error ? err.message : String(err),
+      });
+    }
+    throw err;
   } finally {
     unregisterSignals();
     await lockResult.release();

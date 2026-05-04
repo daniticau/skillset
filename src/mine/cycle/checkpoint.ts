@@ -100,7 +100,7 @@ export function shouldRunStage(
   return stageIndex(target) > stageIndex(current);
 }
 
-/** Register process-level SIGINT / SIGBREAK handlers so interrupted runs leave
+/** Register process-level SIGINT handlers so interrupted runs leave
  *  the checkpoint behind (not cleared) — the next run resumes from the last
  *  completed stage. The caller supplies a cleanup function (e.g. flush state). */
 export function registerInterruptHandlers(onInterrupt: () => Promise<void> | void): () => void {
@@ -117,15 +117,8 @@ export function registerInterruptHandlers(onInterrupt: () => Promise<void> | voi
     setImmediate(() => process.exit(130));
   };
   process.on("SIGINT", handler);
-  // SIGBREAK only exists on Windows; guard so other platforms don't warn.
-  if (process.platform === "win32") {
-    process.on("SIGBREAK", handler);
-  }
   return () => {
     process.off("SIGINT", handler);
-    if (process.platform === "win32") {
-      process.off("SIGBREAK", handler);
-    }
   };
 }
 

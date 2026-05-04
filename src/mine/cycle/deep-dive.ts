@@ -32,6 +32,7 @@ import {
   planSkillAction,
   executeCreate,
 } from "../make.js";
+import { balancedClusterOrder, focusForCluster, isPrimaryFocus } from "../focus.js";
 import { sync } from "../../core/mirror.js";
 import { stageAndCommitCycle } from "../../core/audit/git.js";
 import type { CycleReport, CycleCreatedSkill } from "../../core/audit/git.js";
@@ -196,13 +197,17 @@ export async function runDeepDive(
       } else {
         onStage("synthesize", `up to ${maxSkills} skills`);
         const summaries = await loadExistingSkillSummaries();
-        const topClusters = clusters
-          .filter((c) => c.score >= 0.4)
-          .sort((a, b) => b.score - a.score)
-          // Consider ~1.5x budget so triage can SKIP some noisy ones. Keeping
-          // this tight matters: each considered cluster costs a serialized
-          // claude-cli triage call (~10–20s on subscription CLIs).
-          .slice(0, Math.ceil(maxSkills * 1.5));
+        const topClusters = balancedClusterOrder(
+          clusters
+            .filter((c) => c.score >= 0.4)
+            .filter((c) => isPrimaryFocus(focusForCluster(c)))
+            .sort((a, b) => b.score - a.score)
+            // Consider ~1.5x budget so triage can SKIP some noisy ones. Keeping
+            // this tight matters: each considered cluster costs a serialized
+            // claude-cli triage call (~10–20s on subscription CLIs).
+            .slice(0, Math.ceil(maxSkills * 1.5)),
+          maxSkills
+        );
 
         let budget = maxSkills;
         for (const cluster of topClusters) {

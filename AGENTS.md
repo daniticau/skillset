@@ -14,6 +14,7 @@ See `VISION.md` for the full north star.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
 - **Session scraping**: reads Claude Code and Codex transcripts into `~/.skillset/sessions/` as mining input.
 - **Tailoring pipeline**: `sks tailor` scrapes sessions, mines nuggets, clusters/ranks them, asks the LLM to create/edit skills, and mirrors changes.
+- **Dream loop**: `sks dream` installs a macOS LaunchAgent for nightly scraping, focused tailoring, skill tuning, mirroring, git audit, and reviewed-day tracking.
 - **Explicit capture**: `sks tailor --stdin` or `sks tailor "<rule>"` turns a direct instruction into a user-owned skill.
 
 No draft/promote flow. Generated skills write directly to canonical and then mirror.
@@ -49,6 +50,7 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 
 - `sks init` - create store, connect detected agents, import existing skills, mirror back out.
 - `sks tailor [text...]` - learn from history or capture explicit text/stdin as a skill.
+- `sks dream [--at HH:MM|--status|--off|--run-now]` - manage the macOS nightly improvement loop.
 - `sks list` - list current skills and descriptions.
 - `sks status` - show connected mirrors and skill state.
 - `sks connect <agent> [--path <path>]` - connect/import/mirror an agent.
@@ -64,6 +66,7 @@ Internal modules for older flows may still exist while the codebase settles, but
 - **User edits are sacred.** Mirror-side edits are promoted, never silently overwritten.
 - **Canonical owns delivery.** Mirrors are derived after reconciliation.
 - **Automatic mirroring after mutations.** No user-facing `sync` command.
+- **macOS-only scheduling.** Recurring improvement is managed with LaunchAgents.
 - **No drafts.** New skills install directly with tier metadata.
 - **Recoverable conflicts.** Newest mtime wins; losing bodies and context are archived.
 

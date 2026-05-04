@@ -11,4 +11,4 @@ export const CONFIG_FILE = join(STORE_ROOT, "config.json");
 export const STATE_FILE = join(STORE_ROOT, "state.json");
 
 export const DEFAULT_CLAUDE_SKILLS_DIR = join(homedir(), ".claude", "skills");
-export const DEFAULT_CODEX_SKILLS_DIR = join(homedir(), ".agents", "skills");
+export const DEFAULT_CODEX_SKILLS_DIR = join(homedir(), ".codex", "skills");

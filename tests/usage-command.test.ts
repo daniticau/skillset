@@ -29,6 +29,7 @@ const { writeState } = await import("../src/core/config.js");
 
 beforeEach(async () => {
   rmSync(ROOT, { recursive: true, force: true });
+  process.exitCode = undefined;
   mkdirSync(SKILLS, { recursive: true });
   await writeState({ version: 2, skills: {}, reviewedDates: {} });
   makeSkill("alpha");
@@ -116,5 +117,25 @@ describe("usage command", () => {
 
     expect(await readUsageEvents()).toHaveLength(1);
     expect(outputOf(logSpy)).toContain("1 observed use");
+
+    logSpy.mockClear();
+    await usageScanCommand({ noScrape: true });
+
+    expect(await readUsageEvents()).toHaveLength(1);
+    expect(outputOf(logSpy)).toContain("0 observed uses");
+    expect(outputOf(logSpy)).toContain("1 skipped");
+  });
+
+  it("rejects explicit records for unknown skills", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await usageRecordCommand("missing", {
+      agent: "codex",
+      at: "2026-04-22T12:00:00.000Z",
+    });
+
+    expect(process.exitCode).toBe(1);
+    expect(await readUsageEvents()).toHaveLength(0);
+    expect(outputOf(errorSpy)).toContain('unknown skill "missing"');
   });
 });

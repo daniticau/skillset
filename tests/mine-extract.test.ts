@@ -5,6 +5,7 @@ import {
   collapseRejections,
   recencyWeight,
 } from "../src/mine/extract.js";
+import { deduplicateAndRank } from "../src/mine/dedup.js";
 import { projectName } from "../src/mine/reader.js";
 import type { Nugget, ParsedSession } from "../src/mine/types.js";
 
@@ -43,6 +44,7 @@ describe("extractSignal", () => {
     ]);
     const { nuggets } = extractSignal([session]);
     expect(nuggets.some((n) => n.category === "correction")).toBe(true);
+    expect(nuggets.find((n) => n.category === "correction")?.focus).toBe("agent-mistake");
   });
 
   it("extracts preferences from 'always use' patterns", () => {
@@ -51,6 +53,7 @@ describe("extractSignal", () => {
     ]);
     const { nuggets } = extractSignal([session]);
     expect(nuggets.some((n) => n.category === "preference")).toBe(true);
+    expect(nuggets.find((n) => n.category === "preference")?.focus).toBe("user-preference");
   });
 
   it("extracts style preferences", () => {
@@ -60,6 +63,31 @@ describe("extractSignal", () => {
     const { nuggets } = extractSignal([session]);
     const styleNugget = nuggets.find((n) => n.category === "style");
     expect(styleNugget).toBeDefined();
+    expect(styleNugget?.focus).toBe("user-preference");
+  });
+
+  it("classifies topic and tool-pattern signals as other", async () => {
+    const sessions = [
+      makeSession("s1", "C--proj-a", [
+        { role: "user", text: "please implement auth for this project with careful tests" },
+        { role: "assistant", text: "I'll inspect the app.", toolUses: ["Read"] },
+      ]),
+      makeSession("s2", "C--proj-a", [
+        { role: "user", text: "please continue auth work and keep the tests focused" },
+        { role: "assistant", text: "I'll inspect more files.", toolUses: ["Read"] },
+      ]),
+      makeSession("s3", "C--proj-b", [
+        { role: "user", text: "please inspect the data model before editing anything" },
+        { role: "assistant", text: "I'll read the schema.", toolUses: ["Read"] },
+      ]),
+    ];
+
+    const { nuggets } = extractSignal(sessions);
+    expect(nuggets.find((n) => n.category === "topic")?.focus).toBe("other");
+    expect(nuggets.find((n) => n.category === "tool-pattern")?.focus).toBe("other");
+
+    const clusters = await deduplicateAndRank(nuggets);
+    expect(clusters.find((c) => c.canonical.category === "topic")?.focus).toBe("other");
   });
 
   it("multi-turn correction gets higher confidence than single-message", () => {
