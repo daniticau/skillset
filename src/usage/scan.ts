@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import type { ScrapeEnvelope, ScrapeSource } from "../ingest/sessions/types.js";
 import { parseJsonLinesLenient } from "../ingest/sessions/jsonl.js";
 import { listStoreSkills } from "../core/store.js";
@@ -24,6 +25,7 @@ export interface UsageScanReport {
   inferred: number;
   added: number;
   knownSkills: number;
+  skillSetChanged: boolean;
 }
 
 interface KnownSkills {
@@ -36,6 +38,13 @@ function knownSkills(names: string[]): KnownSkills {
     names: new Set(names),
     lowerToName: new Map(names.map((name) => [name.toLowerCase(), name])),
   };
+}
+
+function skillSetHash(names: string[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify([...names].sort()))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 function resolveKnownSkill(raw: unknown, known: KnownSkills): string | undefined {
@@ -155,6 +164,22 @@ function readEnvelopes(path: string): ScrapeEnvelope[] {
   }
 }
 
+function dedupeSessionEvents(events: SkillUsageEvent[]): SkillUsageEvent[] {
+  const best = new Map<string, SkillUsageEvent>();
+  for (const event of events) {
+    const key = event.skillName;
+    const current = best.get(key);
+    if (
+      !current ||
+      event.confidence > current.confidence ||
+      (event.confidence === current.confidence && event.usedAt > current.usedAt)
+    ) {
+      best.set(key, event);
+    }
+  }
+  return [...best.values()].sort((a, b) => a.usedAt.localeCompare(b.usedAt));
+}
+
 export function inferUsageFromSession(
   session: ParsedSession,
   skillNames: string[]
@@ -201,7 +226,7 @@ export function inferUsageFromSession(
     }
   }
 
-  return events;
+  return dedupeSessionEvents(events);
 }
 
 function emptyUsageState(): UsageState {
@@ -216,9 +241,11 @@ export async function scanUsageFromSessions(
   options: UsageScanOptions = {}
 ): Promise<UsageScanReport> {
   const skillNames = await listStoreSkills();
+  const currentSkillSetHash = skillSetHash(skillNames);
   const sessions = readAllSessions(options.project);
   const state = await readState();
   const usage = state.usage ?? emptyUsageState();
+  const skillSetChanged = usage.skillSetHash !== currentSkillSetHash;
   const updates: UsageState["processedSessions"] = {};
   const inferredEvents: SkillUsageEvent[] = [];
   let scanned = 0;
@@ -227,7 +254,12 @@ export async function scanUsageFromSessions(
   for (const session of sessions) {
     const hash = sessionFileHash(session.filePath);
     const key = sessionKey(session);
-    if (!options.force && hash && usage.processedSessions[key]?.fileHash === hash) {
+    if (
+      !options.force &&
+      !skillSetChanged &&
+      hash &&
+      usage.processedSessions[key]?.fileHash === hash
+    ) {
       skipped += 1;
       continue;
     }
@@ -245,6 +277,7 @@ export async function scanUsageFromSessions(
       ...updates,
     },
     lastScanAt: new Date().toISOString(),
+    skillSetHash: currentSkillSetHash,
   };
   await writeState(latest);
 
@@ -254,6 +287,7 @@ export async function scanUsageFromSessions(
     inferred: inferredEvents.length,
     added: append.added,
     knownSkills: skillNames.length,
+    skillSetChanged,
   };
 }
 

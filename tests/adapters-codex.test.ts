@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ROOT = join(tmpdir(), `skillset-codex-test-${process.pid}`);
-const MIRROR = join(ROOT, ".agents", "skills");
+const MIRROR = join(ROOT, ".codex", "skills");
 const STORE = join(ROOT, "store");
 const SKILLS = join(STORE, "skills");
 
@@ -51,7 +51,7 @@ describe("codex skills adapter", () => {
 
   it("uses the per-skill-dir layout so user edits can be promoted", async () => {
     expect(codexAdapter.layout).toBe("per-skill-dir");
-    expect(codexAdapter.defaultPath).toContain(join(".agents", "skills"));
+    expect(codexAdapter.defaultPath).toContain(join(".codex", "skills"));
     expect(codexAdapter.listMirrorSkills).toBeDefined();
     expect(codexAdapter.readMirrorSkill).toBeDefined();
   });

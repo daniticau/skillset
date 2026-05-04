@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const TEST_ROOT = join(tmpdir(), `skillset-prune-test-${process.pid}`);
+const USAGE_DIR = join(TEST_ROOT, "usage");
+const USAGE_EVENTS_FILE = join(USAGE_DIR, "events.jsonl");
 
 vi.mock("../src/core/paths.js", () => ({
   STORE_ROOT: TEST_ROOT,
@@ -11,6 +13,8 @@ vi.mock("../src/core/paths.js", () => ({
   CONFLICTS_DIR: join(TEST_ROOT, "conflicts"),
   CONFIG_FILE: join(TEST_ROOT, "config.json"),
   STATE_FILE: join(TEST_ROOT, "state.json"),
+  USAGE_DIR,
+  USAGE_EVENTS_FILE,
   DEFAULT_CLAUDE_SKILLS_DIR: join(TEST_ROOT, "mirror"),
   SESSIONS_DIR: join(TEST_ROOT, "sessions"),
 }));
@@ -18,6 +22,7 @@ vi.mock("../src/core/paths.js", () => ({
 const { runPrune } = await import("../src/mine/cleanup/prune.js");
 const { eligibleSkills } = await import("../src/mine/cleanup/index.js");
 const { writeState } = await import("../src/core/config.js");
+const { appendUsageEvents, createExplicitUsageEvent } = await import("../src/usage/events.js");
 
 function stateFixture(
   skills: Record<string, Record<string, unknown>>
@@ -113,6 +118,32 @@ describe("runPrune (dry-run)", () => {
       },
     });
     const candidates = await runPrune(["evolving"], { enabled: false, cap: 5 });
+    expect(candidates).toHaveLength(0);
+  });
+
+  it("doesn't flag skills with observed usage", async () => {
+    const old = new Date(Date.now() - 70 * 24 * 3600 * 1000).toISOString();
+    await writeState({
+      version: 2,
+      skills: {
+        used: {
+          canonicalHash: "",
+          mirrorHashes: {},
+          userEdited: false,
+          origin: "auto-created",
+          createdAt: old,
+        },
+      },
+    });
+    await appendUsageEvents([
+      createExplicitUsageEvent({
+        skillName: "used",
+        agent: "codex",
+        usedAt: new Date().toISOString(),
+      }),
+    ]);
+
+    const candidates = await runPrune(["used"], { enabled: false, cap: 5 });
     expect(candidates).toHaveLength(0);
   });
 

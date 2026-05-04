@@ -109,16 +109,16 @@ afterEach(() => {
 describe("make command automation safety", () => {
   it("does not offer user-created skills as automated edit targets", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    let namesSeen: string[] = [];
+    const namesSeen: string[][] = [];
     mocks.planSkillAction.mockImplementation(async (_cluster, summaries) => {
-      namesSeen = summaries.map((s: { name: string }) => s.name);
+      namesSeen.push(summaries.map((s: { name: string }) => s.name));
       return { kind: "skip", reason: "verified" };
     });
 
     await makeCommand({ force: true });
 
-    expect(mocks.planSkillAction).toHaveBeenCalledTimes(1);
-    expect(namesSeen).toEqual(["auto-owned"]);
+    expect(mocks.planSkillAction).toHaveBeenCalledTimes(2);
+    expect(namesSeen).toEqual([["auto-owned"], ["auto-owned"]]);
     expect(mocks.executeEdit).not.toHaveBeenCalled();
   });
 });

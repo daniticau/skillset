@@ -1,0 +1,20 @@
+{
+  "name": "skillset",
+  "interface": {
+    "displayName": "Skillset"
+  },
+  "plugins": [
+    {
+      "name": "skillset",
+      "source": {
+        "source": "local",
+        "path": "./plugins/skillset"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

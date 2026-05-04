@@ -15,7 +15,13 @@ vi.mock("../src/core/paths.js", () => ({
   SESSIONS_DIR: join(TEST_ROOT, "sessions"),
 }));
 
-const { recordReviewedToday, __todayKey } = await import("../src/mine/cycle/reviewed.js");
+const {
+  hasCompletedReviewToday,
+  markReviewStarted,
+  markReviewSkipped,
+  recordReviewedToday,
+  __todayKey,
+} = await import("../src/mine/cycle/reviewed.js");
 const { readState } = await import("../src/core/config.js");
 
 beforeEach(() => {
@@ -29,8 +35,22 @@ afterAll(() => {
 
 describe("recordReviewedToday", () => {
   it("creates a fresh daily bucket on first call", async () => {
-    const record = await recordReviewedToday({ skillsProduced: 2 });
+    const record = await recordReviewedToday({
+      cycleId: "cycle-1",
+      sessionsReviewed: 4,
+      mistakeClusters: 1,
+      preferenceClusters: 2,
+      skillsCreated: 2,
+      skillsEdited: 1,
+    });
+    expect(record.status).toBe("completed");
     expect(record.cyclesRan).toBe(1);
+    expect(record.cycleId).toBe("cycle-1");
+    expect(record.sessionsReviewed).toBe(4);
+    expect(record.mistakeClusters).toBe(1);
+    expect(record.preferenceClusters).toBe(2);
+    expect(record.skillsCreated).toBe(2);
+    expect(record.skillsEdited).toBe(1);
     expect(record.skillsProduced).toBe(2);
     expect(record.skillsMerged).toBe(0);
     expect(record.skillsPruned).toBe(0);
@@ -41,10 +61,10 @@ describe("recordReviewedToday", () => {
   });
 
   it("increments counters on subsequent cycles same day", async () => {
-    await recordReviewedToday({ skillsProduced: 1 });
-    const r = await recordReviewedToday({ skillsProduced: 2, skillsMerged: 1 });
+    await recordReviewedToday({ skillsCreated: 1 });
+    const r = await recordReviewedToday({ skillsCreated: 2, skillsMerged: 1 });
     expect(r.cyclesRan).toBe(2);
-    expect(r.skillsProduced).toBe(3);
+    expect(r.skillsCreated).toBe(3);
     expect(r.skillsMerged).toBe(1);
   });
 
@@ -56,5 +76,20 @@ describe("recordReviewedToday", () => {
     const state = await readState();
     const keys = Object.keys(state.reviewedDates ?? {});
     expect(keys.length).toBe(2);
+  });
+
+  it("tracks started and completed status for today", async () => {
+    await markReviewStarted({ cycleId: "cycle-2" });
+    expect(await hasCompletedReviewToday()).toBe(false);
+
+    await recordReviewedToday({ cycleId: "cycle-2", skillsCreated: 1 });
+    expect(await hasCompletedReviewToday()).toBe(true);
+  });
+
+  it("records skipped days without incrementing cycles ran", async () => {
+    const skipped = await markReviewSkipped("machine busy");
+    expect(skipped.status).toBe("skipped");
+    expect(skipped.cyclesRan).toBe(0);
+    expect(skipped.skipReason).toBe("machine busy");
   });
 });

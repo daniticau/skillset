@@ -127,7 +127,9 @@ export async function usageScanCommand(
   console.log(
     pc.green(`✓ ${plural(report.added, "observed use")} added`) +
       pc.dim(
-        ` (${report.inferred} inferred candidate(s), ${report.scanned} scanned, ${report.skipped} skipped, ${report.knownSkills} known skill(s))`
+        ` (${report.inferred} inferred candidate(s), ${report.scanned} scanned, ${report.skipped} skipped, ${report.knownSkills} known skill(s)${
+          report.skillSetChanged ? ", skill set changed" : ""
+        })`
       )
   );
 }

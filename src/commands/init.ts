@@ -36,7 +36,7 @@ async function detectAgents(includeOptional: boolean): Promise<LinkCandidate[]> 
       links.push({ agent: adapter.kind, path: hit.path, checked: true, detected: true });
       continue;
     }
-    if (includeOptional && adapter.kind === "claude-code") {
+    if (includeOptional) {
       links.push({
         agent: adapter.kind,
         path: adapter.defaultPath,
@@ -83,19 +83,20 @@ async function doLinks(candidates: LinkCandidate[], interactive: boolean): Promi
   const fresh = await readConfig();
   const linkKey = (l: Link) => `${l.agent}:${l.path}`;
   const existing = new Set(fresh.links.map(linkKey));
-  const alreadyLinked = candidates.filter((link) => existing.has(linkKey(link)));
-  const linkable = candidates.filter((link) => !existing.has(linkKey(link)));
+  const existingByAgent = new Map(fresh.links.map((link) => [link.agent, link]));
+  const choices = candidates.map((candidate) => {
+    const existingLink = existingByAgent.get(candidate.agent);
+    if (existingLink) {
+      return { ...candidate, path: existingLink.path, checked: true };
+    }
+    return { ...candidate, checked: candidate.checked || existing.has(linkKey(candidate)) };
+  });
 
-  if (alreadyLinked.length > 0) {
-    const names = alreadyLinked.map((link) => getAdapter(link.agent).displayName).join(", ");
-    console.log(pc.dim(`  already connected: ${names}`));
-  }
-
-  if (candidates.length === 0) {
+  if (choices.length === 0) {
     console.log(pc.dim("  no coding agents detected"));
     return 0;
   }
-  if (linkable.length === 0) {
+  if (!interactive && choices.every((link) => existing.has(linkKey(link)))) {
     console.log(pc.dim("  no new agent mirrors to link"));
     return 0;
   }
@@ -103,36 +104,55 @@ async function doLinks(candidates: LinkCandidate[], interactive: boolean): Promi
   let pickedLinks: LinkCandidate[];
   if (interactive) {
     pickedLinks = await checkbox(
-      "Which agents should be linked as mirror targets?",
-      linkable.map((link) => ({
-        label: `${getAdapter(link.agent).displayName} ${pc.dim(
-          `(${link.path}${link.detected ? "" : " — optional"})`
-        )}`,
+      "Select mirror targets:",
+      choices.map((link) => ({
+        label: `${getAdapter(link.agent).displayName} ${pc.dim(`(${link.path})`)}`,
         value: link,
         checked: link.checked,
       }))
     );
   } else {
-    pickedLinks = linkable.filter((link) => link.checked);
+    pickedLinks = choices.filter((link) => link.checked);
   }
 
-  let added = 0;
+  const representedAgents = new Set(choices.map((link) => link.agent));
+  const pickedAgents = new Set(pickedLinks.map((link) => link.agent));
+  const pickedCleanLinks: Link[] = pickedLinks.map((link) => ({
+    agent: link.agent,
+    path: link.path,
+  }));
+  const retainedLinks = fresh.links.filter((link) => !representedAgents.has(link.agent));
+  const nextLinks = [
+    ...retainedLinks,
+    ...pickedCleanLinks,
+  ];
+  const addedLinks = pickedCleanLinks.filter((link) => !existing.has(linkKey(link)));
+  const removedLinks = fresh.links.filter(
+    (link) => representedAgents.has(link.agent) && !pickedAgents.has(link.agent)
+  );
+
   for (const link of pickedLinks) {
     if (!existing.has(linkKey(link))) {
-      fresh.links.push(link);
-      added += 1;
       console.log(
         pc.green(
           `✓ linked ${getAdapter(link.agent).displayName} → ${pc.dim(link.path)}`
         )
       );
-    } else {
-      console.log(pc.dim(`• ${getAdapter(link.agent).displayName} already linked`));
     }
   }
-  if (added > 0) await writeConfig(fresh);
-  if (added === 0) console.log(pc.dim("  no new mirrors linked"));
-  return added;
+  for (const link of removedLinks) {
+    console.log(pc.green(`✓ removed ${getAdapter(link.agent).displayName} mirror target`));
+  }
+
+  const changed =
+    fresh.links.length !== nextLinks.length ||
+    fresh.links.some((link, idx) => linkKey(link) !== linkKey(nextLinks[idx]!));
+  if (changed) {
+    fresh.links = nextLinks;
+    await writeConfig(fresh);
+  }
+  if (!changed) console.log(pc.dim("  mirror targets unchanged"));
+  return addedLinks.length + removedLinks.length;
 }
 
 export async function initCommand(options: InitOptions = {}): Promise<void> {

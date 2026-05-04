@@ -12,13 +12,45 @@ describe("public CLI", () => {
       "connect",
       "disconnect",
       "doctor",
+      "dream",
       "edit",
       "init",
       "list",
       "remove",
       "status",
       "tailor",
+      "usage",
     ]);
+  });
+
+  it("exposes usage options and subcommands", () => {
+    const program = createProgram();
+    const dream = program.commands.find((c) => c.name() === "dream");
+    const status = program.commands.find((c) => c.name() === "status");
+    const usage = program.commands.find((c) => c.name() === "usage");
+
+    expect(status?.options.map((o) => o.long)).toContain("--usage");
+    expect(dream?.options.map((o) => o.long).sort()).toEqual([
+      "--at",
+      "--force",
+      "--off",
+      "--run-now",
+      "--scheduled",
+      "--status",
+    ]);
+    expect(usage?.commands.map((c) => c.name()).sort()).toEqual(["record", "scan"]);
+    expect(
+      usage?.commands
+        .find((c) => c.name() === "scan")
+        ?.options.map((o) => o.long)
+        .sort()
+    ).toEqual(["--force", "--full-scrape", "--project", "--scrape"]);
+    expect(
+      usage?.commands
+        .find((c) => c.name() === "record")
+        ?.options.map((o) => o.long)
+        .sort()
+    ).toEqual(["--agent", "--at", "--evidence", "--project"]);
   });
 });
 

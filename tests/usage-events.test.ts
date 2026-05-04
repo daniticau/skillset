@@ -166,6 +166,79 @@ describe("usage events", () => {
 
     const state = await readState();
     expect(state.usage?.lastScanAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(state.usage?.skillSetHash).toMatch(/^[a-f0-9]{24}$/);
     expect(Object.keys(state.usage?.processedSessions ?? {})).toHaveLength(2);
+  });
+
+  it("dedupes inferred events to one best observation per skill per session", async () => {
+    makeSkill("alpha");
+
+    writeEnvelope("codex", "s1", [
+      {
+        type: "user_message",
+        timestamp: "2026-04-21T08:59:00.000Z",
+        content: "go",
+      },
+      {
+        type: "agent_message",
+        timestamp: "2026-04-21T09:00:00.000Z",
+        content: "I'm using the alpha skill now.",
+      },
+      {
+        type: "agent_message",
+        timestamp: "2026-04-21T09:01:00.000Z",
+        content: [
+          {
+            type: "tool_use",
+            name: "Skill",
+            input: { skill: "alpha" },
+          },
+        ],
+      },
+    ], "s1");
+
+    const report = await scanUsageFromSessions();
+    expect(report.inferred).toBe(1);
+    expect(report.added).toBe(1);
+
+    const events = await readUsageEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      skillName: "alpha",
+      confidence: 0.95,
+      evidence: "native skill invocation",
+    });
+  });
+
+  it("rescans unchanged sessions when the canonical skill set changes", async () => {
+    makeSkill("alpha");
+    writeEnvelope("codex", "s1", [
+      {
+        type: "user_message",
+        timestamp: "2026-04-21T08:59:00.000Z",
+        content: "go",
+      },
+      {
+        type: "agent_message",
+        timestamp: "2026-04-21T09:00:00.000Z",
+        content: "I'm using the beta skill now.",
+      },
+    ], "s1");
+
+    const first = await scanUsageFromSessions();
+    expect(first.scanned).toBe(1);
+    expect(first.added).toBe(0);
+
+    makeSkill("beta");
+    const second = await scanUsageFromSessions();
+    expect(second.skillSetChanged).toBe(true);
+    expect(second.scanned).toBe(1);
+    expect(second.skipped).toBe(0);
+    expect(second.added).toBe(1);
+
+    const third = await scanUsageFromSessions();
+    expect(third.skillSetChanged).toBe(false);
+    expect(third.scanned).toBe(0);
+    expect(third.skipped).toBe(1);
   });
 });

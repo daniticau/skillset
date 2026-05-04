@@ -70,6 +70,8 @@ export interface SessionMessage {
 export interface Nugget {
   id: string;
   category: NuggetCategory;
+  /** Main tailoring lane this signal belongs to. */
+  focus?: NuggetFocus;
   signal: string;
   evidence: NuggetEvidence[];
   project?: string;
@@ -97,6 +99,8 @@ export type NuggetCategory =
   | "topic"
   | "style"
   | "anti-pattern";
+
+export type NuggetFocus = "agent-mistake" | "user-preference" | "other";
 
 export interface NuggetEvidence {
   sessionId: string;
@@ -130,6 +134,8 @@ export interface LLMExtractionResult {
 export interface NuggetCluster {
   id: string;
   canonical: Nugget;
+  /** Primary tailoring lane for this cluster. */
+  focus?: NuggetFocus;
   members: Nugget[];
   score: number;
   projects: string[];

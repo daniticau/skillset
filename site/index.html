@@ -44,6 +44,7 @@
         <span>skillset</span>
       </a>
       <nav class="nav-links" aria-label="Site links">
+        <a href="#codex">Codex</a>
         <a href="#how">How it works</a>
         <a href="#commands">Commands</a>
         <a href="https://github.com/daniticau/skillset">GitHub</a>
@@ -59,8 +60,8 @@
             own on disk.
           </p>
           <p class="hero-note">
-            Corrections, rejected plans, and recurring preferences become portable
-            instructions for Codex, Claude Code, and whatever comes next.
+            Run two commands, start a Codex thread, and ask it to remember or
+            tailor reusable skills.
           </p>
 
           <div class="install" aria-label="Install skillset">
@@ -83,23 +84,39 @@
         </figure>
       </section>
 
-      <section class="section intent-section" aria-labelledby="intent-title">
-        <h2 class="intent-title" id="intent-title">Agent memory, owned by you</h2>
-        <div class="intent-grid">
-          <article class="insight-card" tabindex="0">
-            <h3>Why it matters</h3>
+      <section class="section codex-section" id="codex" aria-labelledby="codex-title">
+        <h2 id="codex-title">Start in Codex</h2>
+        <div class="plugin-panel" tabindex="0">
+          <div>
+            <h3>Install from this repo</h3>
             <p>
-              Useful session friction should not disappear into one chat log or one
-              vendor's memory.
+              Skillset ships as a repo-backed Codex plugin. Add the marketplace,
+              then Codex can route remember, tailor, list, and repair requests to
+              the existing <code>sks</code> CLI.
             </p>
-          </article>
-          <article class="insight-card" tabindex="0">
-            <h3>What stays safe</h3>
-            <p>
-              Canonical skills live in <code>~/.skillset/skills/</code>. Mirror edits
-              are promoted before anything is rewritten.
+          </div>
+          <div class="plugin-steps" aria-label="Fastest Codex setup">
+            <div class="setup-row">
+              <code id="codex-install-command">npx skillset-cli init
+codex plugin marketplace add daniticau/skillset</code>
+              <button class="copy-button" type="button" data-copy-target="codex-install-command">
+                Copy
+              </button>
+            </div>
+            <div><strong>1.</strong><span>Run the commands above.</span></div>
+            <div><strong>2.</strong><span>Start a new Codex thread.</span></div>
+            <div><strong>3.</strong><span>Say:</span></div>
+            <div class="prompt-row">
+              <code id="codex-prompt">Remember this as a reusable skill.</code>
+              <button class="copy-button" type="button" data-copy-target="codex-prompt">
+                Copy
+              </button>
+            </div>
+            <p class="plugin-fallback">
+              If Codex does not enable it automatically, open <code>/plugins</code>,
+              choose Skillset, and install.
             </p>
-          </article>
+          </div>
         </div>
       </section>
 

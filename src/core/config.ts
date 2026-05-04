@@ -1,7 +1,8 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname } from "node:path";
-import { CONFIG_FILE, STATE_FILE } from "./paths.js";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { CONFIG_FILE, DEFAULT_CODEX_SKILLS_DIR, STATE_FILE } from "./paths.js";
 import type { ScrapeCursors } from "../ingest/sessions/types.js";
 import type { SkillOrigin } from "./skill.js";
 
@@ -86,6 +87,8 @@ export interface UsageProcessedSession {
 export interface UsageState {
   processedSessions: Record<string, UsageProcessedSession>;
   lastScanAt?: string;
+  /** Hash of canonical skill names at the last usage scan; changes trigger a rescan. */
+  skillSetHash?: string;
 }
 
 export type CycleKind = "deep-dive" | "nightly" | "cleanup";
@@ -111,14 +114,26 @@ export interface CurrentCycle {
 }
 
 export interface ReviewedDateRecord {
+  status: "started" | "completed" | "skipped" | "failed";
+  startedAt?: string;
+  finishedAt?: string;
+  cycleId?: string;
   cyclesRan: number;
+  sessionsReviewed: number;
+  mistakeClusters: number;
+  preferenceClusters: number;
+  skillsCreated: number;
+  skillsEdited: number;
   skillsProduced: number;
   skillsMerged: number;
   skillsPruned: number;
+  skipReason?: string;
 }
 
 export interface CycleDefaults {
   newCap: number;
+  mistakeCap: number;
+  preferenceCap: number;
   mergeCap: number;
   pruneCap: number;
   deepDiveCap: number;
@@ -148,7 +163,14 @@ export interface CycleConfig {
 }
 
 export const DEFAULT_CYCLE_CONFIG: CycleConfig = {
-  cycleDefaults: { newCap: 3, mergeCap: 3, pruneCap: 3, deepDiveCap: 10 },
+  cycleDefaults: {
+    newCap: 3,
+    mistakeCap: 2,
+    preferenceCap: 2,
+    mergeCap: 3,
+    pruneCap: 3,
+    deepDiveCap: 10,
+  },
   schedule: { window: "02:00-06:00", idleCpuPct: 30, idleInactivityMin: 5 },
   llm: { providerPreference: ["claude-cli", "anthropic", "codex-cli", "ollama"] },
   cleanup: { pruneEnabled: false },
@@ -169,6 +191,76 @@ export interface State {
 const DEFAULT_CONFIG: Config = { version: 1, links: [] };
 const DEFAULT_STATE: State = { version: 2, skills: {} };
 
+function legacyCodexSkillsDir(): string {
+  return join(homedir(), ".agents", "skills");
+}
+
+function normalizeConfig(config: Config): { config: Config; changed: boolean } {
+  const codexHomeExists = existsSync(dirname(DEFAULT_CODEX_SKILLS_DIR));
+  if (!codexHomeExists) return { config, changed: false };
+
+  let changed = false;
+  const links = config.links.map((link) => {
+    if (link.agent !== "codex" || link.path !== legacyCodexSkillsDir()) {
+      return link;
+    }
+    changed = true;
+    return { ...link, path: DEFAULT_CODEX_SKILLS_DIR };
+  });
+
+  const seen = new Set<string>();
+  const deduped = links.filter((link) => {
+    const key = `${link.agent}:${link.path}`;
+    if (seen.has(key)) {
+      changed = true;
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  return {
+    config: changed ? { ...config, links: deduped } : config,
+    changed,
+  };
+}
+
+function migrateReviewedDates(raw: unknown): Record<string, ReviewedDateRecord> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, ReviewedDateRecord> = {};
+  for (const [day, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") continue;
+    const v = value as Record<string, unknown>;
+    const status =
+      v.status === "started" ||
+      v.status === "completed" ||
+      v.status === "skipped" ||
+      v.status === "failed"
+        ? v.status
+        : "completed";
+    const num = (key: string) =>
+      typeof v[key] === "number" && Number.isFinite(v[key]) ? v[key] as number : 0;
+    const skillsCreated = num("skillsCreated") || num("skillsProduced");
+    out[day] = {
+      status,
+      startedAt: typeof v.startedAt === "string" ? v.startedAt : undefined,
+      finishedAt: typeof v.finishedAt === "string" ? v.finishedAt : undefined,
+      cycleId: typeof v.cycleId === "string" ? v.cycleId : undefined,
+      cyclesRan: num("cyclesRan"),
+      sessionsReviewed: num("sessionsReviewed"),
+      mistakeClusters: num("mistakeClusters"),
+      preferenceClusters: num("preferenceClusters"),
+      skillsCreated,
+      skillsEdited: num("skillsEdited"),
+      skillsProduced: num("skillsProduced") || skillsCreated,
+      skillsMerged: num("skillsMerged"),
+      skillsPruned: num("skillsPruned"),
+      skipReason: typeof v.skipReason === "string" ? v.skipReason : undefined,
+    };
+  }
+  return out;
+}
+
 async function readJson<T>(path: string, fallback: T): Promise<T> {
   if (!existsSync(path)) return fallback;
   const raw = await readFile(path, "utf8");
@@ -181,11 +273,15 @@ async function writeJson(path: string, data: unknown): Promise<void> {
 }
 
 export async function readConfig(): Promise<Config> {
-  return readJson<Config>(CONFIG_FILE, DEFAULT_CONFIG);
+  const { config, changed } = normalizeConfig(
+    await readJson<Config>(CONFIG_FILE, DEFAULT_CONFIG)
+  );
+  if (changed) await writeJson(CONFIG_FILE, config);
+  return config;
 }
 
 export async function writeConfig(config: Config): Promise<void> {
-  await writeJson(CONFIG_FILE, config);
+  await writeJson(CONFIG_FILE, normalizeConfig(config).config);
 }
 
 /**
@@ -245,7 +341,7 @@ export function migrateState(raw: unknown): State {
     mine: data.mine as MineState | undefined,
     make: data.make as MakeState | undefined,
     usage: data.usage as UsageState | undefined,
-    reviewedDates: (data.reviewedDates as Record<string, ReviewedDateRecord> | undefined) ?? {},
+    reviewedDates: migrateReviewedDates(data.reviewedDates),
     currentCycle: data.currentCycle as CurrentCycle | undefined,
     config: data.config as CycleConfig | undefined,
   };
