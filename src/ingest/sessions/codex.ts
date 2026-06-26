@@ -82,28 +82,37 @@ export async function scrapeCodex(
   }
 
   const lastSeen = full ? undefined : cursor.lastUpdatedAt;
-  const filtered = lastSeen
+  const filtered = (lastSeen
     ? entries.filter((e) => e.updated_at > lastSeen)
-    : entries;
+    : entries
+  ).sort((a, b) => a.updated_at.localeCompare(b.updated_at));
 
   let written = 0;
   let skipped = 0;
   let maxSeen = lastSeen ?? "";
+  let earliestSkipped: string | undefined;
+
+  const markSkipped = (entry: IndexEntry) => {
+    skipped += 1;
+    if (!earliestSkipped || entry.updated_at < earliestSkipped) {
+      earliestSkipped = entry.updated_at;
+    }
+  };
 
   for (const entry of filtered) {
     const sessionFile = await findSessionFile(sessionsDir, entry.id);
     if (!sessionFile) {
-      skipped += 1;
+      markSkipped(entry);
       continue;
     }
     try {
       const stat = statSync(sessionFile);
       if (stat.size > MAX_FILE_SIZE_BYTES) {
-        skipped += 1;
+        markSkipped(entry);
         continue;
       }
     } catch {
-      skipped += 1;
+      markSkipped(entry);
       continue;
     }
 
@@ -111,26 +120,23 @@ export async function scrapeCodex(
     try {
       content = await readFile(sessionFile, "utf8");
     } catch {
-      skipped += 1;
+      markSkipped(entry);
       continue;
     }
 
     const parsed = parseJsonLinesStrict(content);
     if (!parsed) {
-      skipped += 1;
+      markSkipped(entry);
       continue;
     }
 
     await writeSessionJsonl(outDir, "codex", entry.id, entry.id, parsed, scrapedAt);
     written += 1;
-    if (entry.updated_at > maxSeen) maxSeen = entry.updated_at;
+    if (!earliestSkipped && entry.updated_at > maxSeen) maxSeen = entry.updated_at;
   }
-
-  // Also advance cursor using the full index max in case we filtered some out.
-  const indexMax = entries.reduce((m, e) => (e.updated_at > m ? e.updated_at : m), maxSeen);
 
   return {
     result: { source: "codex", available: true, sessionsWritten: written, sessionsSkipped: skipped },
-    cursorNext: { lastUpdatedAt: indexMax || cursor.lastUpdatedAt },
+    cursorNext: { lastUpdatedAt: maxSeen || cursor.lastUpdatedAt },
   };
 }

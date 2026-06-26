@@ -53,6 +53,14 @@ function textFromContent(content: unknown): string {
   return parts.join("\n");
 }
 
+function isRejectionText(text: string): boolean {
+  return (
+    text.includes("[Request interrupted by user") ||
+    text.includes("user doesn't want to proceed") ||
+    text.includes("was rejected")
+  );
+}
+
 export function normalizeCodexRecord(raw: unknown): NormalizedRecord {
   if (!raw || typeof raw !== "object") return {};
   const r = raw as CodexRecord;
@@ -62,11 +70,55 @@ export function normalizeCodexRecord(raw: unknown): NormalizedRecord {
     (typeof r.cwd === "string" && r.cwd.length > 0 && r.cwd) ||
     (typeof r.working_directory === "string" && r.working_directory.length > 0
       ? r.working_directory
+      : undefined) ||
+    (r.payload &&
+    typeof r.payload === "object" &&
+    typeof (r.payload as { cwd?: unknown }).cwd === "string"
+      ? ((r.payload as { cwd: string }).cwd)
       : undefined);
 
   // Session meta record — carries cwd only, no message.
-  if (type === "session_meta" || type === "session_info") {
+  if (type === "session_meta" || type === "session_info" || type === "turn_context") {
     return { cwd };
+  }
+
+  // Codex Desktop stores current messages under response_item.payload.
+  if (type === "response_item" && r.payload && typeof r.payload === "object") {
+    const payload = r.payload as CodexRecord;
+    if (payload.type === "message" && (payload.role === "user" || payload.role === "assistant")) {
+      const text = textFromContent(payload.content);
+      if (!text) return { cwd };
+      return { cwd, message: { role: payload.role, text, timestamp } };
+    }
+    if (payload.type === "function_call" || payload.type === "tool_call") {
+      const name = typeof payload.name === "string" ? payload.name : undefined;
+      if (!name) return { cwd };
+      return {
+        cwd,
+        message: {
+          role: "assistant",
+          text: "",
+          timestamp,
+          toolUses: [name],
+        },
+      };
+    }
+    if (payload.type === "function_call_output" || payload.type === "tool_result") {
+      const text =
+        typeof payload.output === "string"
+          ? payload.output
+          : textFromContent(payload.content ?? payload.output);
+      return {
+        cwd,
+        message: {
+          role: "user",
+          text: text.slice(0, 400),
+          timestamp,
+          isToolResult: true,
+          isRejection: isRejectionText(text) || undefined,
+        },
+      };
+    }
   }
 
   // Typed user/agent messages (Codex's modern format)
@@ -128,6 +180,7 @@ export function normalizeCodexRecord(raw: unknown): NormalizedRecord {
         text: text.slice(0, 400),
         timestamp,
         isToolResult: true,
+        isRejection: isRejectionText(text) || undefined,
       },
     };
   }

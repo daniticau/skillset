@@ -12,9 +12,9 @@
  * older than 10 minutes, we treat the lock as abandoned and reclaim it.
  */
 
-import { readFile, writeFile, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { STORE_ROOT } from "../../core/paths.js";
 
 const LOCK_FILE = join(STORE_ROOT, ".lock");
@@ -65,6 +65,7 @@ async function readLock(): Promise<LockPayload | null> {
 }
 
 async function writeLock(payload: LockPayload): Promise<void> {
+  await mkdir(dirname(LOCK_FILE), { recursive: true });
   await writeFile(LOCK_FILE, JSON.stringify(payload, null, 2) + "\n", "utf8");
 }
 

@@ -53,11 +53,22 @@ export interface ParsedSkill {
 
 export class SkillValidationError extends Error {}
 
+export const SKILL_NAME_PATTERN = /^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
+
+export function validateSkillName(name: string): void {
+  if (!SKILL_NAME_PATTERN.test(name)) {
+    throw new SkillValidationError(
+      "SKILL.md frontmatter `name` must be kebab-case using lowercase letters, numbers, and single hyphens"
+    );
+  }
+}
+
 export function parseSkillMd(source: string): ParsedSkill {
   const { data, content } = matter(source);
   if (typeof data.name !== "string" || data.name.length === 0) {
     throw new SkillValidationError("SKILL.md frontmatter is missing `name`");
   }
+  validateSkillName(data.name);
   if (typeof data.description !== "string" || data.description.length === 0) {
     throw new SkillValidationError("SKILL.md frontmatter is missing `description`");
   }
@@ -96,6 +107,7 @@ export function parseSkillMd(source: string): ParsedSkill {
  * Trailing newline included. Used by mirror / make / synthesize so the on-disk format is uniform.
  */
 export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): string {
+  validateSkillName(frontmatter.name);
   const fm: string[] = [
     "---",
     `name: ${frontmatter.name}`,

@@ -8,6 +8,7 @@ import { initCommand } from "./commands/init.js";
 import { connectCommand, disconnectCommand } from "./commands/link.js";
 import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
+import { catalogCommand } from "./commands/catalog.js";
 import { tailorCommand } from "./commands/tailor.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { editCommand, removeCommand } from "./commands/manage.js";
@@ -91,6 +92,13 @@ export function createProgram(): Command {
     .description("list current skills with short descriptions")
     .action(async () => {
       await listCommand();
+    });
+
+  program
+    .command("catalog")
+    .description("show canonical skills grouped by likely use case")
+    .action(async () => {
+      await catalogCommand();
     });
 
   program

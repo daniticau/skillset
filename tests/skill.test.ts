@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeGeneratedSkillBody,
   parseSkillMd,
+  renderSkillMd,
   SkillValidationError,
+  validateSkillName,
 } from "../src/core/skill.js";
 
 const VALID = `---
@@ -44,6 +46,27 @@ describe("parseSkillMd", () => {
   it("rejects invalid tier value", () => {
     const src = `---\nname: x\ndescription: y\ntier: critical\n---\n\nbody`;
     expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
+  });
+
+  it.each(["../escape", "bad/name", "BadName", "-leading", "trailing-", "two--hyphens"])(
+    "rejects unsafe skill name %s",
+    (name) => {
+      const src = `---\nname: ${JSON.stringify(name)}\ndescription: y\n---\n\nbody`;
+      expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
+    }
+  );
+});
+
+describe("skill names", () => {
+  it("accepts ordinary kebab-case skill names", () => {
+    expect(() => validateSkillName("ios-prep-skill")).not.toThrow();
+    expect(() => validateSkillName("skill2")).not.toThrow();
+  });
+
+  it("rejects unsafe path-like names before rendering", () => {
+    expect(() =>
+      renderSkillMd({ name: "../escape", description: "bad" }, "body")
+    ).toThrow(SkillValidationError);
   });
 });
 

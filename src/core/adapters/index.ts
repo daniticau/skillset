@@ -6,7 +6,6 @@ import { codexAdapter } from "./codex.js";
 const ADAPTERS: Record<AgentKind, AgentAdapter | undefined> = {
   "claude-code": claudeCodeAdapter,
   codex: codexAdapter,
-  copilot: undefined,
 };
 
 export function getAdapter(kind: AgentKind): AgentAdapter {

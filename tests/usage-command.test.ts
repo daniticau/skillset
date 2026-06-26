@@ -138,4 +138,17 @@ describe("usage command", () => {
     expect(await readUsageEvents()).toHaveLength(0);
     expect(outputOf(errorSpy)).toContain('unknown skill "missing"');
   });
+
+  it("rejects invalid explicit usage dates without throwing", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await usageRecordCommand("alpha", {
+      agent: "codex",
+      at: "not-a-date",
+    });
+
+    expect(process.exitCode).toBe(1);
+    expect(await readUsageEvents()).toHaveLength(0);
+    expect(outputOf(errorSpy)).toContain('invalid --at date "not-a-date"');
+  });
 });

@@ -8,7 +8,7 @@ import {
   readdirSync,
   existsSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const TEST_ROOT = join(tmpdir(), "skillset-test-fixed");
@@ -16,6 +16,7 @@ const STORE = join(TEST_ROOT, "store");
 const SKILLS = join(STORE, "skills");
 const MIRROR = join(TEST_ROOT, "mirror");
 const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
+const LEGACY_CODEX_MIRROR = join(TEST_ROOT, "legacy-codex-mirror");
 const CONFLICTS = join(STORE, "conflicts");
 
 vi.mock("../src/core/paths.js", () => ({
@@ -26,6 +27,7 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: MIRROR,
   DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
+  LEGACY_CODEX_SKILLS_DIR: LEGACY_CODEX_MIRROR,
 }));
 
 // eager imports so the mocked paths module is loaded once
@@ -78,16 +80,16 @@ describe("mirror sync", () => {
     expect(readFileSync(join(CODEX_MIRROR, "alpha", "SKILL.md"), "utf8")).toContain("alpha body");
   });
 
-  it("migrates the legacy Codex mirror path to the Skills page path before writing", async () => {
-    const legacyCodexMirror = join(homedir(), ".agents", "skills");
-    await writeConfig({ version: 1, links: [{ agent: "codex", path: legacyCodexMirror }] });
-    makeSkill(SKILLS, "codex-page", "visible on the Codex skills page");
+  it("migrates the legacy Codex mirror path to the desktop skills path before writing", async () => {
+    mkdirSync(LEGACY_CODEX_MIRROR, { recursive: true });
+    await writeConfig({ version: 1, links: [{ agent: "codex", path: LEGACY_CODEX_MIRROR }] });
+    makeSkill(SKILLS, "codex-desktop", "visible in Codex Desktop skills");
 
     const report = await sync();
 
     expect(report.linkCount).toBe(1);
-    expect(readFileSync(join(CODEX_MIRROR, "codex-page", "SKILL.md"), "utf8")).toContain(
-      "visible on the Codex skills page"
+    expect(readFileSync(join(CODEX_MIRROR, "codex-desktop", "SKILL.md"), "utf8")).toContain(
+      "visible in Codex Desktop skills"
     );
   });
 

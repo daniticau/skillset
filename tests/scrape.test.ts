@@ -138,4 +138,34 @@ describe("scrapeCodex", () => {
     const { result } = await scrapeCodex(join(tmp, "codex"), {}, outDir, "now", false);
     expect(result.available).toBe(false);
   });
+
+  it("does not advance the cursor past skipped index entries", async () => {
+    const root = join(tmp, "codex");
+    mkdirSync(join(root, "sessions", "2026", "04", "15"), { recursive: true });
+    const missing = "019ccc12-0000-7000-a050-7c462c3aa71e";
+    const present = "019ccc12-9999-7000-a050-7c462c3aa71e";
+    writeFileSync(
+      join(root, "session_index.jsonl"),
+      [
+        JSON.stringify({ id: missing, updated_at: "2026-04-15T06:00:00Z" }),
+        JSON.stringify({ id: present, updated_at: "2026-04-15T07:00:00Z" }),
+      ].join("\n") + "\n"
+    );
+    writeFileSync(
+      join(root, "sessions", "2026", "04", "15", `rollout-2026-04-15T07-00-00-${present}.jsonl`),
+      `{"type":"turn","text":"hi"}\n`
+    );
+
+    const { result, cursorNext } = await scrapeCodex(
+      root,
+      {},
+      outDir,
+      "now",
+      false
+    );
+
+    expect(result.sessionsWritten).toBe(1);
+    expect(result.sessionsSkipped).toBe(1);
+    expect(cursorNext.lastUpdatedAt).toBeUndefined();
+  });
 });

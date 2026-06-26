@@ -138,6 +138,51 @@ function collectNativeSkillUses(
   return out;
 }
 
+function skillFileReadText(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const record = raw as Record<string, unknown>;
+  const payload =
+    record.payload && typeof record.payload === "object"
+      ? (record.payload as Record<string, unknown>)
+      : undefined;
+
+  if (record.type === "response_item" && payload) {
+    if (payload.type === "function_call" || payload.type === "tool_call") {
+      const name = typeof payload.name === "string" ? payload.name : "";
+      if (!/\b(exec_command|read|open)\b/i.test(name)) return undefined;
+      return JSON.stringify(payload.arguments ?? payload.input ?? payload);
+    }
+    return undefined;
+  }
+
+  if (record.type === "event_msg" && payload?.type === "exec_command_end") {
+    return JSON.stringify({
+      command: payload.command,
+      parsed_cmd: payload.parsed_cmd,
+    });
+  }
+
+  if (record.type === "function_call" || record.type === "tool_call") {
+    const name = typeof record.name === "string" ? record.name : "";
+    if (!/\b(exec_command|read|open)\b/i.test(name)) return undefined;
+    return JSON.stringify(record.arguments ?? record.input ?? record);
+  }
+
+  return undefined;
+}
+
+function collectSkillFileReads(raw: unknown, known: KnownSkills): Set<string> {
+  const text = skillFileReadText(raw);
+  const skills = new Set<string>();
+  if (!text) return skills;
+  for (const name of known.names) {
+    const escaped = escapeRegex(name);
+    const re = new RegExp(`(?:^|[/\\\\])${escaped}[/\\\\]SKILL\\.md\\b`, "i");
+    if (re.test(text)) skills.add(name);
+  }
+  return skills;
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -204,6 +249,21 @@ export function inferUsageFromSession(
           sessionId: env.sessionId ?? session.sessionId,
           project,
           evidence: "native skill invocation",
+        })
+      );
+    }
+
+    const skillFileReads = collectSkillFileReads(env.raw, known);
+    for (const skillName of skillFileReads) {
+      events.push(
+        createInferredUsageEvent({
+          skillName,
+          agent: env.source ?? agent,
+          usedAt: timestampFromRaw(env.raw) ?? fallbackUsedAt(env, session),
+          confidence: 0.85,
+          sessionId: env.sessionId ?? session.sessionId,
+          project,
+          evidence: "skill file read",
         })
       );
     }

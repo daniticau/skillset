@@ -38,12 +38,17 @@ const { runCleanup } = await import("../src/mine/cleanup/index.js");
 const { runDedupMerge } = await import("../src/mine/cleanup/dedup-merge.js");
 const { writeState, readState } = await import("../src/core/config.js");
 
-function makeSkill(name: string, description: string, body: string): void {
+function makeSkill(
+  name: string,
+  description: string,
+  body: string,
+  origin = "auto-created"
+): void {
   const dir = join(SKILLS, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "SKILL.md"),
-    `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\norigin: auto-created\n---\n\n${body}\n`,
+    `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\norigin: ${origin}\n---\n\n${body}\n`,
     "utf8"
   );
 }
@@ -184,5 +189,123 @@ describe("cleanup dry-run safety", () => {
     expect(existsSync(join(SKILLS, "indent-spaces", "SKILL.md"))).toBe(true);
     expect(existsSync(CONFLICTS)).toBe(false);
     expect(readFileSync(STATE, "utf8")).toBe(beforeState);
+  });
+
+  it("retires auto-created skills already covered by user-authored skills", async () => {
+    rmSync(ROOT, { recursive: true, force: true });
+    mkdirSync(SKILLS, { recursive: true });
+    makeSkill(
+      "ios-prep-skill",
+      "Do iOS app prep for a local iOS app repo",
+      "From inside an iOS app repo, create AppStorePackage with App Store submission materials.",
+      "user-created"
+    );
+    makeSkill(
+      "ios-prep-from-app-folder",
+      "Apply when the user asks to do iOS app prep from inside an iOS app repository or app folder",
+      "When the user says do iOS prep while the current working directory is an iOS app folder, treat the app folder as the input.",
+      "auto-created"
+    );
+    await writeState({
+      version: 2,
+      reviewedDates: {},
+      skills: {
+        "ios-prep-skill": {
+          canonicalHash: "u",
+          mirrorHashes: {},
+          userEdited: false,
+          origin: "user-created",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+        "ios-prep-from-app-folder": {
+          canonicalHash: "a",
+          mirrorHashes: {},
+          userEdited: false,
+          origin: "auto-created",
+          createdAt: "2026-02-01T00:00:00.000Z",
+        },
+      },
+    });
+    mocks.chat.mockResolvedValueOnce({
+      content: JSON.stringify({
+        covered: true,
+        confidence: 0.93,
+        rationale: "The auto skill is a subset of the iOS prep workflow.",
+      }),
+      tokensIn: 0,
+      tokensOut: 0,
+      model: "mock",
+      latencyMs: 1,
+    });
+
+    const report = await runCleanup({
+      llmConfig: { provider: "ollama", baseUrl: "mock", model: "mock", timeout: 1000, maxRetries: 1 },
+      mergeCap: 1,
+      pruneEnabled: false,
+      pruneCap: 0,
+      dryRun: false,
+    });
+
+    expect(report.coveredByUser).toHaveLength(1);
+    expect(report.coveredByUser[0]).toMatchObject({
+      redundant: "ios-prep-from-app-folder",
+      coveredBy: "ios-prep-skill",
+      dryRun: false,
+    });
+    expect(existsSync(join(SKILLS, "ios-prep-skill", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(SKILLS, "ios-prep-from-app-folder", "SKILL.md"))).toBe(false);
+    const state = await readState();
+    expect(state.skills["ios-prep-skill"]).toBeDefined();
+    expect(state.skills["ios-prep-from-app-folder"]).toBeUndefined();
+  });
+
+  it("does not retire user-edited auto-created skills during cleanup", async () => {
+    rmSync(ROOT, { recursive: true, force: true });
+    mkdirSync(SKILLS, { recursive: true });
+    makeSkill(
+      "careful-release",
+      "Confirm release actions",
+      "Ask before clicking release buttons.",
+      "auto-created"
+    );
+    makeSkill(
+      "careful-release-copy",
+      "Confirm release actions",
+      "Ask before clicking release buttons.",
+      "auto-created"
+    );
+    await writeState({
+      version: 2,
+      reviewedDates: {},
+      skills: {
+        "careful-release": {
+          canonicalHash: "u",
+          mirrorHashes: {},
+          userEdited: true,
+          origin: "auto-created",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+        "careful-release-copy": {
+          canonicalHash: "a",
+          mirrorHashes: {},
+          userEdited: false,
+          origin: "auto-created",
+          createdAt: "2026-02-01T00:00:00.000Z",
+        },
+      },
+    });
+
+    const report = await runCleanup({
+      llmConfig: { provider: "ollama", baseUrl: "mock", model: "mock", timeout: 1000, maxRetries: 1 },
+      mergeCap: 1,
+      pruneEnabled: false,
+      pruneCap: 0,
+      dryRun: false,
+    });
+
+    expect(report.conflictsResolved).toHaveLength(0);
+    expect(report.merges).toHaveLength(0);
+    expect(existsSync(join(SKILLS, "careful-release", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(SKILLS, "careful-release-copy", "SKILL.md"))).toBe(true);
   });
 });

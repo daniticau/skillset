@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const ROOT = join(tmpdir(), `skillset-config-codex-${process.pid}`);
@@ -9,7 +9,7 @@ const CONFIG = join(STORE, "config.json");
 const STATE = join(STORE, "state.json");
 const CODEX_HOME = join(ROOT, ".codex");
 const CODEX_SKILLS = join(CODEX_HOME, "skills");
-const LEGACY_CODEX_SKILLS = join(homedir(), ".agents", "skills");
+const LEGACY_CODEX_SKILLS = join(ROOT, ".agents", "skills");
 
 vi.mock("../src/core/paths.js", () => ({
   STORE_ROOT: STORE,
@@ -22,6 +22,7 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: STATE,
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, ".claude", "skills"),
   DEFAULT_CODEX_SKILLS_DIR: CODEX_SKILLS,
+  LEGACY_CODEX_SKILLS_DIR: LEGACY_CODEX_SKILLS,
 }));
 
 const { readConfig, writeConfig } = await import("../src/core/config.js");
@@ -43,6 +44,7 @@ function rawConfig(): unknown {
 describe("Codex config path migration", () => {
   it("migrates and persists the legacy ~/.agents/skills Codex link to ~/.codex/skills", async () => {
     mkdirSync(CODEX_HOME, { recursive: true });
+    mkdirSync(LEGACY_CODEX_SKILLS, { recursive: true });
     writeFileSync(
       CONFIG,
       JSON.stringify({
@@ -63,6 +65,7 @@ describe("Codex config path migration", () => {
 
   it("dedupes old and new Codex links during migration", async () => {
     mkdirSync(CODEX_HOME, { recursive: true });
+    mkdirSync(LEGACY_CODEX_SKILLS, { recursive: true });
 
     await writeConfig({
       version: 1,
@@ -95,6 +98,7 @@ describe("Codex config path migration", () => {
   });
 
   it("does not rewrite the legacy path on machines without a Codex home", async () => {
+    mkdirSync(LEGACY_CODEX_SKILLS, { recursive: true });
     await writeConfig({
       version: 1,
       links: [{ agent: "codex", path: LEGACY_CODEX_SKILLS }],

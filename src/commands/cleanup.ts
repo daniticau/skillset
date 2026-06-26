@@ -21,7 +21,18 @@ export async function cleanupCommand(options: CleanupCmdOptions): Promise<void> 
   }
 
   const state = await readState();
-  const cfg = { ...DEFAULT_CYCLE_CONFIG, ...state.config };
+  const cfg = {
+    ...DEFAULT_CYCLE_CONFIG,
+    ...state.config,
+    cycleDefaults: {
+      ...DEFAULT_CYCLE_CONFIG.cycleDefaults,
+      ...state.config?.cycleDefaults,
+    },
+    cleanup: {
+      ...DEFAULT_CYCLE_CONFIG.cleanup,
+      ...state.config?.cleanup,
+    },
+  };
 
   const report = await runCleanup({
     llmConfig,
@@ -42,11 +53,16 @@ export async function cleanupCommand(options: CleanupCmdOptions): Promise<void> 
   console.log();
   console.log(
     pc.bold(
-      `${report.conflictsResolved.length} conflict(s) · ${report.merges.length} merge(s) · ${report.prunedCandidates.length} prune candidate(s)`
+      `${report.coveredByUser.length} covered · ${report.conflictsResolved.length} conflict(s) · ${report.merges.length} merge(s) · ${report.prunedCandidates.length} prune candidate(s)`
     )
   );
 
-  if ((report.conflictsResolved.length > 0 || report.merges.length > 0) && !options.dryRun) {
+  if (
+    (report.coveredByUser.length > 0 ||
+      report.conflictsResolved.length > 0 ||
+      report.merges.length > 0) &&
+    !options.dryRun
+  ) {
     console.log(pc.dim("syncing mirrors…"));
     await sync();
   }

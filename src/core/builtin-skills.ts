@@ -55,7 +55,7 @@ export async function ensureBuiltinSkills(): Promise<Array<{ name: string; path:
         {
           name: SKILL_THIS_NAME,
           description:
-            "Use Skillset when the user says \"skill this\" or asks to turn an instruction into a reusable skill.",
+            "Use Skillset when the user says \"skill this\" or asks to capture a durable instruction, workflow, correction, or preference as a reusable coding-agent skill.",
           tier: "medium",
           origin: "user-created",
           license: "MIT",

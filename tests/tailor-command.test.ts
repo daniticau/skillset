@@ -23,6 +23,7 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
   DEFAULT_CODEX_SKILLS_DIR: join(ROOT, "codex-skills"),
+  LEGACY_CODEX_SKILLS_DIR: join(ROOT, "legacy-codex-skills"),
 }));
 
 vi.mock("../src/mine/llm/index.js", () => ({

@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="skillset turns agent-session lessons into user-owned SKILL.md files, then mirrors them across Codex, Claude Code, and future coding agents."
+      content="skillset gives coding agents portable memory: user-owned SKILL.md files mirrored across Codex Desktop and Claude."
     />
     <meta property="og:title" content="skillset" />
     <meta
       property="og:description"
       content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
     />
-    <meta property="og:image" content="./assets/skillset-preview.png" />
+    <meta property="og:image" content="./assets/skillset-preview.png?v=3" />
     <meta
       property="og:image:alt"
-      content="A terminal-style preview of skillset connecting coding agents and mirroring portable skills."
+      content="A clean product preview of skillset mirroring portable skills across Codex Desktop and Claude."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="skillset" />
@@ -23,144 +23,91 @@
       name="twitter:description"
       content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
     />
-    <meta name="twitter:image" content="./assets/skillset-preview.png" />
-    <meta name="theme-color" content="#f7f6f1" />
+    <meta name="twitter:image" content="./assets/skillset-preview.png?v=3" />
+    <meta name="theme-color" content="#ffffff" />
     <title>skillset</title>
     <link rel="icon" href="./assets/skillset-icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./styles.css" />
     <script src="./script.js" defer></script>
   </head>
   <body>
     <header class="site-header" aria-label="Primary">
       <a class="brand" href="#" aria-label="skillset home">
-        <img
-          class="brand-icon"
-          src="./assets/skillset-icon.svg"
-          alt=""
-          width="32"
-          height="32"
-          aria-hidden="true"
-        />
+        <img class="brand-icon" src="./assets/skillset-icon.svg" alt="" width="32" height="32" aria-hidden="true" />
         <span>skillset</span>
       </a>
       <nav class="nav-links" aria-label="Site links">
-        <a href="#codex">Codex</a>
-        <a href="#how">How it works</a>
+        <a href="#drop">Drop</a>
+        <a href="#flow">Flow</a>
         <a href="#commands">Commands</a>
         <a href="https://github.com/daniticau/skillset">GitHub</a>
       </nav>
+      <a class="nav-cta" href="#commands">Install</a>
     </header>
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
+          <span class="eyebrow">Portable agent memory</span>
           <h1 id="hero-title">skillset</h1>
-          <p class="lede">
-            Turn agent-session lessons into reusable <code>SKILL.md</code> files you
-            own on disk.
-          </p>
-          <p class="hero-note">
-            Run two commands, start a Codex thread, and ask it to remember or
-            tailor reusable skills.
-          </p>
+          <p class="lede">Turn useful agent-session lessons into reusable <code>SKILL.md</code> files you own, edit, and mirror across Codex Desktop and Claude.</p>
 
-          <div class="install" aria-label="Install skillset">
-            <div class="command-row">
-              <code id="install-command">npx skillset-cli init</code>
-              <button class="copy-button" type="button" data-copy-target="install-command">
-                Copy
-              </button>
-            </div>
+          <div class="composer" aria-label="Install skillset">
+            <code id="install-command">sks init</code>
+            <button class="copy-button" type="button" data-copy-target="install-command" aria-label="Copy sks init command">
+              Copy
+            </button>
           </div>
         </div>
 
-        <figure class="product-visual" tabindex="0">
-          <img
-            src="./assets/skillset-preview.png"
-            alt="A terminal-style preview showing skillset initializing, connecting agents, tailoring sessions, and mirroring skills."
-            width="1200"
-            height="760"
-          />
+        <figure class="hero-media" aria-label="Skillset product preview">
+          <img src="./assets/skillset-preview.png?v=3" alt="Skillset preview showing a canonical skills store mirrored to Codex and Claude">
         </figure>
       </section>
 
-      <section class="section codex-section" id="codex" aria-labelledby="codex-title">
-        <h2 id="codex-title">Start in Codex</h2>
-        <div class="plugin-panel" tabindex="0">
-          <div>
-            <h3>Install from this repo</h3>
-            <p>
-              Skillset ships as a repo-backed Codex plugin. Add the marketplace,
-              then Codex can route remember, tailor, list, and repair requests to
-              the existing <code>sks</code> CLI.
-            </p>
-          </div>
-          <div class="plugin-steps" aria-label="Fastest Codex setup">
-            <div class="setup-row">
-              <code id="codex-install-command">npx skillset-cli init
-codex plugin marketplace add daniticau/skillset</code>
-              <button class="copy-button" type="button" data-copy-target="codex-install-command">
-                Copy
-              </button>
-            </div>
-            <div><strong>1.</strong><span>Run the commands above.</span></div>
-            <div><strong>2.</strong><span>Start a new Codex thread.</span></div>
-            <div><strong>3.</strong><span>Say:</span></div>
-            <div class="prompt-row">
-              <code id="codex-prompt">Remember this as a reusable skill.</code>
-              <button class="copy-button" type="button" data-copy-target="codex-prompt">
-                Copy
-              </button>
-            </div>
-            <p class="plugin-fallback">
-              If Codex does not enable it automatically, open <code>/plugins</code>,
-              choose Skillset, and install.
-            </p>
-          </div>
+      <section class="proof-strip" id="drop" aria-label="Skillset principles">
+        <div>
+          <strong>User-owned</strong>
+          <span>Plain files in your store.</span>
+        </div>
+        <div>
+          <strong>Agent-portable</strong>
+          <span>Codex Desktop and Claude stay in sync.</span>
+        </div>
+        <div>
+          <strong>Reviewable</strong>
+          <span>Every skill is editable Markdown.</span>
         </div>
       </section>
 
-      <section class="section" id="how" aria-labelledby="how-title">
-        <h2 id="how-title">How it works</h2>
-        <div class="steps-panel" tabindex="0">
-          <ol class="steps-list">
-            <li>
-              <strong>Create the store.</strong>
-              <span><code>~/.skillset/skills/</code> becomes the canonical source.</span>
-            </li>
-            <li>
-              <strong>Import existing skills.</strong>
-              <span>Connected agent stores are consolidated before mirroring begins.</span>
-            </li>
-            <li>
-              <strong>Learn from sessions.</strong>
-              <span><code>sks tailor</code> mines history or captures direct instructions.</span>
-            </li>
-            <li>
-              <strong>Mirror the result.</strong>
-              <span>Canonical skills are written to each agent's native skills directory.</span>
-            </li>
-            <li>
-              <strong>Protect edits.</strong>
-              <span>Mirror-side changes are promoted before skillset rewrites mirrors.</span>
-            </li>
-          </ol>
+      <section class="section split-section" id="flow" aria-labelledby="flow-title">
+        <div>
+          <span class="eyebrow">Reuse loop</span>
+          <h2 id="flow-title">Give good corrections somewhere to live.</h2>
+        </div>
+        <div class="flow-list">
+          <div><strong>Initialize</strong><span>Create the canonical skills store.</span></div>
+          <div><strong>Import</strong><span>Consolidate existing agent skills.</span></div>
+          <div><strong>Tailor</strong><span>Turn sessions or direct notes into skills.</span></div>
+          <div><strong>Mirror</strong><span>Write back to each agent's native directory.</span></div>
         </div>
       </section>
 
       <section class="section command-section" id="commands" aria-labelledby="commands-title">
-        <h2 id="commands-title">Commands</h2>
-        <p class="section-note">The public surface is small on purpose.</p>
+        <div class="section-head">
+          <span class="eyebrow">Daily commands</span>
+          <h2 id="commands-title">Small commands. Durable taste.</h2>
+        </div>
         <div class="command-list">
-          <div><code>sks init</code><span>Create the store, connect detected agents, import skills.</span></div>
+          <div><code>sks init</code><span>Create the store and connect detected agents.</span></div>
           <div><code>sks tailor [text...]</code><span>Mine sessions or capture a direct instruction.</span></div>
-          <div><code>sks list</code><span>Show current skills and descriptions.</span></div>
-          <div><code>sks status</code><span>Show mirrors, skill state, edits, and conflicts.</span></div>
-          <div><code>sks connect &lt;agent&gt;</code><span>Add an agent mirror and import its skills.</span></div>
-          <div><code>sks disconnect &lt;agent&gt;</code><span>Stop mirroring an agent without deleting files.</span></div>
-          <div><code>sks edit &lt;skill&gt;</code><span>Edit canonical, validate, then mirror.</span></div>
-          <div><code>sks remove &lt;skill&gt;</code><span>Delete canonical and prune connected mirrors.</span></div>
-          <div><code>sks doctor</code><span>Check store, LLM, mirrors, sessions, and usage.</span></div>
+          <div><code>sks catalog</code><span>Group skills by use case, origin, tier, and usage.</span></div>
           <div><code>sks doctor --repair</code><span>Reconcile mirrors and write the repaired store.</span></div>
         </div>
       </section>

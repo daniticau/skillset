@@ -20,6 +20,7 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: CLAUDE_MIRROR,
   DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
+  LEGACY_CODEX_SKILLS_DIR: join(TEST_ROOT, "legacy-codex-skills"),
 }));
 
 vi.mock("../src/mine/llm/index.js", () => ({

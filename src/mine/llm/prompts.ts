@@ -4,6 +4,7 @@
  */
 
 import type { NuggetCluster } from "../types.js";
+import { describeClusterQuality } from "../quality.js";
 
 export interface ConversationWindow {
   sessionId: string;
@@ -89,6 +90,14 @@ const TIER_DEFINITIONS = `Tier definitions (used in YAML frontmatter \`tier\` fi
 
 When in doubt between two tiers, choose the lower (more conservative) one.`;
 
+const SKILL_DISCOVERY_METADATA = `Skill discovery metadata:
+- Name: 2-5 kebab-case words that describe the trigger/domain/action an agent would search for. Prefer concrete terms like \`prefer-pnpm\`, \`ios-app-store-submission\`, or \`browser-window-isolation\`.
+- Avoid vague names such as \`user-preferences\`, \`workflow\`, \`coding-style\`, \`agent-behavior\`, \`misc\`, or \`new-skill\`.
+- Include the exact tool, framework, platform, or workflow name when the rule depends on one.
+- Description: one trigger-first sentence that helps future agents decide when to load the skill. Start with "Use when..." or "Apply when..." unless another direct trigger phrase is clearer.
+- Put searchable user phrases and synonyms in the description when they are likely trigger words.
+- Do not make the description a summary like "Captures the user's preference"; state the situation and expected behavior.`;
+
 const SYNTHESIS_SYSTEM = `You synthesize a user's personalization signals into a reusable SKILL.md file that a coding AI will read at the start of every session.
 
 A SKILL.md file has:
@@ -97,12 +106,15 @@ A SKILL.md file has:
 
 ${TIER_DEFINITIONS}
 
+${SKILL_DISCOVERY_METADATA}
+
 Rules:
 - Be specific and actionable. "Use pnpm" not "The user has package manager preferences".
 - Imperative mood: "Always...", "Never...", "When X, do Y".
 - Group related signals into coherent sections.
 - Include a "Do NOT" section for anti-patterns.
 - The AI reading this file must be able to act on it directly without guessing.
+- Do not overgeneralize from thin evidence. If the signal is tied to a project, tool, or library, scope the rule to that context.
 - Output format: complete SKILL.md with YAML frontmatter followed by the markdown body. No commentary before or after. No code fences.
 
 The skill should be broadly applicable across projects unless the signals are project-specific.`;
@@ -127,6 +139,7 @@ export function synthesisUserPrompt(cluster: NuggetCluster): string {
 Categories: ${categorySet}
 Projects where this appears: ${projects}
 Occurrences: ${cluster.members.length}
+Evidence quality: ${describeClusterQuality(cluster)}
 Representative signal: "${cluster.canonical.signal}"
 
 Evidence from sessions:
@@ -180,14 +193,17 @@ export function triageSystemPrompt(
     "",
     "Rules:",
     "- Prefer EDIT over CREATE. New skills compound clutter. If any existing skill meaningfully overlaps, choose EDIT.",
+    "- CREATE only for durable personalization: repeated evidence, cross-project evidence, manual capture, or a high-confidence explicit preference/correction.",
+    "- SKIP one-off task instructions, vague taste, topic interests, and patterns that would make a broad skill from thin evidence.",
     "- If budget remaining is 0, never CREATE — SKIP with reason \"budget exceeded\".",
     "- Every EDIT and CREATE must include a `tier` field (high|medium|low).",
+    "- For CREATE, choose a concrete searchable name and trigger-first description using the skill discovery metadata rules.",
     "- Only return one action.",
     "- Output strict JSON. No prose, no code fences.",
     "",
     "JSON shapes:",
     '  {"kind":"edit","targetName":"<existing skill name>","tier":"<high|medium|low>","rationale":"..."}',
-    '  {"kind":"create","name":"<kebab-case>","description":"<one sentence>","tier":"<high|medium|low>","rationale":"..."}',
+    '  {"kind":"create","name":"<concrete-kebab-case>","description":"<trigger-first one sentence>","tier":"<high|medium|low>","rationale":"..."}',
     '  {"kind":"skip","reason":"..."}',
   ].join("\n");
 }
@@ -206,6 +222,7 @@ export function triageUserPrompt(cluster: NuggetCluster, budgetRemaining: number
     `  signal: "${cluster.canonical.signal.slice(0, 300).replace(/"/g, "'")}"`,
     `  occurrences: ${cluster.members.length}`,
     `  projects: ${cluster.projects.join(", ") || "(none)"}`,
+    `  quality: ${describeClusterQuality(cluster)}`,
     "  evidence:",
     evidence || "  (no evidence samples)",
     "",
@@ -223,6 +240,7 @@ export function editRewriteSystemPrompt(): string {
     "Preserve the existing structure and tone. Only add or adjust rules the new evidence supports.",
     "Don't bloat the file — a crisp skill beats a comprehensive one.",
     "Keep the YAML `name` field exactly as-is. You may refine the `description` if the new evidence warrants it.",
+    "Descriptions should stay trigger-first and searchable so future agents can decide whether to load the skill.",
     "",
     TIER_DEFINITIONS,
     "",
@@ -319,7 +337,8 @@ Rules:
 - Merge only when the rules are genuine duplicates (same rule phrased two ways) or strict subsets. If they make different-but-compatible points, don't merge.
 - Confidence < 0.8 = don't merge. Conservative beats aggressive.
 - Preserve every distinct nuance from both inputs. If a point appears in exactly one input and isn't implied by the other, it belongs in the merged body.
-- Keep the merged name short and representative.`;
+- Keep the merged name short, concrete, and representative.
+- The merged description must be trigger-first and searchable, not a generic summary.`;
 
 export function mergePairSystemPrompt(): string {
   return MERGE_PAIR_SYSTEM;
@@ -341,5 +360,43 @@ export function mergePairUserPrompt(
     "---8<---",
     "",
     "Merge or not? JSON only.",
+  ].join("\n");
+}
+
+const COVERAGE_SYSTEM = `You compare an auto-created SKILL.md against a user-authored SKILL.md. Decide whether the auto-created skill is redundant because the user-authored skill already covers the same trigger and behavior.
+
+Output JSON only:
+{
+  "covered": boolean,
+  "confidence": 0.0-1.0,
+  "rationale": "<one sentence>"
+}
+
+Rules:
+- Return covered=true only when the auto-created skill is a duplicate or strict subset of the user-authored skill.
+- If the auto-created skill contains distinct behavior not implied by the user-authored skill, return covered=false.
+- Confidence < 0.8 = leave it alone.
+- User-authored skills are source-of-truth and must not be rewritten by automation.`;
+
+export function coverageSystemPrompt(): string {
+  return COVERAGE_SYSTEM;
+}
+
+export function coverageUserPrompt(
+  autoSkill: { name: string; body: string },
+  userSkill: { name: string; body: string }
+): string {
+  return [
+    `Auto-created skill: ${autoSkill.name}`,
+    "---8<---",
+    autoSkill.body.slice(0, 3000),
+    "---8<---",
+    "",
+    `User-authored skill: ${userSkill.name}`,
+    "---8<---",
+    userSkill.body.slice(0, 3000),
+    "---8<---",
+    "",
+    "Is the auto-created skill already covered by the user-authored skill? JSON only.",
   ].join("\n");
 }

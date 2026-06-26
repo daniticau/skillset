@@ -1,6 +1,6 @@
 {
   "name": "skillset",
-  "version": "0.1.1",
+  "version": "0.1.1+codex.20260625202746",
   "description": "Portable personalization layer for coding agents.",
   "author": {
     "name": "Daniel Ticau",
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/daniticau/skillset#readme",
   "repository": "https://github.com/daniticau/skillset",
   "license": "MIT",
-  "keywords": ["codex", "skills", "personalization", "agents"],
+  "keywords": [
+    "codex",
+    "skills",
+    "personalization",
+    "agents"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Skillset",
@@ -17,7 +22,10 @@
     "longDescription": "Skillset keeps reusable agent preferences in a canonical store and mirrors them into connected coding agents. This plugin routes Codex to the existing sks CLI for capture, tailoring, inspection, and repair.",
     "developerName": "Daniel Ticau",
     "category": "Productivity",
-    "capabilities": ["Skills", "CLI"],
+    "capabilities": [
+      "Skills",
+      "CLI"
+    ],
     "websiteURL": "https://github.com/daniticau/skillset",
     "defaultPrompt": [
       "Remember this as a reusable skill.",
