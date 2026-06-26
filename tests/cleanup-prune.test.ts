@@ -199,13 +199,13 @@ describe("runPrune (dry-run)", () => {
 });
 
 describe("eligibleSkills", () => {
-  it("includes auto-created, excludes user-created", async () => {
+  it("includes only auto-created skills without user edits", async () => {
     stateFixture({
       auto: { canonicalHash: "", mirrorHashes: {}, userEdited: false, origin: "auto-created", createdAt: "2026-01-01" },
       user: { canonicalHash: "", mirrorHashes: {}, userEdited: false, origin: "user-created", createdAt: "2026-01-01" },
       auto2: { canonicalHash: "", mirrorHashes: {}, userEdited: true, origin: "auto-created", createdAt: "2026-01-01" },
     });
     const list = await eligibleSkills();
-    expect(list).toEqual(["auto", "auto2"]);
+    expect(list).toEqual(["auto"]);
   });
 });

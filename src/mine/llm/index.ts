@@ -31,5 +31,7 @@ export {
   conflictDetectUserPrompt,
   mergePairSystemPrompt,
   mergePairUserPrompt,
+  coverageSystemPrompt,
+  coverageUserPrompt,
 } from "./prompts.js";
 export type { ConversationWindow } from "./prompts.js";

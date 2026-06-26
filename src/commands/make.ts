@@ -73,7 +73,6 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
       .filter(([, s]) => s.origin === "user-created" || s.userEdited)
       .map(([name]) => name)
   );
-  const automatableSummaries = summaries.filter((s) => !protectedNames.has(s.name));
 
   const minScore = options.minScore ?? 0.5;
   const maxLimit = options.limit ?? 20;
@@ -130,7 +129,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
 
     let action;
     try {
-      action = await planSkillAction(cluster, automatableSummaries, config, budget);
+      action = await planSkillAction(cluster, summaries, config, budget);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.log(`  ${pc.red("✗ triage failed")} ${scoreTag} ${pc.dim(sig)}`);
@@ -215,7 +214,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
     }
   }
 
-  if (!options.dryRun && automatableSummaries.length > 0) {
+  if (!options.dryRun && summaries.length > 0) {
     const createdCount = highCount + mediumCount + lowCount;
     const tuningCandidates = eligible
       .filter((cluster) => cluster.score >= minScore)
@@ -227,7 +226,7 @@ export async function makeCommand(options: MakeCmdOptions): Promise<void> {
       const scoreTag = pc.dim(`[score ${cluster.score.toFixed(2)}]`);
       let action;
       try {
-        action = await planSkillAction(cluster, automatableSummaries, config, 0);
+        action = await planSkillAction(cluster, summaries, config, 0);
       } catch {
         continue;
       }

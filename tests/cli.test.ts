@@ -9,6 +9,7 @@ describe("public CLI", () => {
   it("exposes only the simplified command surface", () => {
     const commands = createProgram().commands.map((c) => c.name()).sort();
     expect(commands).toEqual([
+      "catalog",
       "connect",
       "disconnect",
       "doctor",

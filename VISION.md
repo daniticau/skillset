@@ -2,11 +2,11 @@
 
 ## What Is This?
 
-A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have, consolidates them into a store you own, and mirrors them back into the tools you use. When you ask it to tailor or dream nightly, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make future agents better at you.
+A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have in Claude and Codex, consolidates them into a store you own, and mirrors them back into those desktop app skill roots. When you ask it to tailor or dream nightly, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make those agents better at you.
 
 ## The Problem
 
-Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch from Claude Code to Codex or another agent and start from zero.
+Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch between Claude and Codex and start from zero.
 
 The agent learns only inside one harness, if it learns at all. Your personalization should not be trapped there.
 
@@ -28,11 +28,11 @@ sks dream
 
 `dream` installs a macOS LaunchAgent that runs the same improvement loop nightly. Each run scrapes and mines new or changed sessions, balances agent-mistake and user-preference signals, tunes existing auto-created skills, mirrors changes, commits the canonical store, and records the reviewed or skipped day in `state.json`.
 
-The skills themselves live in a canonical store that you own. Every agent harness you use is a mirror of that store. Edit a skill in any mirror and the change flows back to canonical before the next write, then out to all the others.
+The skills themselves live in a canonical store that you own. Claude and Codex are mirrors of that store. Edit a skill in either mirror and the change flows back to canonical before the next write, then out to the other app.
 
 ## The User Loop
 
-**First run.** `npx skillset-cli init` sets up the store, connects detected agents, imports existing skills, and mirrors the consolidated store back out.
+**First run.** `sks init` sets up the store, connects detected agents, imports existing skills, and mirrors the consolidated store back out.
 
 **When you want it to learn.** Run `sks tailor`. It turns past session friction into skills and installs them directly.
 
@@ -46,11 +46,11 @@ The skills themselves live in a canonical store that you own. Every agent harnes
 
 Right now: people who work with coding agents enough that the friction compounds. People who notice they keep repeating themselves. People who switch between agent tools and resent starting over each time.
 
-Later: anyone whose agent history contains enough signal to become a useful personal operating manual.
+Later: deeper Claude and Codex workflows whose agent history contains enough signal to become a useful personal operating manual.
 
 ## What Success Looks Like
 
-The agent I work with in six months knows things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Onboarding a new agent tool is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
+The agents I work with in six months know things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Moving between Claude and Codex is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
 
 ## Principles
 

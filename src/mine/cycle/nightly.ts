@@ -259,10 +259,6 @@ export async function runNightlyCycle(
           .filter(([, s]) => s.origin === "user-created" || s.userEdited)
           .map(([name]) => name)
       );
-      const eligibleSummaries = summaries.filter(
-        (s) => !protectedNames.has(s.name)
-      );
-
       const newCap = cfg.cycleDefaults.newCap;
       let budget = newCap;
       const topClusters = balancedClusterOrder(
@@ -285,7 +281,7 @@ export async function runNightlyCycle(
         try {
           const action = await planSkillAction(
             cluster,
-            eligibleSummaries,
+            summaries,
             llmConfig,
             budget
           );
@@ -306,7 +302,7 @@ export async function runNightlyCycle(
           if (action.kind === "create") {
             const { skill } = await executeCreate(action, cluster, llmConfig);
             created.push({ name: skill.name, description: skill.description });
-            eligibleSummaries.push({ name: skill.name, description: skill.description });
+            summaries.push({ name: skill.name, description: skill.description });
             handledClusterIds.add(cluster.id);
             budget -= 1;
             onStage("created", skill.name);
@@ -323,7 +319,7 @@ export async function runNightlyCycle(
         try {
           const action = await planSkillAction(
             cluster,
-            eligibleSummaries,
+            summaries,
             llmConfig,
             0
           );
@@ -353,6 +349,9 @@ export async function runNightlyCycle(
         pruneCap: cfg.cycleDefaults.pruneCap,
         onEvent: (evt, detail) => onStage(evt, detail),
       });
+      for (const c of cleanup.coveredByUser) {
+        merged.push({ from: [c.redundant], into: c.coveredBy });
+      }
       // Conflicts become "merges" semantically for the audit report (2 in, 1 out).
       for (const c of cleanup.conflictsResolved) {
         merged.push({ from: [c.winner, c.loser], into: c.winner });

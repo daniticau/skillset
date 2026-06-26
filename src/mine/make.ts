@@ -32,6 +32,7 @@ import type { SkillTier } from "../core/skill.js";
 import type { SkillOrigin } from "../core/skill.js";
 import { writeCanonicalSkill, DRAFTS_DIR } from "./synthesize.js";
 import type { SynthesizedSkill } from "./synthesize.js";
+import { assessClusterForCreate } from "./quality.js";
 
 export interface SkillSummary {
   name: string;
@@ -73,7 +74,53 @@ function slugify(s: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .slice(0, 60);
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
+}
+
+function cleanSentence(s: string): string {
+  return s.replace(/\s+/g, " ").trim().replace(/[.?!]+$/, "");
+}
+
+function compactSentence(s: string, max = 220): string {
+  const clean = cleanSentence(s);
+  const sentence = `${clean}.`;
+  if (sentence.length <= max) return sentence;
+  const clipped = clean.slice(0, max - 1).replace(/\s+\S*$/, "");
+  return `${clipped}.`;
+}
+
+function isWeakDescription(description: string): boolean {
+  const clean = description.trim().toLowerCase();
+  return (
+    clean.length < 20 ||
+    clean === "personalization skill synthesized from observed behavior" ||
+    clean.startsWith("derived from edit of missing skill") ||
+    clean.startsWith("capture vague") ||
+    clean.startsWith("captures the user's preference") ||
+    clean.startsWith("captures user preference")
+  );
+}
+
+function fallbackDescription(cluster: NuggetCluster): string {
+  const categoryLabel: Record<string, string> = {
+    "anti-pattern": "anti-pattern",
+    workflow: "workflow preference",
+    style: "style rule",
+    "tool-pattern": "tool preference",
+    correction: "correction",
+    preference: "preference",
+  };
+  const label = categoryLabel[cluster.canonical.category] ?? "preference";
+  return compactSentence(
+    `Apply when this ${label} is relevant: ${cluster.canonical.signal}`
+  );
+}
+
+function usableDescription(raw: unknown, cluster: NuggetCluster): string {
+  if (typeof raw !== "string") return fallbackDescription(cluster);
+  const description = compactSentence(raw);
+  return isWeakDescription(description) ? fallbackDescription(cluster) : description;
 }
 
 /**
@@ -89,6 +136,7 @@ function coerceTier(raw: unknown): SkillTier {
 
 function normalizeAction(
   raw: unknown,
+  cluster: NuggetCluster,
   summaries: SkillSummary[],
   budgetRemaining: number
 ): SkillAction {
@@ -119,11 +167,18 @@ function normalizeAction(
           reason: `triage EDIT target "${target}" doesn't exist and budget is 0`,
         };
       }
+      const quality = assessClusterForCreate(cluster);
+      if (!quality.allowCreate) {
+        return {
+          kind: "skip",
+          reason: `create quality gate: ${quality.reason}`,
+        };
+      }
       const slug = slugify(target) || "new-skill";
       return {
         kind: "create",
         name: slug,
-        description: rationale ?? `Derived from EDIT of missing skill "${target}"`,
+        description: usableDescription(rationale, cluster),
         tier,
         rationale: rationale ?? "coerced from EDIT on missing target",
       };
@@ -133,9 +188,6 @@ function normalizeAction(
 
   if (kind === "create") {
     const r = obj as { name?: unknown; description?: unknown; rationale?: unknown };
-    if (budgetRemaining <= 0) {
-      return { kind: "skip", reason: "budget exceeded" };
-    }
     const slug = slugify(typeof r.name === "string" ? r.name : "");
     if (!slug) return { kind: "skip", reason: "triage CREATE produced empty name" };
     if (existing.has(slug)) {
@@ -147,10 +199,17 @@ function normalizeAction(
         rationale: rationale ?? `CREATE name "${slug}" collided with existing skill`,
       };
     }
-    const description =
-      typeof r.description === "string" && r.description.length > 0
-        ? r.description
-        : "Personalization skill synthesized from observed behavior";
+    if (budgetRemaining <= 0) {
+      return { kind: "skip", reason: "budget exceeded" };
+    }
+    const quality = assessClusterForCreate(cluster);
+    if (!quality.allowCreate) {
+      return {
+        kind: "skip",
+        reason: `create quality gate: ${quality.reason}`,
+      };
+    }
+    const description = usableDescription(r.description, cluster);
     const rationale = typeof r.rationale === "string" ? r.rationale : undefined;
     return { kind: "create", name: slug, description, tier, rationale };
   }
@@ -177,7 +236,7 @@ export async function planSkillAction(
   if (!parsed) {
     return { kind: "skip", reason: "triage failed: could not parse LLM response" };
   }
-  return normalizeAction(parsed, summaries, budgetRemaining);
+  return normalizeAction(parsed, cluster, summaries, budgetRemaining);
 }
 
 function tierRank(t: SkillTier | undefined): number {

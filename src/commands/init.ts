@@ -29,15 +29,22 @@ interface LinkCandidate extends Link {
 
 async function detectAgents(includeOptional: boolean): Promise<LinkCandidate[]> {
   const links: LinkCandidate[] = [];
+  const seen = new Set<string>();
+  const add = (link: LinkCandidate) => {
+    const key = `${link.agent}:${link.path}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push(link);
+  };
   for (const kind of defaultAutoLinkAgents()) {
     const adapter = getAdapter(kind as AgentKind);
     const hit = await adapter.detect();
     if (hit) {
-      links.push({ agent: adapter.kind, path: hit.path, checked: true, detected: true });
+      add({ agent: adapter.kind, path: hit.path, checked: true, detected: true });
       continue;
     }
     if (includeOptional) {
-      links.push({
+      add({
         agent: adapter.kind,
         path: adapter.defaultPath,
         checked: false,
@@ -83,12 +90,7 @@ async function doLinks(candidates: LinkCandidate[], interactive: boolean): Promi
   const fresh = await readConfig();
   const linkKey = (l: Link) => `${l.agent}:${l.path}`;
   const existing = new Set(fresh.links.map(linkKey));
-  const existingByAgent = new Map(fresh.links.map((link) => [link.agent, link]));
   const choices = candidates.map((candidate) => {
-    const existingLink = existingByAgent.get(candidate.agent);
-    if (existingLink) {
-      return { ...candidate, path: existingLink.path, checked: true };
-    }
     return { ...candidate, checked: candidate.checked || existing.has(linkKey(candidate)) };
   });
 
@@ -115,20 +117,20 @@ async function doLinks(candidates: LinkCandidate[], interactive: boolean): Promi
     pickedLinks = choices.filter((link) => link.checked);
   }
 
-  const representedAgents = new Set(choices.map((link) => link.agent));
-  const pickedAgents = new Set(pickedLinks.map((link) => link.agent));
+  const representedKeys = new Set(choices.map(linkKey));
+  const pickedKeys = new Set(pickedLinks.map(linkKey));
   const pickedCleanLinks: Link[] = pickedLinks.map((link) => ({
     agent: link.agent,
     path: link.path,
   }));
-  const retainedLinks = fresh.links.filter((link) => !representedAgents.has(link.agent));
+  const retainedLinks = fresh.links.filter((link) => !representedKeys.has(linkKey(link)));
   const nextLinks = [
     ...retainedLinks,
     ...pickedCleanLinks,
   ];
   const addedLinks = pickedCleanLinks.filter((link) => !existing.has(linkKey(link)));
   const removedLinks = fresh.links.filter(
-    (link) => representedAgents.has(link.agent) && !pickedAgents.has(link.agent)
+    (link) => representedKeys.has(linkKey(link)) && !pickedKeys.has(linkKey(link))
   );
 
   for (const link of pickedLinks) {

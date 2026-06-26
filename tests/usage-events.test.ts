@@ -210,6 +210,42 @@ describe("usage events", () => {
     });
   });
 
+  it("infers Codex skill usage when the agent reads a SKILL.md file", async () => {
+    makeSkill("ios-app-submission");
+
+    writeEnvelope("codex", "s1", [
+      {
+        type: "user_message",
+        timestamp: "2026-04-21T08:59:00.000Z",
+        content: "publish this iOS app",
+      },
+      {
+        type: "response_item",
+        timestamp: "2026-04-21T09:00:00.000Z",
+        payload: {
+          type: "function_call",
+          name: "exec_command",
+          arguments: JSON.stringify({
+            cmd: "sed -n '1,200p' /Users/me/.codex/skills/ios-app-submission/SKILL.md",
+          }),
+        },
+      },
+    ], "s1");
+
+    const report = await scanUsageFromSessions();
+    expect(report.inferred).toBe(1);
+    expect(report.added).toBe(1);
+
+    const events = await readUsageEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      skillName: "ios-app-submission",
+      confidence: 0.85,
+      evidence: "skill file read",
+      usedAt: "2026-04-21T09:00:00.000Z",
+    });
+  });
+
   it("rescans unchanged sessions when the canonical skill set changes", async () => {
     makeSkill("alpha");
     writeEnvelope("codex", "s1", [

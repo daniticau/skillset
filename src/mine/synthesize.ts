@@ -21,6 +21,7 @@ import {
   parseSkillMd,
   renderSkillMd,
   SkillValidationError,
+  validateSkillName,
 } from "../core/skill.js";
 import type { SkillOrigin, SkillTier } from "../core/skill.js";
 import { STORE_ROOT, STORE_SKILLS_DIR } from "../core/paths.js";
@@ -53,7 +54,8 @@ function slugify(s: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .slice(0, 60);
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
 }
 
 /** Extract frontmatter + body from an LLM response, tolerating common wrappers. */
@@ -121,6 +123,7 @@ async function synthesizeOne(
 }
 
 async function writeSkillFiles(root: string, skill: SynthesizedSkill): Promise<string> {
+  validateSkillName(skill.name);
   const dir = join(root, skill.name);
   await mkdir(dir, { recursive: true });
 
@@ -239,6 +242,7 @@ export async function listDrafts(): Promise<
  * Moves the draft directory from ~/.skillset/drafts/<name>/ to ~/.skillset/skills/<name>/.
  */
 export async function promoteDraft(name: string): Promise<string> {
+  validateSkillName(name);
   const src = join(DRAFTS_DIR, name);
   const dst = join(STORE_SKILLS_DIR, name);
 

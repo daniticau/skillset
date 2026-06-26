@@ -12,7 +12,7 @@ See `VISION.md` for the full north star.
 
 - **Store + mirroring**: canonical `~/.skillset/skills/` is source of truth; connected mirrors are rewritten automatically after mutations.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
-- **Session scraping**: reads Claude Code, Codex, and Cursor transcripts into `~/.skillset/sessions/` as mining input.
+- **Session scraping**: reads Claude Code and Codex transcripts into `~/.skillset/sessions/` as mining input.
 - **Tailoring pipeline**: `sks tailor` scrapes sessions, mines nuggets, clusters/ranks them, asks the LLM to create/edit skills, and mirrors changes.
 - **Explicit capture**: `sks tailor --stdin` or `sks tailor "<rule>"` turns a direct instruction into a user-owned skill.
 

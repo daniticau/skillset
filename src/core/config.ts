@@ -1,12 +1,11 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { CONFIG_FILE, DEFAULT_CODEX_SKILLS_DIR, STATE_FILE } from "./paths.js";
+import * as paths from "./paths.js";
 import type { ScrapeCursors } from "../ingest/sessions/types.js";
 import type { SkillOrigin } from "./skill.js";
 
-export type AgentKind = "claude-code" | "codex" | "copilot";
+export type AgentKind = "claude-code" | "codex";
 
 export interface Link {
   agent: AgentKind;
@@ -192,20 +191,20 @@ const DEFAULT_CONFIG: Config = { version: 1, links: [] };
 const DEFAULT_STATE: State = { version: 2, skills: {} };
 
 function legacyCodexSkillsDir(): string {
-  return join(homedir(), ".agents", "skills");
+  return paths.LEGACY_CODEX_SKILLS_DIR ?? join(dirname(paths.DEFAULT_CODEX_SKILLS_DIR), "..", ".agents", "skills");
 }
 
 function normalizeConfig(config: Config): { config: Config; changed: boolean } {
-  const codexHomeExists = existsSync(dirname(DEFAULT_CODEX_SKILLS_DIR));
-  if (!codexHomeExists) return { config, changed: false };
+  const codexHomeExists = existsSync(dirname(paths.DEFAULT_CODEX_SKILLS_DIR));
 
   let changed = false;
+  const legacyCodexPath = legacyCodexSkillsDir();
   const links = config.links.map((link) => {
-    if (link.agent !== "codex" || link.path !== legacyCodexSkillsDir()) {
-      return link;
+    if (codexHomeExists && link.agent === "codex" && link.path === legacyCodexPath) {
+      changed = true;
+      return { ...link, path: paths.DEFAULT_CODEX_SKILLS_DIR };
     }
-    changed = true;
-    return { ...link, path: DEFAULT_CODEX_SKILLS_DIR };
+    return link;
   });
 
   const seen = new Set<string>();
@@ -274,14 +273,14 @@ async function writeJson(path: string, data: unknown): Promise<void> {
 
 export async function readConfig(): Promise<Config> {
   const { config, changed } = normalizeConfig(
-    await readJson<Config>(CONFIG_FILE, DEFAULT_CONFIG)
+    await readJson<Config>(paths.CONFIG_FILE, DEFAULT_CONFIG)
   );
-  if (changed) await writeJson(CONFIG_FILE, config);
+  if (changed) await writeJson(paths.CONFIG_FILE, config);
   return config;
 }
 
 export async function writeConfig(config: Config): Promise<void> {
-  await writeJson(CONFIG_FILE, normalizeConfig(config).config);
+  await writeJson(paths.CONFIG_FILE, normalizeConfig(config).config);
 }
 
 /**
@@ -350,14 +349,14 @@ export function migrateState(raw: unknown): State {
 }
 
 export async function readState(): Promise<State> {
-  if (!existsSync(STATE_FILE)) return { ...DEFAULT_STATE, skills: {} };
-  const raw = await readFile(STATE_FILE, "utf8");
+  if (!existsSync(paths.STATE_FILE)) return { ...DEFAULT_STATE, skills: {} };
+  const raw = await readFile(paths.STATE_FILE, "utf8");
   const parsed = JSON.parse(raw) as unknown;
   return migrateState(parsed);
 }
 
 export async function writeState(state: State): Promise<void> {
-  await writeJson(STATE_FILE, state);
+  await writeJson(paths.STATE_FILE, state);
 }
 
 /**

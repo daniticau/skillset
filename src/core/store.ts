@@ -2,13 +2,14 @@ import { cp, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { STORE_ROOT, STORE_SKILLS_DIR } from "./paths.js";
-import { listSkillDirs, readSkillMd } from "./skill.js";
+import { listSkillDirs, readSkillMd, validateSkillName } from "./skill.js";
 
 export async function ensureStore(): Promise<void> {
   await mkdir(STORE_SKILLS_DIR, { recursive: true });
 }
 
 export function storeSkillDir(name: string): string {
+  validateSkillName(name);
   return join(STORE_SKILLS_DIR, name);
 }
 

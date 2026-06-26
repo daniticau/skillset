@@ -93,7 +93,13 @@ export async function usageRecordCommand(
     process.exitCode = 1;
     return;
   }
-  const usedAt = options.at ? new Date(options.at).toISOString() : new Date().toISOString();
+  const parsedAt = options.at ? new Date(options.at) : new Date();
+  if (Number.isNaN(parsedAt.getTime())) {
+    console.error(pc.red(`invalid --at date "${options.at}"`));
+    process.exitCode = 1;
+    return;
+  }
+  const usedAt = parsedAt.toISOString();
   const event = createExplicitUsageEvent({
     skillName,
     agent: options.agent,

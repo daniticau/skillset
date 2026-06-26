@@ -1,9 +1,9 @@
 {
   "name": "skillset-cli",
   "version": "0.1.1",
-  "description": "Portable personalization layer for coding agents. Alpha, macOS with Claude Code and Codex skills.",
+  "description": "Portable personalization layer for coding agents. Alpha, macOS with Claude Code and Codex Desktop skills.",
   "type": "module",
-  "packageManager": "pnpm@10.33.2",
+  "packageManager": "pnpm@11.7.0",
   "license": "MIT",
   "author": "Daniel Ticau",
   "repository": {
@@ -35,6 +35,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
     "dev": "tsup --watch",
     "prepack": "pnpm build",
     "prepublishOnly": "pnpm typecheck && pnpm test",
@@ -42,7 +43,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "start": "node ./dist/cli.js",
-    "cli": "bun run src/cli.ts"
+    "cli": "node ./dist/cli.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

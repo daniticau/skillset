@@ -41,6 +41,16 @@ describe("acquireLock", () => {
     expect(existsSync(LOCK_FILE)).toBe(false);
   });
 
+  it("creates the store directory when acquiring the first lock", async () => {
+    rmSync(TEST_ROOT, { recursive: true, force: true });
+
+    const res = await acquireLock("nightly");
+
+    expect(res.acquired).toBe(true);
+    expect(existsSync(LOCK_FILE)).toBe(true);
+    if (res.acquired) await res.release();
+  });
+
   it("refuses when lock held by a live pid with recent heartbeat", async () => {
     // Simulate: another live process owns the lock, recent heartbeat.
     writeFileSync(

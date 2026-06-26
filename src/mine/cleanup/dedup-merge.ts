@@ -88,7 +88,8 @@ function slugify(s: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .slice(0, 60);
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
 }
 
 async function archiveAndRetire(

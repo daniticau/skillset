@@ -10,7 +10,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 export interface SessionSource {
-  kind: "claude-code" | "codex" | "vscode";
+  kind: "claude-code" | "codex";
   path: string;
   description: string;
 }
@@ -43,7 +43,7 @@ export function discoverSessionSources(): SessionSource[] {
     sources.push({
       kind: "codex",
       path: codex,
-      description: "Codex CLI rollout sessions (~/.codex/sessions)",
+      description: "Codex Desktop sessions (~/.codex/sessions)",
     });
   }
 
