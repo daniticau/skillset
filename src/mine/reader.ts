@@ -8,6 +8,7 @@
  */
 
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
 import type { ParsedSession, SessionMessage } from "./types.js";
@@ -62,6 +63,10 @@ function parseSessionFile(file: SourceSessionFile): ParsedSession | null {
     return null;
   }
 
+  // Hash while the content is already in memory — matches sessionFileHash()
+  // so incremental-state consumers don't have to re-read the file.
+  const fileHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
+
   const messages: SessionMessage[] = [];
   let cwd: string | undefined;
   let sessionId: string | undefined;
@@ -87,6 +92,7 @@ function parseSessionFile(file: SourceSessionFile): ParsedSession | null {
     sessionId: sessionId ?? stem,
     projectSlug,
     filePath: file.path,
+    fileHash,
     messages,
     cwd,
     source: file.source,

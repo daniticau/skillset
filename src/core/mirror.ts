@@ -15,7 +15,6 @@ import {
   listStoreSkills,
   copyDirReplace,
   storeSkillDir,
-  validateStoreSkill,
 } from "./store.js";
 import { getAdapter } from "./adapters/index.js";
 import type { AgentAdapter } from "./adapters/index.js";
@@ -453,16 +452,17 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   const aggregateParsedSkills: ParsedSkill[] = [];
 
   for (const name of storeSkillNames) {
-    await validateStoreSkill(name);
     const canonicalDir = storeSkillDir(name);
+    // Single canonical read doubles as validation (throws on malformed SKILL.md)
+    // and is reused below unless a promotion/conflict rewrites the file.
+    let canonicalParsed = await readSkillMd(canonicalDir);
     // When state lacks this skill (first sync after promote / manual add), seed
     // origin from canonical frontmatter — which is the source of truth. Missing
     // frontmatter origin falls back to "user-created" (safest default).
     let prior = state.skills[name];
     if (!prior) {
-      const canonicalParsed = await readSkillMd(canonicalDir).catch(() => null);
       const fmOrigin: SkillOrigin =
-        canonicalParsed?.frontmatter.origin ?? "user-created";
+        canonicalParsed.frontmatter.origin ?? "user-created";
       prior = initialSkillState(fmOrigin);
     }
     const current: SkillState = {
@@ -473,6 +473,9 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
     };
 
     const canonicalHashBefore = prior.canonicalHash;
+    // Mirror hashes computed during divergence detection, reused by the write
+    // phase below so unchanged mirrors are hashed once instead of rewritten.
+    const knownMirrorHashes = new Map<string, string | null>();
     const divergences: Array<{
       link: Link;
       adapter: AgentAdapter;
@@ -487,6 +490,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
         const key = linkKey(link);
         const recorded = prior.mirrorHashes[key];
         const mirrorHash = await adapter.hashMirrorSkill(name, link.path);
+        knownMirrorHashes.set(key, mirrorHash);
         if (!mirrorHash || !recorded || mirrorHash === recorded) continue;
         const mtime = adapter.mirrorSkillMtimeMs
           ? (await adapter.mirrorSkillMtimeMs(name, link.path)) ?? 0
@@ -495,6 +499,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
       }
     }
 
+    let canonicalRewritten = false;
     if (divergences.length === 1) {
       const { link, adapter } = divergences[0]!;
       const mirrorParsed = adapter.readMirrorSkill
@@ -504,6 +509,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
         // Preserve the prior origin — a user edit on an auto-created skill does
         // NOT make it user-created; it sets userEdited=true instead.
         await writeCanonicalSkillFile(mirrorParsed, prior.origin);
+        canonicalRewritten = true;
         current.userEdited = true;
         current.lastEditedAt = new Date().toISOString();
         actions.push({ kind: "promoted", skill: name, from: link });
@@ -518,6 +524,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
         : null;
       if (winnerParsed) {
         await writeCanonicalSkillFile(winnerParsed, prior.origin);
+        canonicalRewritten = true;
         current.userEdited = true;
         current.lastEditedAt = new Date().toISOString();
       }
@@ -541,13 +548,25 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
 
     current.canonicalHash = await hashSkillDir(canonicalDir);
 
-    const freshParsed = await readSkillMd(canonicalDir);
-    aggregateParsedSkills.push(freshParsed);
+    if (canonicalRewritten) {
+      canonicalParsed = await readSkillMd(canonicalDir);
+    }
+    aggregateParsedSkills.push(canonicalParsed);
     for (const { link, adapter } of links) {
       if (adapter.layout === "aggregate-file") continue;
       if (!adapter.mirrorSkill || !adapter.hashMirrorSkill) continue;
-      await adapter.mirrorSkill(freshParsed, link.path);
       const key = linkKey(link);
+      // Skip the copy when the mirror already matches canonical byte-for-byte —
+      // avoids needless disk churn and preserves mirror mtimes, which the
+      // newest-mtime-wins conflict resolution depends on.
+      const mirrorHash = knownMirrorHashes.has(key)
+        ? knownMirrorHashes.get(key)!
+        : await adapter.hashMirrorSkill(name, link.path);
+      if (mirrorHash && mirrorHash === current.canonicalHash) {
+        current.mirrorHashes[key] = mirrorHash;
+        continue;
+      }
+      await adapter.mirrorSkill(canonicalParsed, link.path);
       const newHash = await adapter.hashMirrorSkill(name, link.path);
       if (newHash) current.mirrorHashes[key] = newHash;
       actions.push({ kind: "mirrored", skill: name, to: link });

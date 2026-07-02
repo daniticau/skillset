@@ -38,7 +38,7 @@ import { loadClusters, loadNuggets, saveClusters, saveNuggets } from "../artifac
 import { mergeNuggets } from "../nuggets.js";
 import {
   finalizeRun,
-  markProcessed,
+  markManyProcessed,
   needsProcessing,
   readMineState,
   sessionFileHash,
@@ -184,7 +184,7 @@ export async function runNightlyCycle(
     const sessionsToProcess = options.force
       ? sessions
       : sessions.filter((session) => {
-          const hash = sessionFileHash(session.filePath);
+          const hash = session.fileHash ?? sessionFileHash(session.filePath);
           if (!hash) return true;
           return needsProcessing(sessionKey(session), hash, mineState, targetStage);
         });
@@ -218,11 +218,16 @@ export async function runNightlyCycle(
     await advanceCheckpoint("llm-done");
 
     if (!options.dryRun && sessionsToProcess.length > 0) {
-      for (const session of sessionsToProcess) {
-        const hash = sessionFileHash(session.filePath);
-        if (!hash) continue;
-        mineState = markProcessed(mineState, sessionKey(session), hash, targetStage);
-      }
+      mineState = markManyProcessed(
+        mineState,
+        sessionsToProcess
+          .map((session) => ({
+            sessionId: sessionKey(session),
+            fileHash: session.fileHash ?? sessionFileHash(session.filePath),
+          }))
+          .filter((e) => e.fileHash),
+        targetStage
+      );
       await writeMineState(finalizeRun(mineState));
     }
 

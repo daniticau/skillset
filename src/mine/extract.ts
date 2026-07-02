@@ -145,10 +145,11 @@ function findPreviousAssistant(
   messages: SessionMessage[],
   startIndex: number
 ): SessionMessage | undefined {
-  return messages
-    .slice(0, startIndex)
-    .reverse()
-    .find((message) => message.role === "assistant" && message.text.length > 0);
+  for (let i = startIndex - 1; i >= 0; i--) {
+    const message = messages[i]!;
+    if (message.role === "assistant" && message.text.length > 0) return message;
+  }
+  return undefined;
 }
 
 function buildHeuristicNugget(params: {

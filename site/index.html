@@ -5,32 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="skillset gives coding agents portable memory: user-owned SKILL.md files mirrored across Codex Desktop and Claude."
+      content="skillset gives coding agents portable memory: user-owned SKILL.md files mirrored across Claude Code and Codex."
     />
-    <meta property="og:title" content="skillset" />
+    <meta property="og:title" content="skillset — portable memory for coding agents" />
     <meta
       property="og:description"
-      content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
+      content="Turn agent-session lessons into reusable SKILL.md files you own, mirrored across Claude Code and Codex."
     />
-    <meta property="og:image" content="./assets/skillset-preview.png?v=3" />
+    <meta property="og:image" content="./assets/skillset-preview.png?v=4" />
     <meta
       property="og:image:alt"
-      content="A clean product preview of skillset mirroring portable skills across Codex Desktop and Claude."
+      content="skillset mirroring portable skills across Claude Code and Codex."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="skillset" />
     <meta
       name="twitter:description"
-      content="A portable personalization layer that turns agent-session lessons into reusable SKILL.md files you own."
+      content="Turn agent-session lessons into reusable SKILL.md files you own, mirrored across Claude Code and Codex."
     />
-    <meta name="twitter:image" content="./assets/skillset-preview.png?v=3" />
-    <meta name="theme-color" content="#ffffff" />
-    <title>skillset</title>
-    <link rel="icon" href="./assets/skillset-icon.svg" type="image/svg+xml" />
+    <meta name="twitter:image" content="./assets/skillset-preview.png?v=4" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <title>skillset — portable memory for coding agents</title>
+    <link rel="icon" href="./assets/skillset-logo-gpt.png" type="image/png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
@@ -38,84 +38,156 @@
   </head>
   <body>
     <header class="site-header" aria-label="Primary">
-      <a class="brand" href="#" aria-label="skillset home">
-        <img class="brand-icon" src="./assets/skillset-icon.svg" alt="" width="32" height="32" aria-hidden="true" />
-        <span>skillset</span>
-      </a>
-      <nav class="nav-links" aria-label="Site links">
-        <a href="#drop">Drop</a>
-        <a href="#flow">Flow</a>
-        <a href="#commands">Commands</a>
-        <a href="https://github.com/daniticau/skillset">GitHub</a>
-      </nav>
-      <a class="nav-cta" href="#commands">Install</a>
+      <div class="header-inner">
+        <a class="brand" href="#" aria-label="skillset home">
+          <img class="brand-icon" src="./assets/skillset-logo-gpt.png" alt="" width="24" height="24" aria-hidden="true" />
+          <span>skillset</span>
+        </a>
+        <nav class="nav-links" aria-label="Site links">
+          <a href="#how">How it works</a>
+          <a href="#commands">Commands</a>
+          <a href="https://github.com/daniticau/skillset">GitHub</a>
+        </nav>
+        <a class="btn btn-primary btn-sm" href="#install">Install</a>
+      </div>
     </header>
 
     <main>
-      <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <span class="eyebrow">Portable agent memory</span>
-          <h1 id="hero-title">skillset</h1>
-          <p class="lede">Turn useful agent-session lessons into reusable <code>SKILL.md</code> files you own, edit, and mirror across Codex Desktop and Claude.</p>
+      <section class="hero" id="install" aria-labelledby="hero-title">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <h1 id="hero-title">Teach your agent once.</h1>
+        <p class="lede">
+          skillset turns corrections and preferences from agent sessions into portable
+          <code>SKILL.md</code> files you own — mirrored automatically to every agent you use.
+        </p>
 
-          <div class="composer" aria-label="Install skillset">
-            <code id="install-command">sks init</code>
-            <button class="copy-button" type="button" data-copy-target="install-command" aria-label="Copy sks init command">
-              Copy
+        <div class="hero-actions">
+          <div class="install-bar" aria-label="Install skillset">
+            <span class="install-prompt" aria-hidden="true">$</span>
+            <code id="install-command">npm i -g skillset-cli</code>
+            <button class="copy-button" type="button" data-copy-target="install-command" aria-label="Copy install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor"/>
+                <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor"/>
+              </svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
           </div>
+          <a class="btn btn-ghost" href="https://github.com/daniticau/skillset">View on GitHub</a>
         </div>
 
-        <figure class="hero-media" aria-label="Skillset product preview">
-          <img src="./assets/skillset-preview.png?v=3" alt="Skillset preview showing a canonical skills store mirrored to Codex and Claude">
+        <figure class="terminal" aria-label="Example sks tailor output">
+          <div class="terminal-bar">
+            <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="terminal-title">~/.skillset</span>
+          </div>
+          <pre class="terminal-body"><code><span class="t-prompt">$</span> <span class="t-cmd">sks tailor</span>
+<span class="t-dim">scraping sessions…</span>
+<span class="t-ok">✓</span> 128 sessions read from Claude Code and Codex
+<span class="t-ok">✓</span> 42 nuggets mined · 6 clusters ranked
+<span class="t-ok">✓</span> created <span class="t-hl">prefer-pnpm-workspace-commands</span> <span class="t-dim">tier: high</span>
+<span class="t-ok">✓</span> updated <span class="t-hl">verify-app-ui-paths</span>
+<span class="t-ok">✓</span> mirrored 2 skills <span class="t-dim">→ ~/.claude/skills · ~/.codex/skills</span></code></pre>
         </figure>
       </section>
 
-      <section class="proof-strip" id="drop" aria-label="Skillset principles">
-        <div>
-          <strong>User-owned</strong>
-          <span>Plain files in your store.</span>
-        </div>
-        <div>
-          <strong>Agent-portable</strong>
-          <span>Codex Desktop and Claude stay in sync.</span>
-        </div>
-        <div>
-          <strong>Reviewable</strong>
-          <span>Every skill is editable Markdown.</span>
-        </div>
-      </section>
-
-      <section class="section split-section" id="flow" aria-labelledby="flow-title">
-        <div>
-          <span class="eyebrow">Reuse loop</span>
-          <h2 id="flow-title">Give good corrections somewhere to live.</h2>
-        </div>
-        <div class="flow-list">
-          <div><strong>Initialize</strong><span>Create the canonical skills store.</span></div>
-          <div><strong>Import</strong><span>Consolidate existing agent skills.</span></div>
-          <div><strong>Tailor</strong><span>Turn sessions or direct notes into skills.</span></div>
-          <div><strong>Mirror</strong><span>Write back to each agent's native directory.</span></div>
+      <section class="principles" aria-label="Skillset principles">
+        <div class="principles-grid">
+          <div>
+            <h3>User-owned</h3>
+            <p>Plain Markdown files in a store you control. No vendor memory, no lock-in.</p>
+          </div>
+          <div>
+            <h3>Agent-portable</h3>
+            <p>One canonical store, mirrored to each agent's native skills directory.</p>
+          </div>
+          <div>
+            <h3>Edit-safe</h3>
+            <p>Your edits are sacred. Mirror-side changes are promoted, never overwritten.</p>
+          </div>
         </div>
       </section>
 
-      <section class="section command-section" id="commands" aria-labelledby="commands-title">
-        <div class="section-head">
-          <span class="eyebrow">Daily commands</span>
-          <h2 id="commands-title">Small commands. Durable taste.</h2>
+      <section class="section" id="how" aria-labelledby="how-title">
+        <h2 id="how-title">Give good corrections somewhere to live.</h2>
+        <div class="steps">
+          <div class="step">
+            <span class="step-num">01</span>
+            <h3>Initialize</h3>
+            <p>Create the canonical store and connect detected agents.</p>
+          </div>
+          <div class="step">
+            <span class="step-num">02</span>
+            <h3>Import</h3>
+            <p>Consolidate the skills your agents already have.</p>
+          </div>
+          <div class="step">
+            <span class="step-num">03</span>
+            <h3>Tailor</h3>
+            <p>Mine past sessions — or capture a rule directly — into skills.</p>
+          </div>
+          <div class="step">
+            <span class="step-num">04</span>
+            <h3>Mirror</h3>
+            <p>Every change writes back to each agent, automatically.</p>
+          </div>
         </div>
+      </section>
+
+      <section class="section" id="commands" aria-labelledby="commands-title">
+        <h2 id="commands-title">Small commands. Durable taste.</h2>
         <div class="command-list">
-          <div><code>sks init</code><span>Create the store and connect detected agents.</span></div>
-          <div><code>sks tailor [text...]</code><span>Mine sessions or capture a direct instruction.</span></div>
-          <div><code>sks catalog</code><span>Group skills by use case, origin, tier, and usage.</span></div>
-          <div><code>sks doctor --repair</code><span>Reconcile mirrors and write the repaired store.</span></div>
+          <div class="command-row">
+            <code>sks init</code>
+            <span>Create the store, connect agents, import existing skills.</span>
+          </div>
+          <div class="command-row">
+            <code>sks tailor</code>
+            <span>Learn from session history, or capture an explicit rule.</span>
+          </div>
+          <div class="command-row">
+            <code>sks list</code>
+            <span>List current skills and descriptions.</span>
+          </div>
+          <div class="command-row">
+            <code>sks edit &lt;skill&gt;</code>
+            <span>Edit a canonical skill in your editor, then re-mirror.</span>
+          </div>
+          <div class="command-row">
+            <code>sks doctor --repair</code>
+            <span>Inspect store health and reconcile mirrors.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section cta" aria-labelledby="cta-title">
+        <h2 id="cta-title">Stop repeating yourself.</h2>
+        <p class="lede">Install skillset and let your best corrections follow you everywhere.</p>
+        <div class="hero-actions">
+          <div class="install-bar" aria-label="Install skillset">
+            <span class="install-prompt" aria-hidden="true">$</span>
+            <code id="install-command-2">npm i -g skillset-cli</code>
+            <button class="copy-button" type="button" data-copy-target="install-command-2" aria-label="Copy install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor"/>
+                <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor"/>
+              </svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <span>MIT licensed.</span>
-      <a href="https://github.com/daniticau/skillset">github.com/daniticau/skillset</a>
+      <div class="footer-inner">
+        <span>© 2026 skillset · MIT licensed</span>
+        <a href="https://github.com/daniticau/skillset">github.com/daniticau/skillset</a>
+      </div>
     </footer>
   </body>
 </html>
