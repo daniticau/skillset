@@ -66,6 +66,21 @@ export function needsProcessing(
   return STAGE_ORDER[entry.stage] < STAGE_ORDER[targetStage];
 }
 
+/** Mark many sessions as processed at a given stage in one state update. */
+export function markManyProcessed(
+  mineState: MineState,
+  entries: Array<{ sessionId: string; fileHash: string }>,
+  stage: MineStage
+): MineState {
+  if (entries.length === 0) return mineState;
+  const processedAt = new Date().toISOString();
+  const processedSessions = { ...mineState.processedSessions };
+  for (const entry of entries) {
+    processedSessions[entry.sessionId] = { fileHash: entry.fileHash, processedAt, stage };
+  }
+  return { ...mineState, processedSessions };
+}
+
 /** Mark a session as processed at a given stage. */
 export function markProcessed(
   mineState: MineState,

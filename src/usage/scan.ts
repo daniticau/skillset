@@ -312,7 +312,7 @@ export async function scanUsageFromSessions(
   let skipped = 0;
 
   for (const session of sessions) {
-    const hash = sessionFileHash(session.filePath);
+    const hash = session.fileHash ?? sessionFileHash(session.filePath);
     const key = sessionKey(session);
     if (
       !options.force &&

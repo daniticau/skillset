@@ -47,6 +47,9 @@ export interface ParsedSession {
   sessionId: string;
   projectSlug: string;
   filePath: string;
+  /** SHA-256 (first 16 hex chars) of the session file, computed at read time.
+   *  Same value as sessionFileHash(filePath); avoids re-reading the file. */
+  fileHash?: string;
   messages: SessionMessage[];
   metadata?: SessionIndexEntry;
   /** Absolute cwd of the session, read from the first record that has one.

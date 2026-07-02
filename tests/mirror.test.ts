@@ -7,6 +7,7 @@ import {
   utimesSync,
   readdirSync,
   existsSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -111,6 +112,23 @@ describe("mirror sync", () => {
     expect(readFileSync(join(CODEX_MIRROR, "canonical", "SKILL.md"), "utf8")).toContain(
       "canonical body"
     );
+  });
+
+  it("skips rewriting mirrors that already match canonical", async () => {
+    await writeConfig({ version: 1, links: [{ agent: "claude-code", path: MIRROR }] });
+    makeSkill(SKILLS, "steady", "unchanged body");
+
+    const first = await sync();
+    expect(first.actions.filter((a) => a.kind === "mirrored")).toHaveLength(1);
+
+    // Age the mirror file so a rewrite would be detectable via mtime.
+    const mirrorPath = join(MIRROR, "steady", "SKILL.md");
+    setMtime(mirrorPath, 3600);
+    const mtimeBefore = statSync(mirrorPath).mtimeMs;
+
+    const second = await sync();
+    expect(second.actions.filter((a) => a.kind === "mirrored")).toHaveLength(0);
+    expect(statSync(mirrorPath).mtimeMs).toBe(mtimeBefore);
   });
 
   it("promotes user edits in the mirror back to canonical", async () => {

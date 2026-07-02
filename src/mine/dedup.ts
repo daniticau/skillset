@@ -128,9 +128,36 @@ export function dbscan(
   const visited = new Array<boolean>(n).fill(false);
   let clusterId = 0;
 
+  // Precompute a sparse view (index → value) and the norm of each vector once.
+  // TF-IDF vectors are overwhelmingly zeros, so sparse dot products make the
+  // O(n²) neighbor queries cheap; dense embedding vectors pass through unharmed.
+  const sparse = vectors.map((vec) => {
+    const entries = new Map<number, number>();
+    let normSq = 0;
+    for (let i = 0; i < vec.length; i++) {
+      const v = vec[i]!;
+      if (v !== 0) {
+        entries.set(i, v);
+        normSq += v * v;
+      }
+    }
+    return { entries, norm: Math.sqrt(normSq) };
+  });
+
   // Distance = 1 - cosine_similarity (so eps is a distance threshold)
-  const distance = (i: number, j: number): number =>
-    1 - cosineSimilarity(vectors[i]!, vectors[j]!);
+  const distance = (i: number, j: number): number => {
+    const a = sparse[i]!;
+    const b = sparse[j]!;
+    if (a.norm === 0 || b.norm === 0) return 1;
+    const [small, big] =
+      a.entries.size <= b.entries.size ? [a.entries, b.entries] : [b.entries, a.entries];
+    let dot = 0;
+    for (const [idx, v] of small) {
+      const w = big.get(idx);
+      if (w !== undefined) dot += v * w;
+    }
+    return 1 - dot / (a.norm * b.norm);
+  };
 
   const regionQuery = (i: number): number[] => {
     const neighbors: number[] = [];

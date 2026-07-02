@@ -17,7 +17,7 @@ import {
   readMineState,
   writeMineState,
   finalizeRun,
-  markProcessed,
+  markManyProcessed,
   needsProcessing,
   sessionFileHash,
 } from "../mine/state.js";
@@ -107,7 +107,7 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   const sessionsToProcess = options.force
     ? sessions
     : sessions.filter((s) => {
-        const hash = sessionFileHash(s.filePath);
+        const hash = s.fileHash ?? sessionFileHash(s.filePath);
         if (!hash) return true;
         return needsProcessing(stateKey(s), hash, mineState, targetStage);
       });
@@ -226,11 +226,13 @@ export async function mineCommand(options: MineOptions): Promise<void> {
   console.log(pc.green(`✓ ${merged.length} nuggets → ${clusters.length} clusters`));
 
   // Update state
-  for (const s of sessionsToProcess) {
-    const hash = sessionFileHash(s.filePath);
-    if (!hash) continue;
-    mineState = markProcessed(mineState, stateKey(s), hash, targetStage);
-  }
+  mineState = markManyProcessed(
+    mineState,
+    sessionsToProcess
+      .map((s) => ({ sessionId: stateKey(s), fileHash: s.fileHash ?? sessionFileHash(s.filePath) }))
+      .filter((e) => e.fileHash),
+    targetStage
+  );
   mineState = finalizeRun(mineState);
   await writeMineState(mineState);
 

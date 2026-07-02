@@ -32,6 +32,7 @@ export {
   sessionFileHash,
   needsProcessing,
   markProcessed,
+  markManyProcessed,
   finalizeRun,
   MINE_PIPELINE_VERSION,
 } from "./state.js";
