@@ -9,7 +9,9 @@ describe("public CLI", () => {
   it("exposes only the simplified command surface", () => {
     const commands = createProgram().commands.map((c) => c.name()).sort();
     expect(commands).toEqual([
+      "add",
       "catalog",
+      "check",
       "connect",
       "disconnect",
       "doctor",
@@ -18,6 +20,7 @@ describe("public CLI", () => {
       "init",
       "list",
       "remove",
+      "show",
       "status",
       "tailor",
       "usage",
@@ -29,8 +32,18 @@ describe("public CLI", () => {
     const dream = program.commands.find((c) => c.name() === "dream");
     const status = program.commands.find((c) => c.name() === "status");
     const usage = program.commands.find((c) => c.name() === "usage");
+    const add = program.commands.find((c) => c.name() === "add");
+    const edit = program.commands.find((c) => c.name() === "edit");
+    const show = program.commands.find((c) => c.name() === "show");
+    const check = program.commands.find((c) => c.name() === "check");
+    const tailor = program.commands.find((c) => c.name() === "tailor");
 
     expect(status?.options.map((o) => o.long)).toContain("--usage");
+    expect(add?.options.map((o) => o.long)).toEqual(["--stdin"]);
+    expect(edit?.options.map((o) => o.long).sort()).toEqual(["--source", "--stdin"]);
+    expect(show?.options.map((o) => o.long).sort()).toEqual(["--json", "--path"]);
+    expect(check?.options.map((o) => o.long)).toEqual(["--json"]);
+    expect(tailor?.options.map((o) => o.long)).toContain("--local");
     expect(dream?.options.map((o) => o.long).sort()).toEqual([
       "--at",
       "--force",

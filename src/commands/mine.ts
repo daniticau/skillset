@@ -31,6 +31,7 @@ import {
   saveNuggets,
 } from "../mine/artifacts.js";
 import { runScrape } from "./scrape.js";
+import { focusForCluster, isPrimaryFocus } from "../mine/focus.js";
 
 export interface MineOptions {
   project?: string;
@@ -244,10 +245,15 @@ export async function mineCommand(options: MineOptions): Promise<void> {
     console.log(`  ${categoryLabel(cat).padEnd(28)} ${count}`);
   }
 
-  // Top clusters
+  // Top actionable clusters. Tool/topic telemetry remains in artifacts for
+  // diagnostics, but it should not crowd out actual corrections/preferences
+  // when a user or agent reviews local tailoring candidates.
+  const actionableClusters = clusters.filter((cluster) =>
+    isPrimaryFocus(focusForCluster(cluster))
+  );
   console.log();
-  console.log(pc.bold(`Top ${Math.min(10, clusters.length)} clusters:`));
-  for (const cluster of clusters.slice(0, 10)) {
+  console.log(pc.bold(`Top ${Math.min(10, actionableClusters.length)} actionable clusters:`));
+  for (const cluster of actionableClusters.slice(0, 10)) {
     const n = cluster.canonical;
     const label = categoryLabel(n.category);
     const projects = cluster.projects.length > 0 ? pc.dim(` [${cluster.projects.slice(0, 3).join(", ")}]`) : "";

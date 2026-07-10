@@ -12,8 +12,10 @@ Every conversation with a coding agent contains signals about how you work: corr
 - **Imports existing skills during setup** from connected agent stores and consolidates same-name conflicts by newest mtime, archiving older versions.
 - **Mirrors automatically** after every command that changes canonical skills or connected mirrors.
 - **Learns from history** with `sks tailor`: scrape sessions, mine recurring flaws/preferences, create or edit skills, then mirror them.
+- **Supports a local-only review path** with `sks tailor --local`: scrape, mine, and rank candidates without sending transcript contents to an LLM or synthesizing skill changes.
 - **Dreams nightly** with `sks dream`: install a macOS LaunchAgent that incrementally reviews new sessions, learns from agent mistakes and user preferences, tunes existing skills, and records reviewed/skipped days.
 - **Captures explicit requests** with `sks tailor --stdin` or `sks tailor "prefer pnpm over npm"`.
+- **Gives agents safe CLI CRUD** with `sks show`, `sks add`, `sks edit --stdin`, and `sks check`, without requiring a human editor or direct mirror writes.
 - **Protects user edits** by promoting mirror-side edits back to canonical before rewriting mirrors.
 
 ## Install
@@ -81,6 +83,8 @@ If Codex does not enable the plugin automatically, open `/plugins`, choose Skill
 | `sks dream --run-now` | Run the nightly improvement immediately. |
 | `sks dream --status` | Show the LaunchAgent state and reviewed/tailored days. |
 | `sks list` | List current skills with short descriptions. |
+| `sks show <skill>` | Print one canonical `SKILL.md`; use `--json` or `--path` for agent workflows. |
+| `sks check [skill]` | Validate skills and flag weak discovery metadata, context bloat, or unmanaged nested skills. |
 | `sks catalog` | Show all canonical skills grouped by likely use case, with origin, tier, and usage counts. |
 | `sks status` | Show connected mirrors, skill state, user edits, and conflicts. Use `--usage` to include observed usage counts. |
 | `sks usage` | Show observed skill usage counts and last-used dates. |
@@ -88,7 +92,8 @@ If Codex does not enable the plugin automatically, open `/plugins`, choose Skill
 | `sks usage record <skill>` | Manually record a high-confidence observed skill use. |
 | `sks connect <agent>` | Connect an agent mirror and import/consolidate its existing skills. |
 | `sks disconnect <agent>` | Disconnect an agent mirror without deleting its files. |
-| `sks edit <skill>` | Open a canonical skill in `$VISUAL` or `$EDITOR`, validate, and mirror changes. |
+| `sks add [source]` | Add a complete skill directory/file, or pipe `SKILL.md` with `--stdin`. |
+| `sks edit <skill>` | Edit interactively, replace `SKILL.md` with `--stdin`, or replace a complete skill directory with `--source`; validate and mirror. |
 | `sks remove <skill>` | Delete a canonical skill and prune it from connected mirrors. |
 | `sks doctor` | Health check: store, LLM, mirrors, sessions, usage, and conflicts. |
 | `sks doctor --repair` | Reconcile canonical skills with connected mirrors and mirror the result. |
@@ -97,6 +102,7 @@ Useful `tailor` flags:
 
 ```sh
 sks tailor --dry-run
+sks tailor --local
 sks tailor --full
 sks tailor --force
 sks tailor --project my-project
@@ -124,6 +130,17 @@ sks usage my-skill
 sks usage scan --scrape
 sks usage scan --force --project my-project
 sks usage record my-skill --agent codex --project my-project
+```
+
+Agent-safe skill management:
+
+```sh
+sks show my-skill --json
+sks check my-skill --json
+sks add ./my-skill
+sks add --stdin < ./SKILL.md
+sks edit my-skill --stdin < ./SKILL.md
+sks edit my-skill --source ./my-skill
 ```
 
 ## Architecture
@@ -159,7 +176,7 @@ All tiers install directly into canonical now. The tier remains useful metadata 
 - **User edits are sacred.** Mirror-side edits are promoted, never silently overwritten.
 - **One-way mirrors.** Canonical writes to mirrors after reconciliation; no bidirectional merge UI.
 - **No drafts.** Generated skills install directly; use `--dry-run`, `sks edit`, and `sks remove` to control changes.
-- **Small public surface.** `init`, `tailor`, `dream`, `list`, `catalog`, `status`, `usage`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
+- **Agent-operable public surface.** Agents can inspect, validate, add, and edit canonical skills non-interactively; every mutation still reconciles and mirrors automatically.
 
 ## Dev
 

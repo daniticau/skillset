@@ -18,6 +18,7 @@ export interface TailorCmdOptions {
   force?: boolean;
   project?: string;
   max?: number;
+  local?: boolean;
 }
 
 function truncate(s: string, max: number): string {
@@ -100,6 +101,25 @@ async function tailorExplicit(input: string, options: TailorCmdOptions): Promise
 }
 
 async function tailorHistory(options: TailorCmdOptions): Promise<void> {
+  if (options.local) {
+    console.log(pc.cyan("local mode - transcripts stay on this machine; no LLM synthesis or skill writes"));
+    await mineCommand({
+      project: options.project,
+      force: options.force,
+      fullScrape: options.full,
+      llm: false,
+      dryRun: options.dryRun,
+      noScrape: options.dryRun,
+    });
+    console.log();
+    console.log(
+      pc.dim(
+        "review the ranked candidates above, then use `sks show`, `sks add`, or `sks edit --stdin` for deterministic agent-managed changes"
+      )
+    );
+    return;
+  }
+
   if (options.dryRun) {
     console.log(pc.yellow("dry-run - no sessions, skills, state, or mirrors will be changed"));
     await mineCommand({
@@ -134,6 +154,15 @@ export async function tailorCommand(
 ): Promise<void> {
   const input = await collectInput(parts, options);
   if (input) {
+    if (options.local) {
+      console.error(
+        pc.red(
+          "`--local` is for history review; use `sks add --stdin` or `sks edit <skill> --stdin` for deterministic local skill writes"
+        )
+      );
+      process.exitCode = 1;
+      return;
+    }
     await tailorExplicit(input, options);
     return;
   }

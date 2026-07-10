@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="skillset gives coding agents portable memory: user-owned SKILL.md files mirrored across Claude Code and Codex."
+      content="skillset gives Claude Code and Codex a shared CLI-managed skill library: user-owned SKILL.md files mirrored automatically."
     />
     <meta property="og:title" content="skillset — portable memory for coding agents" />
     <meta
@@ -100,8 +100,8 @@
             <p>Plain Markdown files in a store you control. No vendor memory, no lock-in.</p>
           </div>
           <div>
-            <h3>Agent-portable</h3>
-            <p>One canonical store, mirrored to each agent's native skills directory.</p>
+            <h3>Agent-operable</h3>
+            <p>Claude Code and Codex can inspect, validate, add, and edit one canonical store through the CLI.</p>
           </div>
           <div>
             <h3>Edit-safe</h3>
@@ -148,12 +148,16 @@
             <span>Learn from session history, or capture an explicit rule.</span>
           </div>
           <div class="command-row">
-            <code>sks list</code>
-            <span>List current skills and descriptions.</span>
+            <code>sks show &lt;skill&gt;</code>
+            <span>Give an agent the exact canonical skill, as Markdown or JSON.</span>
           </div>
           <div class="command-row">
-            <code>sks edit &lt;skill&gt;</code>
-            <span>Edit a canonical skill in your editor, then re-mirror.</span>
+            <code>sks check</code>
+            <span>Validate every skill and flag weak triggers or context bloat.</span>
+          </div>
+          <div class="command-row">
+            <code>sks edit &lt;skill&gt; --stdin</code>
+            <span>Let an agent update canonical safely, then re-mirror.</span>
           </div>
           <div class="command-row">
             <code>sks doctor --repair</code>

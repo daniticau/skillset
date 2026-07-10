@@ -11,8 +11,9 @@ import { listCommand } from "./commands/list.js";
 import { catalogCommand } from "./commands/catalog.js";
 import { tailorCommand } from "./commands/tailor.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { editCommand, removeCommand } from "./commands/manage.js";
+import { addCommand, editCommand, removeCommand, showCommand } from "./commands/manage.js";
 import { dreamCommand } from "./commands/dream.js";
+import { checkCommand } from "./commands/check.js";
 import {
   usageCommand,
   usageRecordCommand,
@@ -49,6 +50,7 @@ export function createProgram(): Command {
     .option("--dry-run", "preview without writing sessions, skills, state, or mirrors")
     .option("--full", "re-scrape all session history instead of using incremental cursors")
     .option("--force", "reprocess sessions/clusters already seen")
+    .option("--local", "mine locally without sending transcripts to an LLM; do not synthesize skills")
     .option("-p, --project <slug>", "only tailor from one project slug")
     .option("--max <n>", "max new skills to create (default 3)", (v) => parseInt(v, 10))
     .action(
@@ -61,6 +63,7 @@ export function createProgram(): Command {
           force?: boolean;
           project?: string;
           max?: number;
+          local?: boolean;
         }
       ) => {
         await tailorCommand(text ?? [], options);
@@ -92,6 +95,23 @@ export function createProgram(): Command {
     .description("list current skills with short descriptions")
     .action(async () => {
       await listCommand();
+    });
+
+  program
+    .command("show <skill>")
+    .description("print one canonical SKILL.md for inspection or agent use")
+    .option("--json", "print parsed skill content as JSON")
+    .option("--path", "print only the canonical SKILL.md path")
+    .action(async (skill: string, options: { json?: boolean; path?: boolean }) => {
+      await showCommand(skill, options);
+    });
+
+  program
+    .command("check [skill]")
+    .description("validate canonical skills and flag discovery or context-quality issues")
+    .option("--json", "print a machine-readable report")
+    .action(async (skill: string | undefined, options: { json?: boolean }) => {
+      await checkCommand(skill, options);
     });
 
   program
@@ -173,10 +193,20 @@ export function createProgram(): Command {
     });
 
   program
+    .command("add [source]")
+    .description("add a complete skill directory/file, or read SKILL.md from stdin")
+    .option("--stdin", "read a complete SKILL.md from stdin")
+    .action(async (source: string | undefined, options: { stdin?: boolean }) => {
+      await addCommand(source, options);
+    });
+
+  program
     .command("edit <skill>")
-    .description("open a canonical skill in $VISUAL or $EDITOR, then mirror changes")
-    .action(async (skill: string) => {
-      await editCommand(skill);
+    .description("edit interactively, replace SKILL.md from stdin, or replace a complete skill from source")
+    .option("--stdin", "read a complete replacement SKILL.md from stdin")
+    .option("--source <path>", "replace from a complete skill directory or SKILL.md file")
+    .action(async (skill: string, options: { stdin?: boolean; source?: string }) => {
+      await editCommand(skill, options);
     });
 
   program
