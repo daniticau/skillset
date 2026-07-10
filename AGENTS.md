@@ -14,8 +14,10 @@ See `VISION.md` for the full north star.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
 - **Session scraping**: reads Claude Code and Codex transcripts into `~/.skillset/sessions/` as mining input.
 - **Tailoring pipeline**: `sks tailor` scrapes sessions, mines nuggets, clusters/ranks them, asks the LLM to create/edit skills, and mirrors changes.
+- **Local review path**: `sks tailor --local` scrapes and ranks candidates without LLM transcript export or skill synthesis; agents can then use deterministic CLI management.
 - **Dream loop**: `sks dream` installs a macOS LaunchAgent for nightly scraping, focused tailoring, skill tuning, mirroring, git audit, and reviewed-day tracking.
 - **Explicit capture**: `sks tailor --stdin` or `sks tailor "<rule>"` turns a direct instruction into a user-owned skill.
+- **Agent-safe management**: `sks show`, `sks check`, `sks add`, and `sks edit --stdin` let Claude Code or Codex manage canonical skills without direct mirror edits or an interactive editor.
 
 No draft/promote flow. Generated skills write directly to canonical and then mirror.
 
@@ -52,10 +54,13 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `sks tailor [text...]` - learn from history or capture explicit text/stdin as a skill.
 - `sks dream [--at HH:MM|--status|--off|--run-now]` - manage the macOS nightly improvement loop.
 - `sks list` - list current skills and descriptions.
+- `sks show <skill> [--json|--path]` - inspect one canonical skill.
+- `sks check [skill] [--json]` - validate skill structure, triggering metadata, and context size.
 - `sks status` - show connected mirrors and skill state.
 - `sks connect <agent> [--path <path>]` - connect/import/mirror an agent.
 - `sks disconnect <agent> [--path <path>]` - disconnect without deleting mirror files.
-- `sks edit <skill>` - edit canonical skill via `$VISUAL`/`$EDITOR`, validate, mirror.
+- `sks add [source] [--stdin]` - add a complete skill directory/file or piped `SKILL.md`.
+- `sks edit <skill> [--stdin|--source <path>]` - edit interactively or replace a SKILL.md/full skill directory, validate, mirror.
 - `sks remove <skill>` - delete canonical skill and prune mirrors.
 - `sks doctor [--repair]` - inspect health; `--repair` reconciles mirrors.
 

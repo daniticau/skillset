@@ -74,6 +74,12 @@ const NOISE_PATTERNS = [
   /^\[Request interrupted/,
   /^\[System\]/,
   /^<system-reminder>/,
+  /^<environment_context>/i,
+  /^<recommended_plugins>/i,
+  /^<INSTRUCTIONS>/i,
+  /^# (?:AGENTS|CLAUDE)\.md instructions\b/i,
+  /^Base directory for this skill:/i,
+  /^You are Codex\b/i,
 ];
 
 /** Minimum message length to consider for signal (filters out "ok", "yes", etc). */
@@ -230,7 +236,9 @@ function extractCorrections(session: ParsedSession, now: Date): Nugget[] {
     idPrefix: "correction",
     patterns: CORRECTION_PATTERNS,
     confidence: 0.7,
-    maxInputLength: MAX_SIGNAL_LENGTH * 2,
+    // Long product briefs often contain an incidental "don't add/use" clause
+    // but are task specifications, not durable personalization signals.
+    maxInputLength: MAX_SIGNAL_LENGTH,
     allowRejectionToolResults: true,
     context: (messages, index) => findPreviousAssistant(messages, index)?.text.slice(0, 200),
   });
@@ -296,7 +304,7 @@ function extractPreferences(session: ParsedSession, now: Date): Nugget[] {
     idPrefix: "preference",
     patterns: PREFERENCE_PATTERNS,
     confidence: 0.8,
-    maxInputLength: MAX_SIGNAL_LENGTH * 2,
+    maxInputLength: MAX_SIGNAL_LENGTH,
   });
 }
 

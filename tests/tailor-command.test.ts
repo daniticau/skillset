@@ -10,6 +10,16 @@ const SKILLS = join(STORE, "skills");
 
 const mocks = vi.hoisted(() => ({
   chat: vi.fn(),
+  mine: vi.fn(),
+  make: vi.fn(),
+}));
+
+vi.mock("../src/commands/mine.js", () => ({
+  mineCommand: mocks.mine,
+}));
+
+vi.mock("../src/commands/make.js", () => ({
+  makeCommand: mocks.make,
 }));
 
 vi.mock("../src/core/paths.js", () => ({
@@ -47,6 +57,8 @@ beforeEach(async () => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   mocks.chat.mockReset();
+  mocks.mine.mockReset();
+  mocks.make.mockReset();
   mocks.chat
     .mockResolvedValueOnce({
       content: JSON.stringify({
@@ -75,6 +87,22 @@ describe("tailorCommand explicit capture", () => {
     expect(readFileSync(skillPath, "utf8")).toContain("tier: low");
     expect(readFileSync(skillPath, "utf8")).toContain("origin: user-created");
     expect(existsSync(join(STORE, "drafts"))).toBe(false);
+  });
+
+  it("keeps local history review out of LLM synthesis", async () => {
+    const tty = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
+    try {
+      await tailorCommand([], { local: true, full: true, force: true });
+    } finally {
+      Object.defineProperty(process.stdin, "isTTY", { value: tty, configurable: true });
+    }
+
+    expect(mocks.mine).toHaveBeenCalledWith(
+      expect.objectContaining({ llm: false, fullScrape: true, force: true })
+    );
+    expect(mocks.make).not.toHaveBeenCalled();
+    expect(mocks.chat).not.toHaveBeenCalled();
   });
 
   it("dry-run leaves canonical and drafts untouched", async () => {

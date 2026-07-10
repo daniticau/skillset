@@ -117,6 +117,38 @@ describe("extractSignal", () => {
     expect(withSystemText.length).toBe(0);
   });
 
+  it("filters injected repo and skill context that transcript readers label as user text", () => {
+    const session = makeSession("s1", "C--proj", [
+      {
+        role: "user",
+        text: "# AGENTS.md instructions for /tmp/project\nAlways use npm and don't use pnpm.",
+      },
+      {
+        role: "user",
+        text: "Base directory for this skill: /tmp/skill\nAlways use the bundled SDK.",
+      },
+      {
+        role: "user",
+        text: "<environment_context>don't change anything in this environment</environment_context>",
+      },
+    ]);
+
+    const { nuggets } = extractSignal([session]);
+
+    expect(nuggets.filter((n) => n.category !== "topic")).toHaveLength(0);
+  });
+
+  it("does not treat long one-off product briefs as durable corrections", () => {
+    const longBrief = `${"Design a garden mapping application with camera scanning and plant care details. ".repeat(12)} don't add social sharing yet.`;
+    const session = makeSession("s1", "C--proj", [
+      { role: "user", text: longBrief },
+    ]);
+
+    const { nuggets } = extractSignal([session]);
+
+    expect(nuggets.filter((n) => n.category === "correction")).toHaveLength(0);
+  });
+
   it("filters out very short messages", () => {
     const session = makeSession("s1", "C--proj", [
       { role: "user", text: "don't" }, // too short

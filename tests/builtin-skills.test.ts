@@ -19,7 +19,7 @@ vi.mock("../src/core/paths.js", () => ({
 }));
 
 const { parseSkillMd } = await import("../src/core/skill.js");
-const { ensureBuiltinSkills, SKILL_THIS_NAME } = await import("../src/core/builtin-skills.js");
+const { ensureBuiltinSkills, SKILL_THIS_NAME, SKILLSET_CLI_NAME } = await import("../src/core/builtin-skills.js");
 
 beforeEach(() => {
   rmSync(ROOT, { recursive: true, force: true });
@@ -33,7 +33,7 @@ afterAll(() => {
 describe("built-in skills", () => {
   it("installs the skill-this trigger skill into the canonical store", async () => {
     const installed = await ensureBuiltinSkills();
-    expect(installed.map((s) => s.name)).toEqual([SKILL_THIS_NAME]);
+    expect(installed.map((s) => s.name)).toEqual([SKILL_THIS_NAME, SKILLSET_CLI_NAME]);
 
     const raw = readFileSync(join(SKILLS, SKILL_THIS_NAME, "SKILL.md"), "utf8");
     const parsed = parseSkillMd(raw);
@@ -43,6 +43,11 @@ describe("built-in skills", () => {
       origin: "user-created",
     });
     expect(parsed.body).toContain("sks tailor --stdin");
+
+    const cliRaw = readFileSync(join(SKILLS, SKILLSET_CLI_NAME, "SKILL.md"), "utf8");
+    const cliSkill = parseSkillMd(cliRaw);
+    expect(cliSkill.frontmatter.description).toContain("Claude Code or Codex");
+    expect(cliSkill.body).toContain("sks edit <skill> --stdin");
   });
 
   it("does not overwrite an existing user copy", async () => {
@@ -54,7 +59,7 @@ describe("built-in skills", () => {
     );
 
     const installed = await ensureBuiltinSkills();
-    expect(installed).toEqual([]);
+    expect(installed.map((s) => s.name)).toEqual([SKILLSET_CLI_NAME]);
     expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toContain("custom body");
   });
 });

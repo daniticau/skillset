@@ -176,14 +176,33 @@ async function sectionStore(): Promise<void> {
 async function sectionMirrors(): Promise<void> {
   console.log(pc.bold("Mirrors"));
   const config = await readConfig();
+  const canonical = new Set(
+    existsSync(STORE_SKILLS_DIR) ? (await listSkillDirs(STORE_SKILLS_DIR)).map((dir) => dir.split("/").pop()!) : []
+  );
   if (config.links.length === 0) {
     console.log(pc.dim(`  (none connected — run ${pc.bold("sks init")} or ${pc.bold("sks connect <agent>")})`));
   } else {
     for (const link of config.links) {
       const exists = existsSync(link.path);
       const mirror = await describeMirror(link);
+      let drift = "";
+      try {
+        const adapter = getAdapter(link.agent);
+        if (adapter.listMirrorSkills) {
+          const mirrorNames = new Set(await adapter.listMirrorSkills(link.path));
+          const pendingImports = [...mirrorNames].filter((name) => !canonical.has(name)).length;
+          const missing = [...canonical].filter((name) => !mirrorNames.has(name)).length;
+          const bits = [
+            pendingImports > 0 ? `${pendingImports} pending import${pendingImports === 1 ? "" : "s"}` : "",
+            missing > 0 ? `${missing} missing` : "",
+          ].filter(Boolean);
+          if (bits.length > 0) drift = ` ${pc.yellow(`[${bits.join(", ")}]`)}`;
+        }
+      } catch {
+        // The basic mirror health line still provides useful diagnostics.
+      }
       console.log(
-        `  ${exists ? OK : ERR} ${pc.bold(mirror.name)} ${pc.dim(link.path)} ${pc.dim(`(${mirror.detail})`)}`
+        `  ${exists ? OK : ERR} ${pc.bold(mirror.name)} ${pc.dim(link.path)} ${pc.dim(`(${mirror.detail})`)}${drift}`
       );
     }
   }

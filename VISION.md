@@ -22,6 +22,8 @@ sks tailor
 
 `tailor` scrapes past sessions, mines corrections and preferences, clusters recurring signals, asks an LLM whether each signal should edit an existing skill or create a new one, writes the result directly to canonical, and mirrors it automatically. There is no draft/promote ceremony. `--dry-run` is the preview escape hatch.
 
+When transcript contents must stay on the machine, `sks tailor --local` performs local scraping, heuristic extraction, and candidate ranking without LLM synthesis. Claude Code or Codex can then inspect the ranked signals and apply only durable changes through `sks add` or `sks edit --stdin/--source`.
+
 ```sh
 sks dream
 ```
@@ -42,6 +44,8 @@ The skills themselves live in a canonical store that you own. Claude and Codex a
 
 **When something looks off.** Run `sks doctor --repair`. It reconciles canonical and connected mirrors, promotes mirror-side edits, archives conflicts, and mirrors the repaired store.
 
+**When an agent manages the library.** It uses `sks show`, `sks check`, `sks add`, or `sks edit --stdin` so changes go through canonical validation and automatic mirroring without opening an interactive editor or touching a mirror directly.
+
 ## Who It's For
 
 Right now: people who work with coding agents enough that the friction compounds. People who notice they keep repeating themselves. People who switch between agent tools and resent starting over each time.
@@ -56,7 +60,7 @@ The agents I work with in six months know things about how I work that I never h
 
 **Your personalization is yours.** It should live on your disk, in a git-backed store you control. Any agent that wants access is a mirror, not an owner.
 
-**The public surface is small.** `init`, `tailor`, `dream`, `list`, `status`, `connect`, `disconnect`, `edit`, `remove`, `doctor`.
+**The public surface is agent-operable.** The CLI provides non-interactive inspection, validation, capture, addition, and editing while keeping canonical ownership and automatic mirroring intact.
 
 **User edits are sacred.** If you edit a skill directly in a mirror, that edit gets promoted back to canonical. The system never silently overwrites something you changed by hand.
 

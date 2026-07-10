@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Skillset",
     "shortDescription": "Teach Codex when to use your portable skill store.",
-    "longDescription": "Skillset keeps reusable agent preferences in a canonical store and mirrors them into connected coding agents. This plugin routes Codex to the existing sks CLI for capture, tailoring, inspection, and repair.",
+    "longDescription": "Skillset keeps reusable agent preferences in a canonical store and mirrors them into connected coding agents. This plugin routes Codex to the sks CLI for capture, local history review, validation, non-interactive editing, and mirror repair.",
     "developerName": "Daniel Ticau",
     "category": "Productivity",
     "capabilities": [
@@ -30,6 +30,7 @@
     "defaultPrompt": [
       "Remember this as a reusable skill.",
       "Tailor my skills from recent sessions.",
+      "Validate and improve my skill library.",
       "Check my Skillset mirrors."
     ],
     "brandColor": "#0F766E"
