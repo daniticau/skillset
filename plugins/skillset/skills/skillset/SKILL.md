@@ -5,7 +5,7 @@ description: Use Skillset when the user asks to capture, tailor, catalog, inspec
 
 # Skillset
 
-Skillset is the user's portable personalization layer for coding agents. It owns the canonical skill store at `~/.skillset/skills/` and mirrors that store into Claude (`~/.claude/skills`) and Codex Desktop (`~/.codex/skills`).
+Skillset is the user's portable personalization layer for coding agents. It owns one canonical skill store at `~/.skillset/skills/` and mirrors every skill into every connected harness, including Claude (`~/.claude/skills`), Codex (`~/.codex/skills`), Kimi Code (`~/.kimi-code/skills`), and Grok CLI (`~/.grok/skills`).
 
 Use this skill when the user asks to:
 
@@ -48,23 +48,23 @@ For exact agent-authored skill management, inspect before changing anything:
 
 ```sh
 sks show <skill> --json
-sks add ./path/to/skill
-sks add --stdin < ./SKILL.md
-sks edit <skill> --stdin < ./SKILL.md
-sks edit <skill> --source ./path/to/revised-skill
+sks add ./path/to/skill --managed
+sks add --stdin --managed < ./SKILL.md
+sks edit <skill> --stdin --managed < ./SKILL.md
+sks edit <skill> --source ./path/to/revised-skill --managed
 sks check <skill>
 ```
 
-`add` and `edit --source` accept complete skill directories so scripts, references, and assets remain attached. `edit --stdin` expects a complete replacement `SKILL.md`. Both edit paths validate, preserve ownership metadata, and mirror the result.
+`add` and `edit --source` accept complete skill directories so scripts, references, and assets remain attached. `--managed` marks agent-created work as eligible for later tuning; omit it for a deliberately user-owned/manual skill. Every mutation validates and mirrors the result.
 
 Use `sks doctor --repair` only when the user asks to repair or reconcile mirror state.
 
 ## Guardrails
 
-- Do not hand-edit mirrored Codex skills when the user's intent is to preserve a reusable Skillset preference.
+- Do not hand-edit individual harness mirrors when the user's intent is to preserve a reusable Skillset preference.
 - Do not bypass `~/.skillset/skills/`; it is the source of truth.
 - Inspect an existing skill before editing it, and use `sks check` after direct additions or edits.
 - Do not remove a skill unless the user explicitly asked to remove it.
-- Do not route Skillset work through Cursor or other editor-specific skill stores; this project supports Claude and Codex Desktop.
+- Do not create per-model variants of a Skillset skill. A connected harness receives the shared canonical version.
 - Do not capture one-off task details unless the user clearly wants them preserved for future sessions.
 - After a mutating Skillset command finishes, tell the user whether Skillset created, updated, skipped, mirrored, or repaired anything.

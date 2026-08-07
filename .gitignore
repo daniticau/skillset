@@ -4,7 +4,10 @@ node_modules/
 
 # Build and test output
 dist/
+dist-app/
 dist-site/
+desktop/.build/
+desktop/build/
 coverage/
 .vitest/
 *.tsbuildinfo

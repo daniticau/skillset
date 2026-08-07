@@ -9,16 +9,11 @@ import { connectCommand, disconnectCommand } from "./commands/link.js";
 import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
 import { catalogCommand } from "./commands/catalog.js";
-import { tailorCommand } from "./commands/tailor.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { addCommand, editCommand, removeCommand, showCommand } from "./commands/manage.js";
-import { dreamCommand } from "./commands/dream.js";
 import { checkCommand } from "./commands/check.js";
-import {
-  usageCommand,
-  usageRecordCommand,
-  usageScanCommand,
-} from "./commands/usage.js";
+import { buildCommand } from "./commands/build.js";
+import { desktopSnapshotCommand } from "./commands/desktop.js";
 
 // Load ~/.skillset/.env before any command reads process.env.
 loadEnv();
@@ -28,8 +23,8 @@ export function createProgram(): Command {
 
   program
     .name("sks")
-    .description("portable personalization layer for coding agents")
-    .version("0.1.1");
+    .description("one canonical skill library, mirrored into every coding agent")
+    .version("0.2.0");
 
   program
     .command("init")
@@ -44,51 +39,27 @@ export function createProgram(): Command {
     });
 
   program
-    .command("tailor [text...]")
-    .description("learn from past sessions, or turn explicit text/stdin into a skill")
-    .option("--stdin", "read an explicit tailoring instruction from stdin")
-    .option("--dry-run", "preview without writing sessions, skills, state, or mirrors")
-    .option("--full", "re-scrape all session history instead of using incremental cursors")
-    .option("--force", "reprocess sessions/clusters already seen")
-    .option("--local", "mine locally without sending transcripts to an LLM; do not synthesize skills")
-    .option("-p, --project <slug>", "only tailor from one project slug")
-    .option("--max <n>", "max new skills to create (default 3)", (v) => parseInt(v, 10))
+    .command("build [idea...]")
+    .description("decompose an idea into the smallest reusable skills and install them")
+    .option("--stdin", "read the idea from stdin")
+    .option("--json", "print the proposal as JSON without writing")
+    .option("-y, --yes", "install without confirmation")
+    .option("--dry-run", "show the proposal without writing")
+    .option("--from-json", "install an already-reviewed proposal read as JSON from stdin")
     .action(
       async (
-        text: string[],
+        idea: string[],
         options: {
           stdin?: boolean;
+          json?: boolean;
+          yes?: boolean;
           dryRun?: boolean;
-          full?: boolean;
-          force?: boolean;
-          project?: string;
-          max?: number;
-          local?: boolean;
+          fromJson?: boolean;
         }
       ) => {
-        await tailorCommand(text ?? [], options);
+        await buildCommand(idea ?? [], options);
       }
     );
-
-  program
-    .command("dream")
-    .description("set up or run the macOS nightly skill improvement loop")
-    .option("--at <HH:MM>", "install or update the nightly LaunchAgent time", "02:00")
-    .option("--status", "show dream schedule and reviewed days")
-    .option("--off", "disable the dream LaunchAgent")
-    .option("--run-now", "run the nightly improvement immediately")
-    .option("--scheduled", "mark this invocation as launched by the scheduler")
-    .option("--force", "run even if today was already reviewed")
-    .action(async (options: {
-      at?: string;
-      status?: boolean;
-      off?: boolean;
-      runNow?: boolean;
-      scheduled?: boolean;
-      force?: boolean;
-    }) => {
-      await dreamCommand(options);
-    });
 
   program
     .command("list")
@@ -116,7 +87,7 @@ export function createProgram(): Command {
 
   program
     .command("catalog")
-    .description("show canonical skills grouped by likely use case")
+    .description("show canonical skills grouped by kind")
     .action(async () => {
       await catalogCommand();
     });
@@ -124,61 +95,13 @@ export function createProgram(): Command {
   program
     .command("status")
     .description("show connected mirrors and skill state")
-    .option("--usage", "show observed usage counts and last-used dates")
-    .action(async (options: { usage?: boolean }) => {
-      await statusCommand(options);
+    .action(async () => {
+      await statusCommand();
     });
-
-  const usage = program
-    .command("usage")
-    .description("show or record observed skill usage")
-    .argument("[skill]", "show observed usage timeline for one skill")
-    .action(async (skill?: string) => {
-      await usageCommand(skill);
-    });
-
-  usage
-    .command("scan")
-    .description("infer skill usage from scraped sessions")
-    .option("--scrape", "scrape transcripts before scanning for usage")
-    .option("--full-scrape", "when scraping first, re-scrape all session history")
-    .option("--force", "rescan sessions already seen")
-    .option("-p, --project <slug>", "only scan one project slug")
-    .action(
-      async (options: {
-        scrape?: boolean;
-        fullScrape?: boolean;
-        force?: boolean;
-        project?: string;
-      }) => {
-        await usageScanCommand(options);
-      }
-    );
-
-  usage
-    .command("record <skill>")
-    .description("record a high-confidence observed skill use")
-    .option("--agent <agent>", "agent that used the skill")
-    .option("--at <date>", "usage time; any date string accepted by JavaScript Date")
-    .option("-p, --project <slug>", "project associated with the usage")
-    .option("--evidence <text>", "short evidence or note for the usage")
-    .action(
-      async (
-        skill: string,
-        options: {
-          agent?: string;
-          at?: string;
-          project?: string;
-          evidence?: string;
-        }
-      ) => {
-        await usageRecordCommand(skill, options);
-      }
-    );
 
   program
     .command("connect <agent>")
-    .description("connect an agent mirror (claude-code | codex)")
+    .description("connect a shared-skill mirror (claude-code | codex | kimi-code | grok)")
     .option("-p, --path <path>", "override the default mirror path")
     .action(async (agent: string, options: { path?: string }) => {
       await connectCommand(agent, options);
@@ -202,7 +125,7 @@ export function createProgram(): Command {
 
   program
     .command("edit <skill>")
-    .description("edit interactively, replace SKILL.md from stdin, or replace a complete skill from source")
+    .description("edit interactively, replace SKILL.md from stdin, or replace from a source path")
     .option("--stdin", "read a complete replacement SKILL.md from stdin")
     .option("--source <path>", "replace from a complete skill directory or SKILL.md file")
     .action(async (skill: string, options: { stdin?: boolean; source?: string }) => {
@@ -212,17 +135,29 @@ export function createProgram(): Command {
   program
     .command("remove <skill>")
     .description("remove a canonical skill and prune it from connected mirrors")
-    .action(async (skill: string) => {
-      await removeCommand(skill);
+    .option("--block", "also never adopt this skill back from a mirror")
+    .action(async (skill: string, options: { block?: boolean }) => {
+      await removeCommand(skill, options);
     });
 
   program
     .command("doctor")
-    .description("check store health, LLM connectivity, mirror state, and session data")
+    .description("check store health, LLM connectivity, and mirror state")
     .option("-v, --verbose", "show extra detail")
     .option("--repair", "reconcile canonical skills with connected mirrors")
     .action(async (options: { verbose?: boolean; repair?: boolean }) => {
       await doctorCommand(options);
+    });
+
+  const desktop = program
+    .command("desktop")
+    .description("machine-readable backend for the native Skillset desktop app");
+
+  desktop
+    .command("snapshot")
+    .description("print connections and the skill library as JSON")
+    .action(async () => {
+      await desktopSnapshotCommand();
     });
 
   return program;

@@ -20,6 +20,8 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: CLAUDE_MIRROR,
   DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
+  DEFAULT_KIMI_SKILLS_DIR: join(TEST_ROOT, "kimi-mirror"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(TEST_ROOT, "cursor"),
   LEGACY_CODEX_SKILLS_DIR: join(TEST_ROOT, "legacy-codex-skills"),
 }));
 
@@ -46,6 +48,7 @@ vi.mock("../src/mine/index.js", () => ({
     bySource: {
       "claude-code": { sessions: 0, bytes: 0 },
       codex: { sessions: 0, bytes: 0 },
+      "kimi-code": { sessions: 0, bytes: 0 },
     },
   }),
 }));
@@ -79,7 +82,7 @@ describe("doctorCommand", () => {
         { agent: "codex", path: CODEX_MIRROR },
       ],
     });
-    await writeState({ version: 2, skills: {}, reviewedDates: {} });
+    await writeState({ version: 2, skills: {} });
   });
 
   afterEach(() => {
@@ -113,6 +116,7 @@ describe("doctorCommand", () => {
   it("labels each LLM provider accurately", () => {
     expect(llmProviderLabel("claude-cli")).toBe("Claude CLI");
     expect(llmProviderLabel("codex-cli")).toBe("Codex CLI");
+    expect(llmProviderLabel("kimi-cli")).toBe("Kimi CLI");
     expect(llmProviderLabel("anthropic")).toBe("Anthropic API");
     expect(llmProviderLabel("ollama")).toBe("local Ollama");
   });

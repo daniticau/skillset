@@ -38,7 +38,7 @@ After the command finishes, tell the user whether Skillset edited an existing sk
 
 const SKILLSET_CLI_BODY = `# Manage Skills with Skillset
 
-Use the \`sks\` CLI so canonical skills stay synchronized across Claude Code and Codex.
+Use the \`sks\` CLI so every canonical skill stays synchronized across every connected harness.
 
 ## Inspect
 
@@ -57,8 +57,8 @@ Use \`sks catalog\` when categories, ownership, tiers, or usage history help dec
 ## Capture or Improve
 
 - For a natural-language correction, preference, or workflow, pass a self-contained instruction to \`sks tailor --stdin\`.
-- For a complete new skill directory or \`SKILL.md\`, use \`sks add <path>\` or pipe it to \`sks add --stdin\`.
-- For an exact non-interactive update, inspect first, then pipe a complete replacement to \`sks edit <skill> --stdin\`.
+- For a complete skill synthesized by an agent, use \`sks add --managed <path>\` or pipe it to \`sks add --stdin --managed\` so future agents can tune it.
+- For an exact agent-authored update to an auto-managed skill, inspect first, then use \`sks edit <skill> --stdin --managed\`.
 - When revising supporting files too, stage the complete skill directory and use \`sks edit <skill> --source <path>\`.
 - Use \`sks tailor\` with no text only when the user asks to learn from session history.
 - Use \`sks tailor --local\` when transcript contents must stay on the machine; review ranked candidates and apply only durable changes with deterministic add/edit commands.
@@ -68,7 +68,7 @@ Mutating commands reconcile and mirror automatically. Report whether Skillset ad
 
 ## Guardrails
 
-- Treat \`~/.skillset/skills/\` as canonical; never write directly to \`~/.claude/skills\` or \`~/.codex/skills\`.
+- Treat \`~/.skillset/skills/\` as canonical; never write directly to an individual harness mirror.
 - Preserve supporting \`scripts/\`, \`references/\`, and \`assets/\` when a skill uses them.
 - Do not remove a skill unless the user explicitly asked to remove it.
 - Use \`sks doctor --repair\` only when repair or reconciliation is intended.`;
@@ -120,8 +120,9 @@ export async function ensureBuiltinSkills(): Promise<Array<{ name: string; path:
 
   const skillsetCli = await ensureBuiltinSkill(
     SKILLSET_CLI_NAME,
-    "Use when Claude Code or Codex needs to inspect, validate, add, edit, tailor, repair, or otherwise manage the user's portable Skillset skill library through the sks CLI.",
-    SKILLSET_CLI_BODY
+    "Use when any connected coding harness needs to inspect, validate, add, edit, tailor, repair, or otherwise manage the user's shared Skillset library through the sks CLI.",
+    SKILLSET_CLI_BODY,
+    (current) => !current.includes("connected coding harness") || !current.includes("--managed")
   );
   if (skillsetCli) installed.push(skillsetCli);
   return installed;

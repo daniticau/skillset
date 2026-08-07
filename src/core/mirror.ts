@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -18,7 +18,8 @@ import {
 } from "./store.js";
 import { getAdapter } from "./adapters/index.js";
 import type { AgentAdapter } from "./adapters/index.js";
-import { CONFLICTS_DIR } from "./paths.js";
+import { CONFLICTS_DIR, STORE_SKILLS_DIR } from "./paths.js";
+import { appendHistoryEvent, sharedSkillAgents } from "./history.js";
 
 export type SyncAction =
   | { kind: "promoted"; skill: string; from: Link }
@@ -40,6 +41,13 @@ export interface SyncReport {
   actions: SyncAction[];
   skillCount: number;
   linkCount: number;
+  /**
+   * Skills that could not be reconciled this pass. Recorded rather than thrown:
+   * one unreadable skill, or one whose mirror points somewhere unwritable (a
+   * skill linked into a signed app bundle, say), must not abort the run and
+   * leave canonical mutated with state.json unwritten and mirrors half-done.
+   */
+  failures: Array<{ skill: string; error: string }>;
 }
 
 export interface SyncOptions {
@@ -57,6 +65,10 @@ function linkKey(link: Link): string {
   return `${link.agent}:${link.path}`;
 }
 
+function skillEnabledForLink(_state: SkillState | undefined, _link: Link): boolean {
+  return true;
+}
+
 function linkedAdapters(links: Link[]): Array<{ link: Link; adapter: AgentAdapter }> {
   const out: Array<{ link: Link; adapter: AgentAdapter }> = [];
   for (const link of links) {
@@ -67,6 +79,15 @@ function linkedAdapters(links: Link[]): Array<{ link: Link; adapter: AgentAdapte
     }
   }
   return out;
+}
+
+function aliasesCanonicalStore(path: string): boolean {
+  if (!existsSync(path) || !existsSync(STORE_SKILLS_DIR)) return false;
+  try {
+    return realpathSync(path) === realpathSync(STORE_SKILLS_DIR);
+  } catch {
+    return false;
+  }
 }
 
 function semanticHash(skill: ParsedSkill): string {
@@ -112,23 +133,65 @@ function mergeFrontmatter(
  * Reads the prior canonical frontmatter (if any) to preserve tier/license/origin
  * when the mirror format can't carry them.
  */
+async function readCanonicalFrontmatter(
+  name: string
+): Promise<SkillFrontmatter | null> {
+  const dir = storeSkillDir(name);
+  if (!existsSync(join(dir, "SKILL.md"))) return null;
+  try {
+    return (await readSkillMd(dir)).frontmatter;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `priorOverride` must be supplied by callers that overwrite the canonical
+ * directory before writing (the per-skill-dir copy paths). Reading prior
+ * frontmatter off disk after that copy would read back the mirror's own
+ * frontmatter, so canonical-only metadata such as tier would be lost.
+ */
 async function writeCanonicalSkillFile(
   skill: ParsedSkill,
-  fallbackOrigin: SkillOrigin
+  fallbackOrigin: SkillOrigin,
+  priorOverride?: SkillFrontmatter | null
 ): Promise<void> {
   const dir = storeSkillDir(skill.frontmatter.name);
   await mkdir(dir, { recursive: true });
-  let prior: SkillFrontmatter | null = null;
-  if (existsSync(join(dir, "SKILL.md"))) {
-    try {
-      const parsedPrior = await readSkillMd(dir);
-      prior = parsedPrior.frontmatter;
-    } catch {
-      prior = null;
-    }
-  }
+  const prior =
+    priorOverride !== undefined
+      ? priorOverride
+      : await readCanonicalFrontmatter(skill.frontmatter.name);
   const merged = mergeFrontmatter(skill.frontmatter, prior, fallbackOrigin);
   await writeFile(join(dir, "SKILL.md"), renderSkillMd(merged, skill.body), "utf8");
+}
+
+/**
+ * Promote a mirror-side edit into canonical.
+ *
+ * For per-skill-dir layouts the whole mirror directory is copied, not just
+ * SKILL.md: a skill can carry references, scripts, and assets, and the user may
+ * have added or changed those alongside the SKILL.md edit. Copying only
+ * SKILL.md would leave canonical stale, and the mirror would then be
+ * overwritten from canonical on the same pass — destroying the added files.
+ */
+async function promoteMirrorSkillToCanonical(
+  name: string,
+  link: Link,
+  adapter: AgentAdapter,
+  fallbackOrigin: SkillOrigin
+): Promise<ParsedSkill | null> {
+  const mirrorParsed = adapter.readMirrorSkill
+    ? await adapter.readMirrorSkill(name, link.path)
+    : null;
+  if (!mirrorParsed) return null;
+
+  const prior = await readCanonicalFrontmatter(name);
+  if (adapter.layout === "per-skill-dir") {
+    await copyDirReplace(join(link.path, name), storeSkillDir(name));
+  }
+  await writeCanonicalSkillFile(mirrorParsed, fallbackOrigin, prior);
+  return mirrorParsed;
 }
 
 async function replaceCanonicalWithSkill(
@@ -234,9 +297,10 @@ async function copyMirrorSourceToCanonical(
   fallbackOrigin: SkillOrigin
 ): Promise<void> {
   if (source.adapter.layout === "per-skill-dir") {
+    const prior = await readCanonicalFrontmatter(source.name);
     await copyDirReplace(join(source.link.path, source.name), storeSkillDir(source.name));
     const copied = await readSkillMd(storeSkillDir(source.name));
-    await writeCanonicalSkillFile(copied, fallbackOrigin);
+    await writeCanonicalSkillFile(copied, fallbackOrigin, prior);
     return;
   }
   await replaceCanonicalWithSkill(source.parsed, fallbackOrigin);
@@ -285,13 +349,14 @@ async function archiveImportLosers(
  * adopted; same-name conflicts choose newest mtime and archive losers.
  */
 async function importFromMirrors(
-  config: { links: Link[] },
+  config: { links: Link[]; ignore?: string[] },
   state: State,
   actions: SyncAction[],
   includeTracked: boolean
 ): Promise<Set<string>> {
   const groups = new Map<string, ImportSource[]>();
   const touched = new Set<string>();
+  const ignored = new Set(config.ignore ?? []);
 
   const add = (source: ImportSource) => {
     if (!includeTracked && state.skills[source.name]) return;
@@ -314,11 +379,24 @@ async function importFromMirrors(
   }
 
   for (const { link, adapter } of linkedAdapters(config.links)) {
+    // Some agents support pointing their native skill root directly at the
+    // canonical store. Treat that as a zero-copy mirror, not as an independent
+    // edit source, or every canonical write looks like a mirror-side edit.
+    if (aliasesCanonicalStore(link.path)) continue;
     if (adapter.layout === "aggregate-file") continue;
     if (!adapter.listMirrorSkills || !adapter.readMirrorSkill) continue;
     const mirrorNames = await adapter.listMirrorSkills(link.path);
+    // Skills the agent ships with belong to the vendor. They stay visible and
+    // untouched, but must never enter the shared library and be broadcast to
+    // every other agent.
+    const vendor = new Set(
+      adapter.vendorSkills ? await adapter.vendorSkills(link.path) : []
+    );
     for (const name of mirrorNames) {
       if (!includeTracked && state.skills[name]) continue;
+      // Never pull an ignored or vendor-provided skill into the shared library.
+      if (ignored.has(name) || vendor.has(name)) continue;
+      if (!skillEnabledForLink(state.skills[name], link)) continue;
       const parsed = await adapter.readMirrorSkill(name, link.path);
       if (!parsed) continue;
       const mtime = adapter.mirrorSkillMtimeMs
@@ -435,7 +513,8 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   const state = await readState();
   const actions: SyncAction[] = [];
   const links = linkedAdapters(config.links);
-  const activeLinkKeys = new Set(links.map(({ link }) => linkKey(link)));
+  const operationalLinks = links.filter(({ link }) => !aliasesCanonicalStore(link.path));
+  const activeLinkKeys = new Set(operationalLinks.map(({ link }) => linkKey(link)));
   let importTouchedSkills = new Set<string>();
 
   if (options.importExisting === true || options.adoptUntracked !== false) {
@@ -450,8 +529,10 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   const storeSkillNames = await listStoreSkills();
   const storeSkillNameSet = new Set(storeSkillNames);
   const aggregateParsedSkills: ParsedSkill[] = [];
+  const failures: SyncReport["failures"] = [];
 
   for (const name of storeSkillNames) {
+   try {
     const canonicalDir = storeSkillDir(name);
     // Single canonical read doubles as validation (throws on malformed SKILL.md)
     // and is reused below unless a promotion/conflict rewrites the file.
@@ -468,7 +549,11 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
     const current: SkillState = {
       ...prior,
       mirrorHashes: Object.fromEntries(
-        Object.entries(prior.mirrorHashes).filter(([key]) => activeLinkKeys.has(key))
+        Object.entries(prior.mirrorHashes).filter(([key]) => {
+          if (!activeLinkKeys.has(key)) return false;
+          const linked = operationalLinks.find(({ link }) => linkKey(link) === key);
+          return linked ? skillEnabledForLink(prior, linked.link) : false;
+        })
       ),
     };
 
@@ -484,7 +569,8 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
       mtime: number;
     }> = [];
     if (!importTouchedSkills.has(name)) {
-      for (const { link, adapter } of links) {
+      for (const { link, adapter } of operationalLinks) {
+        if (!skillEnabledForLink(current, link)) continue;
         if (adapter.layout === "aggregate-file") continue;
         if (!adapter.hashMirrorSkill) continue;
         const key = linkKey(link);
@@ -502,13 +588,15 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
     let canonicalRewritten = false;
     if (divergences.length === 1) {
       const { link, adapter } = divergences[0]!;
-      const mirrorParsed = adapter.readMirrorSkill
-        ? await adapter.readMirrorSkill(name, link.path)
-        : null;
+      // Preserve the prior origin — a user edit on an auto-created skill does
+      // NOT make it user-created; it sets userEdited=true instead.
+      const mirrorParsed = await promoteMirrorSkillToCanonical(
+        name,
+        link,
+        adapter,
+        prior.origin
+      );
       if (mirrorParsed) {
-        // Preserve the prior origin — a user edit on an auto-created skill does
-        // NOT make it user-created; it sets userEdited=true instead.
-        await writeCanonicalSkillFile(mirrorParsed, prior.origin);
         canonicalRewritten = true;
         current.userEdited = true;
         current.lastEditedAt = new Date().toISOString();
@@ -519,11 +607,13 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
       const winner = divergences[0]!;
       const losers = divergences.slice(1);
       const archive = await archiveLosers(name, losers, canonicalHashBefore, winner);
-      const winnerParsed = winner.adapter.readMirrorSkill
-        ? await winner.adapter.readMirrorSkill(name, winner.link.path)
-        : null;
+      const winnerParsed = await promoteMirrorSkillToCanonical(
+        name,
+        winner.link,
+        winner.adapter,
+        prior.origin
+      );
       if (winnerParsed) {
-        await writeCanonicalSkillFile(winnerParsed, prior.origin);
         canonicalRewritten = true;
         current.userEdited = true;
         current.lastEditedAt = new Date().toISOString();
@@ -552,7 +642,8 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
       canonicalParsed = await readSkillMd(canonicalDir);
     }
     aggregateParsedSkills.push(canonicalParsed);
-    for (const { link, adapter } of links) {
+    for (const { link, adapter } of operationalLinks) {
+      if (!skillEnabledForLink(current, link)) continue;
       if (adapter.layout === "aggregate-file") continue;
       if (!adapter.mirrorSkill || !adapter.hashMirrorSkill) continue;
       const key = linkKey(link);
@@ -573,24 +664,47 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
     }
 
     state.skills[name] = current;
+   } catch (err) {
+    // Isolate the failure to this skill so the remaining skills still
+    // reconcile and state.json is still written at the end of the pass.
+    failures.push({ skill: name, error: err instanceof Error ? err.message : String(err) });
+   }
   }
 
   // Aggregate-file layouts: rewrite once with the whole canonical set.
-  for (const { link, adapter } of links) {
+  for (const { link, adapter } of operationalLinks) {
     if (adapter.layout !== "aggregate-file" || !adapter.mirrorAll) continue;
-    await adapter.mirrorAll(aggregateParsedSkills, link.path);
-    for (const name of storeSkillNames) {
+    const enabledSkills = aggregateParsedSkills.filter((skill) =>
+      skillEnabledForLink(state.skills[skill.frontmatter.name], link)
+    );
+    await adapter.mirrorAll(enabledSkills, link.path);
+    for (const skill of enabledSkills) {
+      const name = skill.frontmatter.name;
       actions.push({ kind: "mirrored", skill: name, to: link });
     }
   }
 
   // Prune mirror-side skills no longer in canonical.
-  for (const { link, adapter } of links) {
+  //
+  // Only skills skillset actually wrote to this mirror are eligible. A skill the
+  // user installed into an agent's own skills dir (by hand, by symlink, or via a
+  // third-party installer) has no recorded mirror hash for this link, and
+  // deleting it would destroy something skillset never owned. Adoption, not
+  // deletion, is how those enter the shared library.
+  for (const { link, adapter } of operationalLinks) {
     if (adapter.layout === "aggregate-file") continue;
     if (!adapter.listMirrorSkills || !adapter.removeMirrorSkill) continue;
+    const key = linkKey(link);
     const mirrorNames = await adapter.listMirrorSkills(link.path);
+    const vendor = new Set(
+      adapter.vendorSkills ? await adapter.vendorSkills(link.path) : []
+    );
     for (const name of mirrorNames) {
-      if (storeSkillNameSet.has(name)) continue;
+      if (storeSkillNameSet.has(name) && skillEnabledForLink(state.skills[name], link)) continue;
+      // A vendor skill is never ours to delete, even if a stale hash claims it.
+      if (vendor.has(name)) continue;
+      const writtenByUs = state.skills[name]?.mirrorHashes?.[key] !== undefined;
+      if (!writtenByUs) continue;
       await adapter.removeMirrorSkill(name, link.path);
       actions.push({ kind: "removed-from-mirror", skill: name, link });
     }
@@ -603,10 +717,42 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
 
   await writeState(state);
 
+  for (const action of actions) {
+    if (action.kind === "promoted") {
+      await appendHistoryEvent({
+        kind: "promoted",
+        title: `${action.skill} promoted from ${getAdapter(action.from.agent).displayName}`,
+        detail: "A model-side edit became the canonical version and was reconciled everywhere active.",
+        skillNames: [action.skill],
+        agents: sharedSkillAgents(),
+        source: action.from.agent,
+      });
+    } else if (action.kind === "adopted") {
+      await appendHistoryEvent({
+        kind: "adopted",
+        title: `${action.skill} adopted`,
+        detail: `A new skill from ${getAdapter(action.from.agent).displayName} was added to the canonical library.`,
+        skillNames: [action.skill],
+        agents: sharedSkillAgents(),
+        source: action.from.agent,
+      });
+    } else if (action.kind === "conflict") {
+      await appendHistoryEvent({
+        kind: "conflict",
+        title: `${action.skill} conflict resolved`,
+        detail: "The newest model edit won; older versions were archived for recovery.",
+        skillNames: [action.skill],
+        agents: [...new Set([action.winner.agent, ...action.losers.map((link) => link.agent)])],
+        source: "reconciliation",
+      });
+    }
+  }
+
   return {
     actions,
     skillCount: storeSkillNames.length,
     linkCount: links.length,
+    failures,
   };
 }
 

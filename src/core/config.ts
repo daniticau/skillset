@@ -2,10 +2,9 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as paths from "./paths.js";
-import type { ScrapeCursors } from "../ingest/sessions/types.js";
 import type { SkillOrigin } from "./skill.js";
 
-export type AgentKind = "claude-code" | "codex";
+export type AgentKind = "claude-code" | "codex" | "kimi-code" | "grok" | "cursor";
 
 export interface Link {
   agent: AgentKind;
@@ -15,6 +14,16 @@ export interface Link {
 export interface Config {
   version: 1;
   links: Link[];
+  /**
+   * Skill names skillset must never adopt from a mirror.
+   *
+   * Agents ship and install their own skills into the same directories that
+   * skillset mirrors into. Without this, anything a vendor or third-party
+   * installer drops into one agent's skills dir gets adopted into the shared
+   * library and broadcast to every other agent. Ignored names stay where they
+   * are — untouched and un-propagated.
+   */
+  ignore?: string[];
 }
 
 export interface ConflictRecord {
@@ -26,7 +35,7 @@ export interface ConflictRecord {
   loserCount: number;
 }
 
-export type SkillCreatedBy = "deep-dive" | "nightly" | "make" | "cleanup" | "manual";
+export type SkillCreatedBy = "manual" | "agent";
 
 export interface SkillState {
   canonicalHash: string;
@@ -47,144 +56,9 @@ export interface SkillState {
   conflictHistory?: ConflictRecord[];
 }
 
-export type MineStage = "heuristic" | "llm-validated" | "embedded";
-
-export interface ProcessedSession {
-  fileHash: string;
-  processedAt: string;
-  stage: MineStage;
-  /** Skill names (canonical) this session contributed evidence to, when known. */
-  producedSkills?: string[];
-}
-
-export interface MineState {
-  pipelineVersion: number;
-  processedSessions: Record<string, ProcessedSession>;
-  lastRunAt?: string;
-}
-
-export type MakeAction = "edit" | "create" | "skip";
-
-export interface ProcessedCluster {
-  action: MakeAction;
-  targetSkill?: string;
-  processedAt: string;
-  reason?: string;
-}
-
-export interface MakeState {
-  pipelineVersion: number;
-  processedClusters: Record<string, ProcessedCluster>;
-  lastRunAt?: string;
-}
-
-export interface UsageProcessedSession {
-  fileHash: string;
-  scannedAt: string;
-}
-
-export interface UsageState {
-  processedSessions: Record<string, UsageProcessedSession>;
-  lastScanAt?: string;
-  /** Hash of canonical skill names at the last usage scan; changes trigger a rescan. */
-  skillSetHash?: string;
-}
-
-export type CycleKind = "deep-dive" | "nightly" | "cleanup";
-
-export type CheckpointStage =
-  | "init"
-  | "scraped"
-  | "heuristic-done"
-  | "llm-done"
-  | "clusters-done"
-  | "triaged"
-  | "synthesized"
-  | "committed"
-  | "complete";
-
-export interface CurrentCycle {
-  id: string;
-  kind: CycleKind;
-  startedAt: string;
-  stage: CheckpointStage;
-  /** Optional free-form progress payload for resuming. */
-  progress?: Record<string, unknown>;
-}
-
-export interface ReviewedDateRecord {
-  status: "started" | "completed" | "skipped" | "failed";
-  startedAt?: string;
-  finishedAt?: string;
-  cycleId?: string;
-  cyclesRan: number;
-  sessionsReviewed: number;
-  mistakeClusters: number;
-  preferenceClusters: number;
-  skillsCreated: number;
-  skillsEdited: number;
-  skillsProduced: number;
-  skillsMerged: number;
-  skillsPruned: number;
-  skipReason?: string;
-}
-
-export interface CycleDefaults {
-  newCap: number;
-  mistakeCap: number;
-  preferenceCap: number;
-  mergeCap: number;
-  pruneCap: number;
-  deepDiveCap: number;
-}
-
-export interface ScheduleConfig {
-  /** e.g. "02:00-06:00" */
-  window: string;
-  idleCpuPct: number;
-  idleInactivityMin: number;
-}
-
-export interface LlmPreferenceConfig {
-  providerPreference: string[];
-}
-
-export interface CleanupConfig {
-  /** v1 default false — prune candidates logged but not deleted until validated. */
-  pruneEnabled: boolean;
-}
-
-export interface CycleConfig {
-  cycleDefaults: CycleDefaults;
-  schedule: ScheduleConfig;
-  llm: LlmPreferenceConfig;
-  cleanup: CleanupConfig;
-}
-
-export const DEFAULT_CYCLE_CONFIG: CycleConfig = {
-  cycleDefaults: {
-    newCap: 3,
-    mistakeCap: 2,
-    preferenceCap: 2,
-    mergeCap: 3,
-    pruneCap: 3,
-    deepDiveCap: 10,
-  },
-  schedule: { window: "02:00-06:00", idleCpuPct: 30, idleInactivityMin: 5 },
-  llm: { providerPreference: ["claude-cli", "anthropic", "codex-cli", "ollama"] },
-  cleanup: { pruneEnabled: false },
-};
-
 export interface State {
   version: 2;
   skills: Record<string, SkillState>;
-  scrape?: ScrapeCursors;
-  mine?: MineState;
-  make?: MakeState;
-  usage?: UsageState;
-  reviewedDates?: Record<string, ReviewedDateRecord>;
-  currentCycle?: CurrentCycle;
-  config?: CycleConfig;
 }
 
 const DEFAULT_CONFIG: Config = { version: 1, links: [] };
@@ -222,42 +96,6 @@ function normalizeConfig(config: Config): { config: Config; changed: boolean } {
     config: changed ? { ...config, links: deduped } : config,
     changed,
   };
-}
-
-function migrateReviewedDates(raw: unknown): Record<string, ReviewedDateRecord> {
-  if (!raw || typeof raw !== "object") return {};
-  const out: Record<string, ReviewedDateRecord> = {};
-  for (const [day, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!value || typeof value !== "object") continue;
-    const v = value as Record<string, unknown>;
-    const status =
-      v.status === "started" ||
-      v.status === "completed" ||
-      v.status === "skipped" ||
-      v.status === "failed"
-        ? v.status
-        : "completed";
-    const num = (key: string) =>
-      typeof v[key] === "number" && Number.isFinite(v[key]) ? v[key] as number : 0;
-    const skillsCreated = num("skillsCreated") || num("skillsProduced");
-    out[day] = {
-      status,
-      startedAt: typeof v.startedAt === "string" ? v.startedAt : undefined,
-      finishedAt: typeof v.finishedAt === "string" ? v.finishedAt : undefined,
-      cycleId: typeof v.cycleId === "string" ? v.cycleId : undefined,
-      cyclesRan: num("cyclesRan"),
-      sessionsReviewed: num("sessionsReviewed"),
-      mistakeClusters: num("mistakeClusters"),
-      preferenceClusters: num("preferenceClusters"),
-      skillsCreated,
-      skillsEdited: num("skillsEdited"),
-      skillsProduced: num("skillsProduced") || skillsCreated,
-      skillsMerged: num("skillsMerged"),
-      skillsPruned: num("skillsPruned"),
-      skipReason: typeof v.skipReason === "string" ? v.skipReason : undefined,
-    };
-  }
-  return out;
 }
 
 async function readJson<T>(path: string, fallback: T): Promise<T> {
@@ -316,7 +154,8 @@ export function migrateState(raw: unknown): State {
       v.createdBy === "nightly" ||
       v.createdBy === "make" ||
       v.createdBy === "cleanup" ||
-      v.createdBy === "manual"
+      v.createdBy === "manual" ||
+      v.createdBy === "agent"
         ? (v.createdBy as SkillCreatedBy)
         : undefined;
     skills[name] = {
@@ -336,13 +175,6 @@ export function migrateState(raw: unknown): State {
   const base: State = {
     version: 2,
     skills,
-    scrape: data.scrape as ScrapeCursors | undefined,
-    mine: data.mine as MineState | undefined,
-    make: data.make as MakeState | undefined,
-    usage: data.usage as UsageState | undefined,
-    reviewedDates: migrateReviewedDates(data.reviewedDates),
-    currentCycle: data.currentCycle as CurrentCycle | undefined,
-    config: data.config as CycleConfig | undefined,
   };
   void version;
   return base;

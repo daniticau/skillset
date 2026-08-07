@@ -10,14 +10,15 @@ See `VISION.md` for the full north star.
 
 ## Current Scope
 
-- **Store + mirroring**: canonical `~/.skillset/skills/` is source of truth; connected mirrors are rewritten automatically after mutations.
+- **Store + mirroring**: canonical `~/.skillset/skills/` is source of truth; every canonical skill is rewritten to every connected mirror automatically after mutations.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
-- **Session scraping**: reads Claude Code and Codex transcripts into `~/.skillset/sessions/` as mining input.
+- **Session scraping**: reads Claude Code, Codex, and Kimi Code transcripts into `~/.skillset/sessions/` as mining input.
 - **Tailoring pipeline**: `sks tailor` scrapes sessions, mines nuggets, clusters/ranks them, asks the LLM to create/edit skills, and mirrors changes.
 - **Local review path**: `sks tailor --local` scrapes and ranks candidates without LLM transcript export or skill synthesis; agents can then use deterministic CLI management.
 - **Dream loop**: `sks dream` installs a macOS LaunchAgent for nightly scraping, focused tailoring, skill tuning, mirroring, git audit, and reviewed-day tracking.
 - **Explicit capture**: `sks tailor --stdin` or `sks tailor "<rule>"` turns a direct instruction into a user-owned skill.
-- **Agent-safe management**: `sks show`, `sks check`, `sks add`, and `sks edit --stdin` let Claude Code or Codex manage canonical skills without direct mirror edits or an interactive editor.
+- **Agent-safe management**: `sks show`, `sks check`, `sks add --managed`, and `sks edit --managed` let any connected harness manage canonical skills without direct mirror edits or an interactive editor.
+- **Native desktop companion**: compact SwiftUI app for mirror health, nightly reports, safe per-change undo, settings, and searchable skill inspection.
 
 No draft/promote flow. Generated skills write directly to canonical and then mirror.
 
@@ -30,6 +31,7 @@ No draft/promote flow. Generated skills write directly to canonical and then mir
   state.json          hashes, origins, user edits, conflict history
   sessions/           scraped transcript envelopes
   usage/events.jsonl  observed skill usage events
+  reports/            structured cycle reports and undo status
   conflicts/          archived losing versions from mirror conflicts
   .git                version history of the canonical store
 ```
@@ -47,6 +49,8 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `src/ingest/` - session readers and JSONL envelope writers.
 - `src/mine/` - extraction, clustering, LLM triage, synthesis, cleanup helpers.
 - `src/commands/` - public command wrappers.
+- `src/desktop/` - machine-readable snapshot backend for the native app.
+- `desktop/` - SwiftUI package, bundle metadata, and build/install scripts.
 
 ## Public CLI
 
@@ -57,10 +61,10 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `sks show <skill> [--json|--path]` - inspect one canonical skill.
 - `sks check [skill] [--json]` - validate skill structure, triggering metadata, and context size.
 - `sks status` - show connected mirrors and skill state.
-- `sks connect <agent> [--path <path>]` - connect/import/mirror an agent.
+- `sks connect <agent> [--path <path>]` - connect/import/mirror a harness; it receives the whole shared library.
 - `sks disconnect <agent> [--path <path>]` - disconnect without deleting mirror files.
-- `sks add [source] [--stdin]` - add a complete skill directory/file or piped `SKILL.md`.
-- `sks edit <skill> [--stdin|--source <path>]` - edit interactively or replace a SKILL.md/full skill directory, validate, mirror.
+- `sks add [source] [--stdin] [--managed]` - add a complete skill; agents use `--managed` so it remains tuneable.
+- `sks edit <skill> [--stdin|--source <path>] [--managed]` - edit or replace a skill; `--managed` preserves automation eligibility.
 - `sks remove <skill>` - delete canonical skill and prune mirrors.
 - `sks doctor [--repair]` - inspect health; `--repair` reconciles mirrors.
 
@@ -68,8 +72,9 @@ Internal modules for older flows may still exist while the codebase settles, but
 
 ## Design Principles
 
-- **User edits are sacred.** Mirror-side edits are promoted, never silently overwritten.
-- **Canonical owns delivery.** Mirrors are derived after reconciliation.
+- **Agent-created skills are first-class.** Managed additions and edits remain eligible for history-driven tuning.
+- **Manual edits remain safe.** Mirror-side edits are promoted, never silently overwritten.
+- **Canonical owns delivery.** Mirrors are derived after reconciliation, with no per-model skill routing.
 - **Automatic mirroring after mutations.** No user-facing `sync` command.
 - **macOS-only scheduling.** Recurring improvement is managed with LaunchAgents.
 - **No drafts.** New skills install directly with tier metadata.
@@ -92,3 +97,5 @@ All tiers install directly. Tier metadata is retained for conservative future cl
 - `pnpm build` - tsup bundles `src/cli.ts` to `dist/cli.js`
 - `pnpm test` - vitest
 - `pnpm typecheck`
+- `pnpm app:build` - build the signed repo-local app bundle.
+- `pnpm app:install` - install to `~/Applications` and open it.

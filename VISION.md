@@ -2,11 +2,13 @@
 
 ## What Is This?
 
-A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have in Claude and Codex, consolidates them into a store you own, and mirrors them back into those desktop app skill roots. When you ask it to tailor or dream nightly, it reads your past sessions, finds the friction you keep reliving, and writes small skills that make those agents better at you.
+A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have in Claude, Codex, and Kimi Code, consolidates them into a store you own, and mirrors them back into all three native skill roots. When you ask it to tailor or dream nightly, it reads their on-device session history, finds the friction you keep reliving, and writes small skills that make every agent better at you.
+
+Its compact native desktop companion makes that learning legible without becoming a second source of truth: connection health, the shared library, nightly explanations, and safe individual undo all sit on top of the same canonical CLI/store boundary.
 
 ## The Problem
 
-Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch between Claude and Codex and start from zero.
+Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch between Claude, Codex, and Kimi and start from zero.
 
 The agent learns only inside one harness, if it learns at all. Your personalization should not be trapped there.
 
@@ -22,7 +24,7 @@ sks tailor
 
 `tailor` scrapes past sessions, mines corrections and preferences, clusters recurring signals, asks an LLM whether each signal should edit an existing skill or create a new one, writes the result directly to canonical, and mirrors it automatically. There is no draft/promote ceremony. `--dry-run` is the preview escape hatch.
 
-When transcript contents must stay on the machine, `sks tailor --local` performs local scraping, heuristic extraction, and candidate ranking without LLM synthesis. Claude Code or Codex can then inspect the ranked signals and apply only durable changes through `sks add` or `sks edit --stdin/--source`.
+When transcript contents must stay on the machine, `sks tailor --local` performs local scraping, heuristic extraction, and candidate ranking without LLM synthesis. Claude Code, Codex, or Kimi can then inspect the ranked signals and apply durable changes through `sks add --managed` or `sks edit --managed`.
 
 ```sh
 sks dream
@@ -30,7 +32,7 @@ sks dream
 
 `dream` installs a macOS LaunchAgent that runs the same improvement loop nightly. Each run scrapes and mines new or changed sessions, balances agent-mistake and user-preference signals, tunes existing auto-created skills, mirrors changes, commits the canonical store, and records the reviewed or skipped day in `state.json`.
 
-The skills themselves live in a canonical store that you own. Claude and Codex are mirrors of that store. Edit a skill in either mirror and the change flows back to canonical before the next write, then out to the other app.
+The skills themselves live in a canonical store that you own. Claude, Codex, and Kimi are mirrors of that store. Native session records also feed a usage ledger, so Skillset can distinguish skills that are invoked from skills that merely exist.
 
 ## The User Loop
 
@@ -44,17 +46,17 @@ The skills themselves live in a canonical store that you own. Claude and Codex a
 
 **When something looks off.** Run `sks doctor --repair`. It reconciles canonical and connected mirrors, promotes mirror-side edits, archives conflicts, and mirrors the repaired store.
 
-**When an agent manages the library.** It uses `sks show`, `sks check`, `sks add`, or `sks edit --stdin` so changes go through canonical validation and automatic mirroring without opening an interactive editor or touching a mirror directly.
+**When an agent manages the library.** It uses `sks show`, `sks check`, `sks add --managed`, or `sks edit --managed` so changes go through canonical validation, stay eligible for future tuning, and mirror automatically.
 
 ## Who It's For
 
 Right now: people who work with coding agents enough that the friction compounds. People who notice they keep repeating themselves. People who switch between agent tools and resent starting over each time.
 
-Later: deeper Claude and Codex workflows whose agent history contains enough signal to become a useful personal operating manual.
+Later: deeper cross-agent workflows whose history contains enough signal to become a useful personal operating manual.
 
 ## What Success Looks Like
 
-The agents I work with in six months know things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Moving between Claude and Codex is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
+The agents I work with in six months know things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Moving between Claude, Codex, and Kimi is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
 
 ## Principles
 
@@ -62,7 +64,9 @@ The agents I work with in six months know things about how I work that I never h
 
 **The public surface is agent-operable.** The CLI provides non-interactive inspection, validation, capture, addition, and editing while keeping canonical ownership and automatic mirroring intact.
 
-**User edits are sacred.** If you edit a skill directly in a mirror, that edit gets promoted back to canonical. The system never silently overwrites something you changed by hand.
+**Agents are normal authors.** Agent-created skills are managed artifacts that later agents can tune as usage evidence changes.
+
+**Manual edits stay recoverable.** Mirror-side edits are promoted and conflicts are archived, but manual editing is a compatibility path rather than the center of the product.
 
 **Mirrors are automatic.** Commands that mutate canonical skills or connected mirrors reconcile and mirror as part of the command.
 

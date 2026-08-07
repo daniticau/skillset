@@ -17,6 +17,8 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
   DEFAULT_CODEX_SKILLS_DIR: MIRROR,
+  DEFAULT_KIMI_SKILLS_DIR: join(ROOT, "kimi-skills"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
 }));
 
 const { codexAdapter } = await import("../src/core/adapters/codex.js");

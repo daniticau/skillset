@@ -22,6 +22,8 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: STATE,
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, ".claude", "skills"),
   DEFAULT_CODEX_SKILLS_DIR: CODEX_SKILLS,
+  DEFAULT_KIMI_SKILLS_DIR: join(ROOT, ".kimi-code", "skills"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
   LEGACY_CODEX_SKILLS_DIR: LEGACY_CODEX_SKILLS,
 }));
 

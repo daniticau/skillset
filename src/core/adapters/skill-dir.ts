@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ParsedSkill } from "../skill.js";
-import { hashSkillDir, readSkillMd } from "../skill.js";
+import { hashSkillDir, isDirectoryFollowingLinks, readSkillMd } from "../skill.js";
 import { STORE_SKILLS_DIR } from "../paths.js";
 import { copyDirReplace } from "../store.js";
 
@@ -56,9 +56,12 @@ export async function listMirrorSkillDirs(targetRoot: string): Promise<string[]>
   const entries = await readdir(targetRoot, { withFileTypes: true });
   const out: string[] = [];
   for (const e of entries) {
-    if (e.isDirectory() && existsSync(join(targetRoot, e.name, "SKILL.md"))) {
-      out.push(e.name);
-    }
+    const abs = join(targetRoot, e.name);
+    // Symlinked skill dirs are a normal install method and must be visible here,
+    // otherwise they never reach the canonical store or the other agents.
+    if (!e.isDirectory() && !e.isSymbolicLink()) continue;
+    if (e.isSymbolicLink() && !(await isDirectoryFollowingLinks(abs))) continue;
+    if (existsSync(join(abs, "SKILL.md"))) out.push(e.name);
   }
   return out.sort();
 }
