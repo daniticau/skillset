@@ -16,6 +16,8 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
   DEFAULT_CODEX_SKILLS_DIR: join(ROOT, "codex-skills"),
+  DEFAULT_KIMI_SKILLS_DIR: join(ROOT, "kimi-skills"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
 }));
 
 const { parseSkillMd } = await import("../src/core/skill.js");
@@ -46,8 +48,9 @@ describe("built-in skills", () => {
 
     const cliRaw = readFileSync(join(SKILLS, SKILLSET_CLI_NAME, "SKILL.md"), "utf8");
     const cliSkill = parseSkillMd(cliRaw);
-    expect(cliSkill.frontmatter.description).toContain("Claude Code or Codex");
+    expect(cliSkill.frontmatter.description).toContain("connected coding harness");
     expect(cliSkill.body).toContain("sks edit <skill> --stdin");
+    expect(cliSkill.body).toContain("--managed");
   });
 
   it("does not overwrite an existing user copy", async () => {

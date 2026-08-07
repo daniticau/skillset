@@ -1,10 +1,10 @@
 # skillset
 
-A macOS personalization layer for coding agents. skillset keeps your reusable agent skills in a canonical store on disk, imports existing skills from the agent tools you already use, and mirrors the consolidated store back out automatically.
+A macOS personalization layer for coding agents. skillset keeps one reusable skill library on disk, imports existing skills from the agent tools you already use, and mirrors every canonical skill to every connected harness automatically.
 
 ## Why
 
-Every conversation with a coding agent contains signals about how you work: corrections, rejected plans, repeated preferences, tool choices, and workflows. skillset turns those signals into small `SKILL.md` files that follow you across Codex Desktop and Claude instead of staying trapped in one vendor's memory.
+Every conversation with a coding agent contains signals about how you work: corrections, rejected plans, repeated preferences, tool choices, and workflows. skillset turns those signals into small `SKILL.md` files that follow you across Claude Code, Codex, Kimi Code, and Grok CLI instead of staying trapped in one vendor's memory.
 
 ## What It Does
 
@@ -16,7 +16,27 @@ Every conversation with a coding agent contains signals about how you work: corr
 - **Dreams nightly** with `sks dream`: install a macOS LaunchAgent that incrementally reviews new sessions, learns from agent mistakes and user preferences, tunes existing skills, and records reviewed/skipped days.
 - **Captures explicit requests** with `sks tailor --stdin` or `sks tailor "prefer pnpm over npm"`.
 - **Gives agents safe CLI CRUD** with `sks show`, `sks add`, `sks edit --stdin`, and `sks check`, without requiring a human editor or direct mirror writes.
-- **Protects user edits** by promoting mirror-side edits back to canonical before rewriting mirrors.
+- **Audits real skill use** from native Claude, Codex, and Kimi session records, including Kimi's durable `skill_activation` events.
+- **Keeps manual edits safe** by promoting mirror-side edits before rewriting mirrors, while agent-created skills can opt into future tuning with `--managed`.
+- **Includes a compact native desktop app** for live connection health, nightly reports, per-fix undo, settings, and full-text skill search.
+
+## Desktop App
+
+Skillset includes a native SwiftUI companion designed to stay in a compact quarter-screen window. It reads the same canonical store and uses the CLI for every mutation, so undo still reconciles every connected harness instead of creating app-only state.
+
+```sh
+pnpm app:install
+```
+
+The app provides:
+
+- Live connection and mirror counts for every linked agent.
+- A searchable skill library with descriptions, bodies, tiers, origins, and observed usage.
+- Nightly reports explaining what was created, edited, merged, or pruned and why.
+- One-button undo for each individual nightly fix. Undo stops safely when a skill has newer work.
+- Nightly schedule, run-now, always-on-top, canonical-store, and refresh controls.
+
+The app installs to `~/Applications/Skillset.app`. For a repo-local build only, run `pnpm app:build`.
 
 ## Install
 
@@ -27,10 +47,14 @@ sks init
 
 `init` creates `~/.skillset`, detects supported coding agents, asks which stores to connect, imports their existing skills, and mirrors the consolidated store back out.
 
-Today Skillset intentionally supports the two desktop app skill roots:
+Today Skillset supports four first-class user skill roots:
 
 - Claude: `~/.claude/skills`
 - Codex: `~/.codex/skills`
+- Kimi Code: `~/.kimi-code/skills`
+- Grok CLI: `~/.grok/skills`
+
+Skills are never assigned to a model. Connecting a harness adds another mirror of the entire canonical library; disconnecting it stops future sync without deleting its files.
 
 Then run:
 
@@ -92,8 +116,8 @@ If Codex does not enable the plugin automatically, open `/plugins`, choose Skill
 | `sks usage record <skill>` | Manually record a high-confidence observed skill use. |
 | `sks connect <agent>` | Connect an agent mirror and import/consolidate its existing skills. |
 | `sks disconnect <agent>` | Disconnect an agent mirror without deleting its files. |
-| `sks add [source]` | Add a complete skill directory/file, or pipe `SKILL.md` with `--stdin`. |
-| `sks edit <skill>` | Edit interactively, replace `SKILL.md` with `--stdin`, or replace a complete skill directory with `--source`; validate and mirror. |
+| `sks add [source]` | Add a complete skill directory/file, or pipe `SKILL.md` with `--stdin`; agents use `--managed` for tuneable additions. |
+| `sks edit <skill>` | Edit interactively or replace with `--stdin`/`--source`; agents use `--managed` to avoid marking managed maintenance as a manual edit. |
 | `sks remove <skill>` | Delete a canonical skill and prune it from connected mirrors. |
 | `sks doctor` | Health check: store, LLM, mirrors, sessions, usage, and conflicts. |
 | `sks doctor --repair` | Reconcile canonical skills with connected mirrors and mirror the result. |
@@ -137,10 +161,10 @@ Agent-safe skill management:
 ```sh
 sks show my-skill --json
 sks check my-skill --json
-sks add ./my-skill
-sks add --stdin < ./SKILL.md
-sks edit my-skill --stdin < ./SKILL.md
-sks edit my-skill --source ./my-skill
+sks add ./my-skill --managed
+sks add --stdin --managed < ./SKILL.md
+sks edit my-skill --stdin --managed < ./SKILL.md
+sks edit my-skill --source ./my-skill --managed
 ```
 
 ## Architecture
@@ -152,13 +176,14 @@ sks edit my-skill --source ./my-skill
   state.json          hashes, origins, user edits, conflict history, reviewed days
   sessions/           JSONL envelope store of scraped transcripts
   usage/events.jsonl  append-only observed skill usage events
+  reports/            structured nightly reports and per-change undo state
   conflicts/          archived losing versions from mirror conflicts
   .git                version history of the canonical store
 ```
 
 The canonical store is the source of truth. Mirrors are derived. Before writing a mirror, skillset compares the mirror's current hash to its recorded hash; if the user edited the mirror directly, skillset promotes that edit to canonical and then rewrites all connected mirrors from the updated canonical version.
 
-Older Codex installs that used `~/.agents/skills` are migrated to `~/.codex/skills` when Codex Desktop is present. Skillset does not connect Cursor or other editor-specific stores.
+Older Codex installs that used `~/.agents/skills` are migrated to `~/.codex/skills` when Codex Desktop is present. Kimi may also discover `~/.agents/skills`, but Skillset mirrors to Kimi's explicit brand root so ownership and parity remain inspectable. Skillset does not connect Cursor or other editor-specific stores.
 
 ## Trust Tiers
 
@@ -173,7 +198,8 @@ All tiers install directly into canonical now. The tier remains useful metadata 
 ## Principles
 
 - **Your personalization is yours.** The canonical store is a git repo on your disk.
-- **User edits are sacred.** Mirror-side edits are promoted, never silently overwritten.
+- **Automation is the default author.** Agent-created skills use `--managed` so later history can tune them.
+- **Manual edits remain safe.** Mirror-side edits are promoted, never silently overwritten.
 - **One-way mirrors.** Canonical writes to mirrors after reconciliation; no bidirectional merge UI.
 - **No drafts.** Generated skills install directly; use `--dry-run`, `sks edit`, and `sks remove` to control changes.
 - **Agent-operable public surface.** Agents can inspect, validate, add, and edit canonical skills non-interactively; every mutation still reconciles and mirrors automatically.
@@ -183,6 +209,7 @@ All tiers install directly into canonical now. The tier remains useful metadata 
 ```sh
 pnpm install
 pnpm check
+pnpm app:build
 pnpm build
 pnpm test
 pnpm typecheck
@@ -192,4 +219,4 @@ pnpm typecheck
 
 [MIT](./LICENSE).
 
-`src/ingest/` is forked from [nia-cli](https://github.com/trynia/nia-cli) (MIT). Notable delta: `.jsonl` is in the text-extension allowlist so Codex conversations are not silently skipped.
+`src/ingest/` is forked from [nia-cli](https://github.com/trynia/nia-cli) (MIT). Notable deltas: `.jsonl` is in the text-extension allowlist, and dedicated readers understand Claude project logs, Codex rollouts, and Kimi main-agent wire records.

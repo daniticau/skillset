@@ -1,66 +1,80 @@
 /**
- * Audit-trail git helper.
+ * Version history for the canonical store.
  *
- * Called at the end of every skillset cycle (deep-dive, nightly, cleanup) to
- * stage + commit changes to the canonical store's internal `.git`. Gives the
- * user a browseable history of what the daily loop did, without adding any
- * dependency on external storage.
- *
- * Safe when git is not available (no-op). Safe when nothing changed (no-op).
+ * Every mutation (add, edit, build, remove) commits the skills directory, so the
+ * store has a recoverable history the user owns. Safe when git is unavailable
+ * (no-op) and when nothing changed (no-op).
  */
 
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { STORE_ROOT } from "../paths.js";
-import type { CycleKind } from "../config.js";
+import { STORE_ROOT, STORE_SKILLS_DIR } from "../paths.js";
 
 const execFileP = promisify(execFile);
 
-export interface CycleCreatedSkill {
-  name: string;
-  description?: string;
+/**
+ * Where the history actually lives.
+ *
+ * `~/.skillset/skills` is commonly a symlink to a directory the user keeps
+ * elsewhere. Git stores a symlink as a link (mode 120000), never as the tree
+ * behind it, so committing in ~/.skillset records the *pointer* and none of the
+ * skill content — the history looks populated while holding nothing. When the
+ * skills dir is a link, run git inside the real directory instead.
+ */
+export interface AuditRepo {
+  /** Directory git runs in. */
+  root: string;
+  /** Pathspec covering skill content, relative to `root`. */
+  skillsPathspec: string;
+  /** True when `root` is the store itself (so sibling state.json is committable). */
+  isStoreRoot: boolean;
 }
 
-export interface CycleEditedSkill {
-  name: string;
-  rationale?: string;
-}
-
-export interface CycleMergedSkills {
-  from: string[];
-  into: string;
-}
-
-export interface CyclePrunedSkill {
-  name: string;
-  reason: string;
-}
-
-export interface CycleReport {
-  kind: CycleKind;
-  cycleId: string;
-  durationMs: number;
-  llmProvider: string;
-  createdSkills: CycleCreatedSkill[];
-  editedSkills: CycleEditedSkill[];
-  mergedSkills: CycleMergedSkills[];
-  prunedSkills: CyclePrunedSkill[];
-}
-
-async function runGit(args: string[]): Promise<{ stdout: string; stderr: string } | null> {
+export function resolveAuditRepo(): AuditRepo {
   try {
-    return await execFileP("git", ["-C", STORE_ROOT, ...args]);
+    if (lstatSync(STORE_SKILLS_DIR).isSymbolicLink()) {
+      return {
+        root: realpathSync(STORE_SKILLS_DIR),
+        skillsPathspec: ".",
+        isStoreRoot: false,
+      };
+    }
+  } catch {
+    // No skills dir yet — fall back to the store root.
+  }
+  return { root: STORE_ROOT, skillsPathspec: "skills", isStoreRoot: true };
+}
+
+async function runGit(
+  args: string[],
+  cwd: string = STORE_ROOT
+): Promise<{ stdout: string; stderr: string } | null> {
+  try {
+    return await execFileP("git", ["-C", cwd, ...args]);
   } catch {
     return null;
   }
 }
 
+/**
+ * Make sure the history repo exists, creating it when the skills directory is
+ * not under version control yet. Without this an unbacked store stays unbacked,
+ * and skill deletions are unrecoverable.
+ */
+export async function ensureAuditRepo(repo: AuditRepo = resolveAuditRepo()): Promise<boolean> {
+  if (!existsSync(repo.root)) return false;
+  const inRepo = await runGit(["rev-parse", "--git-dir"], repo.root);
+  if (inRepo) return true;
+  const init = await runGit(["init"], repo.root);
+  return init !== null;
+}
+
 /** Run `git commit -F -` and pipe the message via stdin to dodge shell quoting. */
-async function commitWithMessage(message: string): Promise<boolean> {
+async function commitWithMessage(message: string, cwd: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const child = spawn("git", ["-C", STORE_ROOT, "commit", "-F", "-"]);
+    const child = spawn("git", ["-C", cwd, "commit", "-F", "-"]);
     let stderr = "";
     child.stderr.on("data", (d: Buffer) => {
       stderr += d.toString();
@@ -75,135 +89,53 @@ async function commitWithMessage(message: string): Promise<boolean> {
   });
 }
 
-/** Ensure `git config user.name` + `user.email` are set locally on the store. */
-async function ensureGitIdentity(): Promise<void> {
-  const name = await runGit(["config", "--local", "user.name"]);
+/** Ensure `git config user.name` + `user.email` are set locally on the repo. */
+async function ensureGitIdentity(cwd: string): Promise<void> {
+  const name = await runGit(["config", "--local", "user.name"], cwd);
   if (!name || !name.stdout.trim()) {
-    await runGit(["config", "--local", "user.name", "skillset"]);
+    await runGit(["config", "--local", "user.name", "skillset"], cwd);
   }
-  const email = await runGit(["config", "--local", "user.email"]);
+  const email = await runGit(["config", "--local", "user.email"], cwd);
   if (!email || !email.stdout.trim()) {
-    await runGit(["config", "--local", "user.email", "skillset@local"]);
+    await runGit(["config", "--local", "user.email", "skillset@local"], cwd);
   }
 }
 
-/**
- * Returns true if staging + commit should proceed — i.e., there are changes
- * under ~/.skillset/skills that we care about. State-only
- * changes are filtered out here to avoid churn commits; they still land on the
- * NEXT meaningful cycle.
- */
-async function hasMeaningfulChanges(): Promise<boolean> {
-  const res = await runGit(["status", "--porcelain", "--", "skills"]);
+async function hasChanges(repo: AuditRepo): Promise<boolean> {
+  const res = await runGit(
+    ["status", "--porcelain", "--", repo.skillsPathspec],
+    repo.root
+  );
   if (!res) return false;
   return res.stdout.trim().length > 0;
 }
 
-function humanizeDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  const m = Math.floor(s / 60);
-  const rem = Math.floor(s % 60);
-  return `${m}m${rem}s`;
-}
-
-function topicsLine(names: string[], max = 3): string {
-  if (names.length === 0) return "";
-  const shown = names.slice(0, max).join(", ");
-  const extra = names.length - max;
-  return extra > 0 ? `${shown}, +${extra}` : shown;
-}
-
-export function formatCycleCommitMessage(report: CycleReport): string {
-  const counts = [
-    `+${report.createdSkills.length} skills`,
-    report.editedSkills.length > 0 ? `edited ${report.editedSkills.length}` : null,
-    report.mergedSkills.length > 0 ? `merged ${report.mergedSkills.length}` : null,
-    report.prunedSkills.length > 0 ? `pruned ${report.prunedSkills.length}` : null,
-  ].filter((s): s is string => !!s);
-
-  const mergeTopics = topicsLine(report.mergedSkills.map((m) => m.into));
-  const pruneTopics = topicsLine(report.prunedSkills.map((p) => p.name));
-
-  const summary = counts.join(", ");
-  const annotations: string[] = [];
-  if (mergeTopics) annotations.push(`merged: ${mergeTopics}`);
-  if (pruneTopics) annotations.push(`pruned: ${pruneTopics}`);
-
-  const subject = `cycle(${report.kind}): ${summary}${
-    annotations.length > 0 ? " — " + annotations.join(" / ") : ""
-  }`;
-
-  const sections: string[] = [];
-
-  if (report.createdSkills.length > 0) {
-    const lines = [
-      "Created:",
-      ...report.createdSkills.map(
-        (s) => `- ${s.name}${s.description ? `: ${s.description}` : ""}`
-      ),
-    ];
-    sections.push(lines.join("\n"));
-  }
-  if (report.editedSkills.length > 0) {
-    const lines = [
-      "Edited:",
-      ...report.editedSkills.map(
-        (s) => `- ${s.name}${s.rationale ? `: ${s.rationale}` : ""}`
-      ),
-    ];
-    sections.push(lines.join("\n"));
-  }
-  if (report.mergedSkills.length > 0) {
-    const lines = [
-      "Merged:",
-      ...report.mergedSkills.map((m) => `- ${m.from.join(" + ")} → ${m.into}`),
-    ];
-    sections.push(lines.join("\n"));
-  }
-  if (report.prunedSkills.length > 0) {
-    const lines = [
-      "Pruned:",
-      ...report.prunedSkills.map((p) => `- ${p.name} (reason: ${p.reason})`),
-    ];
-    sections.push(lines.join("\n"));
-  }
-
-  const trailer = `LLM: ${report.llmProvider} | duration: ${humanizeDuration(report.durationMs)} | cycle-id: ${report.cycleId}`;
-
-  return [subject, "", ...sections, trailer].filter(Boolean).join("\n\n");
-}
-
 /**
- * Stage and commit the outcome of a cycle. Skips cleanly when:
- *   - ~/.skillset/.git doesn't exist (store was init'd without git),
- *   - there are no changes under skills/,
- *   - git is unavailable on the host.
- * Returns { sha } on success, null on skip.
+ * Commit the current state of the canonical store.
+ *
+ * `summary` becomes the commit subject (e.g. `add: ship-it-gate`). Returns
+ * { sha } on success, or null when git is unavailable or nothing changed.
  */
-export async function stageAndCommitCycle(
-  report: CycleReport
+export async function commitStoreChange(
+  summary: string
 ): Promise<{ sha: string } | null> {
-  if (!existsSync(join(STORE_ROOT, ".git"))) return null;
-  await ensureGitIdentity();
+  const repo = resolveAuditRepo();
+  if (!(await ensureAuditRepo(repo))) return null;
+  await ensureGitIdentity(repo.root);
 
-  if (!(await hasMeaningfulChanges())) return null;
+  if (!(await hasChanges(repo))) return null;
 
-  // Stage skills and state.json independently. `git add <path>`
-  // errors when the path doesn't exist, so we add one at a time and ignore
-  // ENOENT-style failures.
-  for (const path of ["skills", "state.json"]) {
-    if (existsSync(join(STORE_ROOT, path))) {
-      await runGit(["add", "--", path]);
+  const paths = repo.isStoreRoot ? ["skills", "state.json"] : [repo.skillsPathspec];
+  for (const path of paths) {
+    if (path === "." || existsSync(join(repo.root, path))) {
+      await runGit(["add", "--", path], repo.root);
     }
   }
 
-  const message = formatCycleCommitMessage(report);
-  const committed = await commitWithMessage(message);
+  const committed = await commitWithMessage(summary, repo.root);
   if (!committed) return null;
 
-  const shaRes = await runGit(["rev-parse", "HEAD"]);
+  const shaRes = await runGit(["rev-parse", "HEAD"], repo.root);
   const sha = shaRes?.stdout.trim() ?? "";
   return sha ? { sha } : null;
 }

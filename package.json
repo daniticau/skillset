@@ -1,7 +1,7 @@
 {
   "name": "skillset-cli",
   "version": "0.1.1",
-  "description": "Portable personalization layer for coding agents. Alpha, macOS with Claude Code and Codex Desktop skills.",
+  "description": "Portable personalization layer for coding agents. One shared skill library for connected coding CLIs on macOS.",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "license": "MIT",
@@ -17,6 +17,8 @@
   "keywords": [
     "claude-code",
     "codex",
+    "kimi-code",
+    "kimi-k3",
     "agent",
     "skills",
     "personalization",
@@ -31,9 +33,14 @@
     "sks": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "dist-app",
+    "desktop"
   ],
   "scripts": {
+    "app:build": "./desktop/build-app.sh",
+    "app:install": "./desktop/install-app.sh",
+    "app:run": "pnpm app:build && open ./desktop/build/Skillset.app",
     "build": "tsup",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "dev": "tsup --watch",

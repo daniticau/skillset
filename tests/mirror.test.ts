@@ -7,6 +7,7 @@ import {
   utimesSync,
   readdirSync,
   existsSync,
+  symlinkSync,
   statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,6 +19,7 @@ const SKILLS = join(STORE, "skills");
 const MIRROR = join(TEST_ROOT, "mirror");
 const CODEX_MIRROR = join(TEST_ROOT, "codex-mirror");
 const LEGACY_CODEX_MIRROR = join(TEST_ROOT, "legacy-codex-mirror");
+const KIMI_ALIAS = join(TEST_ROOT, "kimi-alias");
 const CONFLICTS = join(STORE, "conflicts");
 
 vi.mock("../src/core/paths.js", () => ({
@@ -28,11 +30,13 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: MIRROR,
   DEFAULT_CODEX_SKILLS_DIR: CODEX_MIRROR,
+  DEFAULT_KIMI_SKILLS_DIR: join(TEST_ROOT, "kimi-mirror"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(TEST_ROOT, "cursor"),
   LEGACY_CODEX_SKILLS_DIR: LEGACY_CODEX_MIRROR,
 }));
 
 // eager imports so the mocked paths module is loaded once
-const { writeConfig } = await import("../src/core/config.js");
+const { readState, writeConfig, writeState } = await import("../src/core/config.js");
 const { sync } = await import("../src/core/mirror.js");
 const { connectCommand } = await import("../src/commands/link.js");
 const { removeCommand } = await import("../src/commands/manage.js");
@@ -79,6 +83,48 @@ describe("mirror sync", () => {
     const report = await sync();
     expect(report.skillCount).toBe(1);
     expect(readFileSync(join(CODEX_MIRROR, "alpha", "SKILL.md"), "utf8")).toContain("alpha body");
+  });
+
+  it("mirrors every canonical skill to every connected agent", async () => {
+    await writeConfig({
+      version: 1,
+      links: [
+        { agent: "claude-code", path: MIRROR },
+        { agent: "codex", path: CODEX_MIRROR },
+      ],
+    });
+    makeSkill(SKILLS, "selective", "shared by default");
+    await sync();
+
+    await sync({ adoptUntracked: false });
+
+    expect(existsSync(join(MIRROR, "selective", "SKILL.md"))).toBe(true);
+    expect(readFileSync(join(CODEX_MIRROR, "selective", "SKILL.md"), "utf8")).toContain(
+      "shared by default"
+    );
+  });
+
+  it("treats a Kimi skills symlink to canonical as a zero-copy link", async () => {
+    symlinkSync(SKILLS, KIMI_ALIAS, "dir");
+    await writeConfig({ version: 1, links: [{ agent: "kimi-code", path: KIMI_ALIAS }] });
+    makeSkill(SKILLS, "shared", "canonical body");
+
+    const first = await sync({ importExisting: true });
+    expect(first.linkCount).toBe(1);
+    expect(first.actions).toHaveLength(0);
+    expect(readFileSync(join(KIMI_ALIAS, "shared", "SKILL.md"), "utf8")).toContain(
+      "canonical body"
+    );
+
+    writeFileSync(
+      join(SKILLS, "shared", "SKILL.md"),
+      `---\nname: shared\ndescription: Test skill for shared.\n---\n\nupdated canonically\n`
+    );
+    const second = await sync();
+    expect(second.actions).toHaveLength(0);
+    expect(readFileSync(join(KIMI_ALIAS, "shared", "SKILL.md"), "utf8")).toContain(
+      "updated canonically"
+    );
   });
 
   it("migrates the legacy Codex mirror path to the desktop skills path before writing", async () => {

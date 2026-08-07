@@ -5,20 +5,16 @@ import { join } from "node:path";
 import {
   STORE_ROOT,
   STORE_SKILLS_DIR,
-  SESSIONS_DIR,
-  USAGE_EVENTS_FILE,
   CONFLICTS_DIR,
   CONFIG_FILE,
   STATE_FILE,
 } from "../core/paths.js";
-import { defaultLLMConfig, isAvailable } from "../mine/llm/index.js";
-import type { Provider } from "../mine/llm/index.js";
+import { defaultLLMConfig, isAvailable } from "../llm/index.js";
+import type { Provider } from "../llm/index.js";
 import { readConfig, readState } from "../core/config.js";
 import type { Link } from "../core/config.js";
 import { getAdapter } from "../core/adapters/index.js";
 import { listSkillDirs } from "../core/skill.js";
-import { getSessionStats } from "../mine/index.js";
-import { readUsageEvents } from "../usage/events.js";
 import { sync } from "../core/mirror.js";
 import { printSyncReport } from "./sync.js";
 
@@ -32,27 +28,6 @@ function label(text: string): string {
 
 function present(path: string): string {
   return existsSync(path) ? OK : MISS;
-}
-
-async function countFile(path: string): Promise<number> {
-  if (!existsSync(path)) return 0;
-  try {
-    const raw = await readFile(path, "utf8");
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data.length : 0;
-  } catch {
-    return 0;
-  }
-}
-
-async function countDirs(root: string): Promise<number> {
-  if (!existsSync(root)) return 0;
-  try {
-    const entries = await readdir(root, { withFileTypes: true });
-    return entries.filter((e) => e.isDirectory()).length;
-  } catch {
-    return 0;
-  }
 }
 
 async function describeMirror(link: Link): Promise<{ name: string; detail: string }> {
@@ -123,7 +98,11 @@ async function sectionLLM(verbose: boolean): Promise<void> {
       console.log(pc.dim(`    Is Ollama running on the host? Try:`));
       console.log(pc.dim(`      curl ${config.baseUrl.replace(/\/v1\/?$/, "")}/api/tags`));
     } else {
-      console.log(pc.dim(`    Is ${config.provider === "claude-cli" ? "Claude Code" : "Codex"} installed and logged in?`));
+      const cliName = llmProviderLabel(config.provider);
+      console.log(pc.dim(`    Is ${cliName} installed and logged in?`));
+      console.log(
+        pc.dim(`    Or pick another: ${pc.bold("SKILLSET_LLM_PROVIDER=grok-cli")}`)
+      );
     }
   } else {
     console.log(`  ${label("reachable")} ${OK}`);
@@ -151,6 +130,10 @@ export function llmProviderLabel(provider: Provider): string {
       return "Claude CLI";
     case "codex-cli":
       return "Codex CLI";
+    case "kimi-cli":
+      return "Kimi CLI";
+    case "grok-cli":
+      return "Grok CLI";
     case "anthropic":
       return "Anthropic API";
     case "ollama":
@@ -162,14 +145,7 @@ async function sectionStore(): Promise<void> {
   console.log(pc.bold("Store"));
   const skillDirs = existsSync(STORE_SKILLS_DIR) ? await listSkillDirs(STORE_SKILLS_DIR) : [];
 
-  const nuggetsFile = join(STORE_ROOT, "nuggets", "nuggets.json");
-  const clustersFile = join(STORE_ROOT, "nuggets", "clusters.json");
-  const nuggetCount = await countFile(nuggetsFile);
-  const clusterCount = await countFile(clustersFile);
-
   console.log(`  ${label("skills")} ${pc.dim(String(skillDirs.length))}`);
-  console.log(`  ${label("nuggets")} ${pc.dim(String(nuggetCount))}`);
-  console.log(`  ${label("clusters")} ${pc.dim(String(clusterCount))}`);
   console.log();
 }
 
@@ -189,12 +165,22 @@ async function sectionMirrors(): Promise<void> {
       try {
         const adapter = getAdapter(link.agent);
         if (adapter.listMirrorSkills) {
+          const ignored = new Set(config.ignore ?? []);
+          const vendor = new Set(
+            adapter.vendorSkills ? await adapter.vendorSkills(link.path) : []
+          );
           const mirrorNames = new Set(await adapter.listMirrorSkills(link.path));
-          const pendingImports = [...mirrorNames].filter((name) => !canonical.has(name)).length;
+          const pending = [...mirrorNames].filter(
+            (name) => !canonical.has(name) && !ignored.has(name) && !vendor.has(name)
+          ).length;
+          const ignoredHere = [...mirrorNames].filter((name) => ignored.has(name)).length;
+          const vendorHere = [...mirrorNames].filter((name) => vendor.has(name)).length;
           const missing = [...canonical].filter((name) => !mirrorNames.has(name)).length;
           const bits = [
-            pendingImports > 0 ? `${pendingImports} pending import${pendingImports === 1 ? "" : "s"}` : "",
+            pending > 0 ? `${pending} pending import${pending === 1 ? "" : "s"}` : "",
             missing > 0 ? `${missing} missing` : "",
+            ignoredHere > 0 ? `${ignoredHere} ignored` : "",
+            vendorHere > 0 ? `${vendorHere} built-in` : "",
           ].filter(Boolean);
           if (bits.length > 0) drift = ` ${pc.yellow(`[${bits.join(", ")}]`)}`;
         }
@@ -206,69 +192,6 @@ async function sectionMirrors(): Promise<void> {
       );
     }
   }
-  console.log();
-}
-
-async function sectionSessions(): Promise<void> {
-  console.log(pc.bold("Sessions"));
-  const stats = getSessionStats();
-  if (stats.userSessions === 0) {
-    console.log(
-      pc.dim(`  no scraped sessions in ${SESSIONS_DIR} — run ${pc.bold("sks tailor")} to scrape + mine`)
-    );
-    console.log();
-    return;
-  }
-
-  for (const src of ["claude-code", "codex"] as const) {
-    const entry = stats.bySource[src];
-    if (entry.sessions === 0) continue;
-    const mb = (entry.bytes / 1024 / 1024).toFixed(1);
-    console.log(`  ${label(src)} ${pc.dim(`${entry.sessions} sessions (${mb} MB)`)}`);
-  }
-  console.log(
-    `  ${label("total")} ${pc.dim(
-      `${stats.userSessions} sessions across ${stats.projects} project slug(s) (${(stats.totalSizeBytes / 1024 / 1024).toFixed(1)} MB)`
-    )}`
-  );
-  console.log();
-}
-
-async function sectionMine(): Promise<void> {
-  console.log(pc.bold("Mine state"));
-  const state = await readState();
-  const mine = state.mine;
-  if (!mine) {
-    console.log(pc.dim(`  (nothing mined yet — run ${pc.bold("sks tailor")})`));
-  } else {
-    const processed = Object.keys(mine.processedSessions).length;
-    console.log(`  ${label("pipeline")} ${pc.dim(`v${mine.pipelineVersion}`)}`);
-    console.log(`  ${label("processed")} ${pc.dim(`${processed} sessions`)}`);
-    if (mine.lastRunAt) {
-      console.log(`  ${label("last run")} ${pc.dim(mine.lastRunAt)}`);
-    }
-  }
-  console.log();
-}
-
-async function sectionUsage(): Promise<void> {
-  console.log(pc.bold("Usage"));
-  const events = await readUsageEvents();
-  const state = await readState();
-  if (events.length === 0) {
-    console.log(pc.dim("  0 events"));
-  } else {
-    const last = events.reduce<string | undefined>(
-      (latest, event) => (!latest || event.usedAt > latest ? event.usedAt : latest),
-      undefined
-    );
-    console.log(`  ${label("events")} ${pc.dim(String(events.length))}`);
-    if (last) console.log(`  ${label("last use")} ${pc.dim(last)}`);
-  }
-  if (state.usage?.lastScanAt) {
-    console.log(`  ${label("last scan")} ${pc.dim(state.usage.lastScanAt)}`);
-  }
-  console.log(`  ${label("file")} ${present(USAGE_EVENTS_FILE)} ${pc.dim(USAGE_EVENTS_FILE)}`);
   console.log();
 }
 
@@ -310,8 +233,5 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
   await sectionLLM(options.verbose ?? false);
   await sectionStore();
   await sectionMirrors();
-  await sectionSessions();
-  await sectionMine();
-  await sectionUsage();
   await sectionConflicts();
 }

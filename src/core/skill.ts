@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
@@ -177,14 +177,33 @@ export async function readSkillMd(skillDir: string): Promise<ParsedSkill> {
   return parseSkillMd(await readFile(path, "utf8"));
 }
 
+/**
+ * Directory test that follows symlinks.
+ *
+ * `readdir(..., { withFileTypes: true })` reports a symlink as a symlink, never
+ * as the directory it points at, so a plain `entry.isDirectory()` silently skips
+ * linked-in skills. Symlinking a skill into an agent's skills dir is a normal
+ * way to install one, so those must be treated as real skill directories.
+ */
+export async function isDirectoryFollowingLinks(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    // Broken symlink, or a race with a concurrent delete.
+    return false;
+  }
+}
+
 export async function listSkillDirs(skillsRoot: string): Promise<string[]> {
   if (!existsSync(skillsRoot)) return [];
   const entries = await readdir(skillsRoot, { withFileTypes: true });
   const dirs: string[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (existsSync(join(skillsRoot, entry.name, "SKILL.md"))) {
-      dirs.push(join(skillsRoot, entry.name));
+    const abs = join(skillsRoot, entry.name);
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    if (entry.isSymbolicLink() && !(await isDirectoryFollowingLinks(abs))) continue;
+    if (existsSync(join(abs, "SKILL.md"))) {
+      dirs.push(abs);
     }
   }
   return dirs.sort();
@@ -204,14 +223,33 @@ export async function hashSkillDir(skillDir: string): Promise<string> {
   return hash.digest("hex");
 }
 
-async function collectFiles(root: string, base = root): Promise<string[]> {
+async function collectFiles(
+  root: string,
+  base = root,
+  seen = new Set<string>()
+): Promise<string[]> {
+  // Guard against symlink cycles, which would otherwise recurse forever now
+  // that linked directories are followed.
+  let realRoot: string;
+  try {
+    realRoot = await realpath(root);
+  } catch {
+    return [];
+  }
+  if (seen.has(realRoot)) return [];
+  seen.add(realRoot);
+
   const out: string[] = [];
   const entries = await readdir(root, { withFileTypes: true });
   for (const entry of entries) {
     const abs = join(root, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...(await collectFiles(abs, base)));
-    } else if (entry.isFile()) {
+    const isDir = entry.isSymbolicLink()
+      ? await isDirectoryFollowingLinks(abs)
+      : entry.isDirectory();
+    if (isDir) {
+      out.push(...(await collectFiles(abs, base, seen)));
+    } else if (entry.isFile() || entry.isSymbolicLink()) {
+      // A symlink that isn't a directory resolves to file content for hashing.
       out.push(relative(base, abs).split("\\").join("/"));
     }
   }

@@ -28,6 +28,51 @@ function wordCount(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
+/**
+ * Content rules that depend only on a skill's text, not on what is on disk.
+ *
+ * Shared with `sks build` so a skill is authored against exactly the standard it
+ * will later be checked against — there is no way to build something that
+ * `check` would immediately flag.
+ */
+export function validateProposedSkill(
+  name: string,
+  description: string,
+  body: string
+): SkillCheckIssue[] {
+  const issues: SkillCheckIssue[] = [];
+  if (!body.trim()) {
+    issues.push({ severity: "error", skill: name, message: "body is empty" });
+  }
+  if (!description.trim()) {
+    issues.push({ severity: "error", skill: name, message: "description is empty" });
+  }
+  if (!TRIGGER_RE.test(description)) {
+    issues.push({
+      severity: "warning",
+      skill: name,
+      message: "description does not clearly say when the skill should trigger",
+    });
+  }
+  if (description.length > 300) {
+    issues.push({
+      severity: "warning",
+      skill: name,
+      message: `description is ${description.length} characters; keep discovery metadata concise`,
+    });
+  }
+  const words = wordCount(body);
+  const lines = body.split("\n").length;
+  if (words > 1000 || lines > 500) {
+    issues.push({
+      severity: "warning",
+      skill: name,
+      message: `body is large (${words} words, ${lines} lines); move optional detail into referenced files`,
+    });
+  }
+  return issues;
+}
+
 async function inspectSkill(name: string): Promise<SkillCheckIssue[]> {
   const issues: SkillCheckIssue[] = [];
   try {
@@ -39,32 +84,9 @@ async function inspectSkill(name: string): Promise<SkillCheckIssue[]> {
         message: `folder name does not match frontmatter name "${parsed.frontmatter.name}"`,
       });
     }
-    if (!parsed.body.trim()) {
-      issues.push({ severity: "error", skill: name, message: "body is empty" });
-    }
-    if (!TRIGGER_RE.test(parsed.frontmatter.description)) {
-      issues.push({
-        severity: "warning",
-        skill: name,
-        message: "description does not clearly say when the skill should trigger",
-      });
-    }
-    if (parsed.frontmatter.description.length > 300) {
-      issues.push({
-        severity: "warning",
-        skill: name,
-        message: `description is ${parsed.frontmatter.description.length} characters; keep discovery metadata concise`,
-      });
-    }
-    const words = wordCount(parsed.body);
-    const lines = parsed.body.split("\n").length;
-    if (words > 1000 || lines > 500) {
-      issues.push({
-        severity: "warning",
-        skill: name,
-        message: `body is large (${words} words, ${lines} lines); move optional detail into referenced files`,
-      });
-    }
+    issues.push(
+      ...validateProposedSkill(name, parsed.frontmatter.description, parsed.body)
+    );
     // Require code/link-style delimiters so prose such as "icon assets/audit"
     // is not mistaken for a bundled path.
     const resourcePattern = /(?:^|[`'"(])((?:references|scripts|assets)\/[a-zA-Z0-9._/-]+)/g;

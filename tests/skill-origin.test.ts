@@ -95,6 +95,7 @@ describe("migrateState v1 → v2", () => {
           userEdited: true,
           origin: "auto-created",
           createdAt: "2026-01-01T00:00:00Z",
+          disabledAgents: ["codex", "kimi-code", "unknown-agent", "codex"],
         },
       },
     };
@@ -104,6 +105,23 @@ describe("migrateState v1 → v2", () => {
       origin: "auto-created",
       createdAt: "2026-01-01T00:00:00Z",
     });
+  });
+
+  it("drops legacy per-agent routing because skills are universal", () => {
+    const migrated = migrateState({
+      version: 2,
+      skills: {
+        shared: {
+          canonicalHash: "h",
+          mirrorHashes: {},
+          userEdited: false,
+          origin: "user-created",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      },
+    });
+
+    expect(migrated.skills.shared).not.toHaveProperty("disabledAgents");
   });
 
   it("migrateState on empty/invalid input returns default v2 state", () => {
@@ -131,10 +149,10 @@ describe("migrateState v1 → v2", () => {
   });
 
   it("initialSkillState seeds origin + createdAt + userEdited=false", () => {
-    const s = initialSkillState("auto-created", { createdBy: "deep-dive" });
+    const s = initialSkillState("auto-created", { createdBy: "agent" });
     expect(s.origin).toBe("auto-created");
     expect(s.userEdited).toBe(false);
-    expect(s.createdBy).toBe("deep-dive");
+    expect(s.createdBy).toBe("agent");
     expect(typeof s.createdAt).toBe("string");
     expect(s.canonicalHash).toBe("");
     expect(s.mirrorHashes).toEqual({});

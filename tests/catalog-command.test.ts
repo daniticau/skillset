@@ -20,16 +20,17 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
   DEFAULT_CODEX_SKILLS_DIR: join(ROOT, "codex-skills"),
+  DEFAULT_KIMI_SKILLS_DIR: join(ROOT, "kimi-skills"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
 }));
 
 const { catalogCommand, categorizeSkill } = await import("../src/commands/catalog.js");
-const { appendUsageEvents, createExplicitUsageEvent } = await import("../src/usage/events.js");
 const { writeState } = await import("../src/core/config.js");
 
 beforeEach(async () => {
   rmSync(ROOT, { recursive: true, force: true });
   mkdirSync(SKILLS, { recursive: true });
-  await writeState({ version: 2, skills: {}, reviewedDates: {} });
+  await writeState({ version: 2, skills: {} });
 });
 
 afterEach(() => {
@@ -62,38 +63,51 @@ describe("catalog command", () => {
       "Use Skillset when the user asks to capture a reusable agent preference.",
       "\ntier: medium\norigin: user-created"
     );
-    await appendUsageEvents([
-      createExplicitUsageEvent({
-        skillName: "skillify",
-        agent: "codex",
-        usedAt: "2026-05-08T12:00:00.000Z",
-      }),
-    ]);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await catalogCommand();
 
     const output = outputOf(logSpy);
     expect(output).toContain("Skill Catalog (3 skills)");
-    expect(output).toContain("Skill Capture & Memory (1)");
-    expect(output).toContain("iOS & App Store (1)");
-    expect(output).toContain("Writing & Applications (1)");
+    // Grouped by kind of knowledge, not topic.
+    expect(output).toContain("Workflow (3)");
     expect(output).toContain("skillify");
-    expect(output).toContain("1 use, last 2026-05-08");
   });
 
-  it("classifies common skill descriptions predictably", () => {
+  it("classifies skills by the kind of knowledge they carry", () => {
     expect(
       categorizeSkill({
-        name: "terminal-screen-recordings",
-        description: "Apply when creating terminal screen recordings or demos.",
+        name: "coast-cli-skill",
+        description: "Search past on-screen activity with the coast CLI.",
       })
-    ).toBe("Visual, Media & Assets");
+    ).toBe("Tool");
+    expect(
+      categorizeSkill({
+        name: "ios-app-submission",
+        description: "Use when submitting a prepared iOS app to App Store Connect.",
+      })
+    ).toBe("Workflow");
+    expect(
+      categorizeSkill({
+        name: "ai-research-project-evaluation",
+        description: "Use when evaluating, ranking, or choosing research ideas.",
+      })
+    ).toBe("Judgement");
     expect(
       categorizeSkill({
         name: "confirm-irreversible-release-actions",
-        description: "Apply when operating release or deployment UIs.",
+        description: "Apply before clicking release buttons that are irreversible.",
       })
-    ).toBe("Release Safety");
+    ).toBe("Rule");
+  });
+
+  it("does not treat \"whenever\" as the constraint word \"never\"", () => {
+    // Substring matching used to classify every "use whenever…" skill as a Rule.
+    expect(
+      categorizeSkill({
+        name: "safe-agent-handoff",
+        description: "Prepare a repo for handoff whenever the next agent needs a safe start.",
+      })
+    ).toBe("Workflow");
   });
 });

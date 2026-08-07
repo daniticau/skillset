@@ -36,6 +36,14 @@ export interface AgentAdapter {
   readMirrorSkill?(name: string, targetRoot: string): Promise<ParsedSkill | null>;
   /** List skill names present in the mirror. */
   listMirrorSkills?(targetRoot: string): Promise<string[]>;
+  /**
+   * Skills that ship with the agent itself.
+   *
+   * These belong to the vendor, not the user: skillset surfaces them so the
+   * user can see what is already installed, but never adopts them into the
+   * shared library and never deletes them.
+   */
+  vendorSkills?(targetRoot: string): Promise<string[]>;
   /** Delete a skill from the mirror (for prune-on-canonical-delete). */
   removeMirrorSkill?(name: string, targetRoot: string): Promise<void>;
 

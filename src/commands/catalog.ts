@@ -3,17 +3,21 @@ import { readState } from "../core/config.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
 import { readSkillMd } from "../core/skill.js";
 import type { SkillOrigin, SkillTier } from "../core/skill.js";
-import { readUsageEvents, summarizeUsage } from "../usage/events.js";
 
+/**
+ * Skills are grouped by the KIND of knowledge they carry, not by topic.
+ *
+ * Topic buckets ("iOS", "Browser") answer "what is this about?", which the
+ * description already says. The useful question is "what kind of thing is
+ * this?" — because that is how you reach for one: I need to drive a tool, I
+ * need to follow a procedure, I need to make a call, or I need to respect a
+ * constraint.
+ */
 const CATEGORIES = [
-  "Skill Capture & Memory",
-  "iOS & App Store",
-  "Browser & Desktop Automation",
-  "Visual, Media & Assets",
-  "Writing & Applications",
-  "Release Safety",
-  "Collaboration & Clarification",
-  "Other",
+  "Tool",
+  "Workflow",
+  "Judgement",
+  "Rule",
 ] as const;
 
 type CatalogCategory = (typeof CATEGORIES)[number];
@@ -24,13 +28,21 @@ interface CatalogEntry {
   tier?: SkillTier;
   origin: SkillOrigin;
   userEdited: boolean;
-  usageCount: number;
-  lastUsedAt?: string;
   category: CatalogCategory;
 }
 
+/**
+ * Word-boundary keyword match.
+ *
+ * Plain substring matching silently misfires: "whenever" contains "never", so
+ * every skill whose description said "use whenever…" was classified as a hard
+ * rule. Anchor each term to word boundaries instead.
+ */
 function hasAny(text: string, terms: string[]): boolean {
-  return terms.some((term) => text.includes(term));
+  return terms.some((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+  });
 }
 
 export function categorizeSkill(skill: {
@@ -39,102 +51,55 @@ export function categorizeSkill(skill: {
 }): CatalogCategory {
   const text = `${skill.name} ${skill.description}`.toLowerCase();
 
-  if (
-    hasAny(text, [
-      "skillset",
-      "skillify",
-      "skill this",
-      "remember",
-      "capture",
-      "reusable skill",
-      "reusable agent preference",
-    ])
-  ) {
-    return "Skill Capture & Memory";
-  }
-  if (
-    hasAny(text, [
-      "ios",
-      "app store",
-      "swiftui",
-      "uitabbar",
-      "liquid glass",
-      "tab bar",
-      "navigation rail",
-      "native glass",
-    ])
-  ) {
-    return "iOS & App Store";
-  }
-  if (
-    hasAny(text, [
-      "browser",
-      "browser use",
-      "chrome",
-      "computer use",
-      "helium",
-      "desktop",
-      "window",
-    ])
-  ) {
-    return "Browser & Desktop Automation";
-  }
-  if (
-    hasAny(text, [
-      "visual",
-      "aesthetic",
-      "screenshot",
-      "screen recording",
-      "video",
-      "spritesheet",
-      "animation",
-      "design",
-      "layout polish",
-      "pet asset",
-    ])
-  ) {
-    return "Visual, Media & Assets";
-  }
-  if (
-    hasAny(text, [
-      "resume",
-      "job description",
-      "internship",
-      "fellowship",
-      "application",
-      "cover letter",
-    ])
-  ) {
-    return "Writing & Applications";
-  }
-  if (
-    hasAny(text, [
-      "irreversible",
-      "release",
-      "deployment",
-      "deploy",
-      "publishing",
-      "publish",
-      "rollout",
-      "confirmation",
-    ])
-  ) {
-    return "Release Safety";
-  }
-  if (
-    hasAny(text, [
-      "clarify",
-      "clarifying",
-      "intended",
-      "ambiguous",
-      "terse",
-      "frustrated",
-      "shorthand",
-    ])
-  ) {
-    return "Collaboration & Clarification";
-  }
-  return "Other";
+  // Ordered most-specific first. A skill can mention a tool while really being
+  // a constraint ("requires running verification commands"), so constraints and
+  // judgement calls are tested before tool mentions.
+  const isRule = hasAny(text, [
+    "never",
+    "always",
+    "before claiming",
+    "before committing",
+    "before clicking",
+    "irreversible",
+    "requires running",
+    "evidence before",
+    "do not",
+    "must not",
+  ]);
+  if (isRule) return "Rule";
+
+  const isJudgement = hasAny(text, [
+    "evaluat",
+    "ranking",
+    "choosing",
+    "critiqu",
+    "assess",
+    "novelty",
+    "aesthetic",
+    "taste",
+    "targeted questions",
+    "ambiguous",
+    "frontier",
+    "subjective",
+    "polish",
+  ]);
+  if (isJudgement) return "Judgement";
+
+  const isTool = hasAny(text, [
+    "cli",
+    "command-line",
+    "pnpm",
+    "npm",
+    "browser",
+    "simulator",
+    "tunnel",
+    "webhook",
+    "sdk",
+    "terminal",
+  ]);
+  if (isTool) return "Tool";
+
+  return "Workflow";
 }
 
 function originLabel(origin: SkillOrigin, userEdited: boolean): string {
@@ -144,11 +109,6 @@ function originLabel(origin: SkillOrigin, userEdited: boolean): string {
 
 function tierLabel(tier: SkillTier | undefined): string {
   return tier ? `tier ${tier}` : "legacy tier";
-}
-
-function usageLabel(count: number, lastUsedAt: string | undefined): string {
-  const uses = `${count} ${count === 1 ? "use" : "uses"}`;
-  return lastUsedAt ? `${uses}, last ${lastUsedAt.slice(0, 10)}` : uses;
 }
 
 function wrap(text: string, width: number): string[] {
@@ -175,12 +135,10 @@ function wrap(text: string, width: number): string[] {
 async function loadCatalogEntries(): Promise<CatalogEntry[]> {
   const names = await listStoreSkills();
   const state = await readState();
-  const usage = summarizeUsage(await readUsageEvents());
   const entries: CatalogEntry[] = [];
 
   for (const name of names) {
     const parsed = await readSkillMd(storeSkillDir(name));
-    const usageSummary = usage.get(parsed.frontmatter.name);
     const skillState = state.skills[parsed.frontmatter.name];
     const origin = parsed.frontmatter.origin ?? skillState?.origin ?? "user-created";
     const userEdited = skillState?.userEdited ?? false;
@@ -190,8 +148,6 @@ async function loadCatalogEntries(): Promise<CatalogEntry[]> {
       tier: parsed.frontmatter.tier,
       origin,
       userEdited,
-      usageCount: usageSummary?.count ?? 0,
-      lastUsedAt: usageSummary?.lastUsedAt,
       category: categorizeSkill(parsed.frontmatter),
     });
   }
@@ -231,7 +187,6 @@ export async function catalogCommand(): Promise<void> {
       const meta = [
         originLabel(entry.origin, entry.userEdited),
         tierLabel(entry.tier),
-        usageLabel(entry.usageCount, entry.lastUsedAt),
       ].join(" | ");
       console.log(`  ${pc.bold(entry.name)} ${pc.dim(`[${meta}]`)}`);
       for (const line of wrap(entry.description, descriptionWidth)) {

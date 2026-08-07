@@ -18,6 +18,8 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(ROOT, "claude-skills"),
   DEFAULT_CODEX_SKILLS_DIR: join(ROOT, "codex-skills"),
+  DEFAULT_KIMI_SKILLS_DIR: join(ROOT, "kimi-skills"),
+  DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
   LEGACY_CODEX_SKILLS_DIR: join(ROOT, "legacy-codex-skills"),
 }));
 
@@ -59,6 +61,24 @@ describe("agent-safe skill management", () => {
       origin: "user-created",
       createdBy: "manual",
     });
+  });
+
+  it("marks agent-created additions as managed when explicitly requested", async () => {
+    await addCommand(undefined, { content: RAW, managed: true });
+
+    const path = join(SKILLS, "test-skill", "SKILL.md");
+    expect(readFileSync(path, "utf8")).toContain("origin: auto-created");
+    expect((await readState()).skills["test-skill"]).toMatchObject({
+      origin: "auto-created",
+      createdBy: "agent",
+      userEdited: false,
+    });
+
+    await editCommand("test-skill", {
+      content: RAW.replace("Run the exact test requested.", "Run focused tests first."),
+      managed: true,
+    });
+    expect((await readState()).skills["test-skill"]?.userEdited).toBe(false);
   });
 
   it("copies supporting files when adding a skill directory", async () => {
@@ -137,6 +157,14 @@ describe("agent-safe skill management", () => {
 
     expect(process.exitCode).toBe(1);
     expect(readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8")).toBe(before);
+  });
+
+  it("lets a complete Markdown edit remove obsolete tier metadata", async () => {
+    await addCommand(undefined, { content: RAW });
+
+    await editCommand("test-skill", { content: RAW.replace("tier: medium\n", "") });
+
+    expect(readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8")).not.toContain("tier:");
   });
 
   it("shows raw or machine-readable canonical content", async () => {

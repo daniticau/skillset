@@ -55,9 +55,16 @@ export function printSyncReport(report: SyncReport): void {
       )
     );
   }
+  for (const f of report.failures ?? []) {
+    console.log(pc.red(`✗ could not reconcile "${f.skill}": ${f.error}`));
+  }
+
+  const failed = report.failures?.length ?? 0;
+  const ok = report.skillCount - failed;
   console.log(
     pc.green(
-      `✓ synced ${report.skillCount} skill(s) → ${report.linkCount} mirror(s) (${mirrored.length} writes)`
+      `✓ synced ${ok} skill(s) → ${report.linkCount} mirror(s) (${mirrored.length} writes)` +
+        (failed > 0 ? pc.red(` — ${failed} failed`) : "")
     )
   );
 }

@@ -3,7 +3,13 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import pc from "picocolors";
-import { initialSkillState, readConfig, readState, writeState } from "../core/config.js";
+import {
+  initialSkillState,
+  readConfig,
+  readState,
+  writeConfig,
+  writeState,
+} from "../core/config.js";
 import {
   hashSkillDir,
   parseSkillMd,
@@ -13,6 +19,7 @@ import {
 import { storeSkillDir } from "../core/store.js";
 import { getAdapter } from "../core/adapters/index.js";
 import { syncCommand } from "./sync.js";
+import { appendHistoryEvent, sharedSkillAgents } from "../core/history.js";
 
 function editorCommand(): string | undefined {
   return process.env.VISUAL || process.env.EDITOR;
@@ -45,6 +52,16 @@ async function markUserEdited(name: string): Promise<void> {
   await writeState(state);
 }
 
+async function markManagedEdited(name: string): Promise<void> {
+  const state = await readState();
+  const prior = state.skills[name] ?? initialSkillState("auto-created", { createdBy: "agent" });
+  state.skills[name] = {
+    ...prior,
+    lastEditedAt: new Date().toISOString(),
+  };
+  await writeState(state);
+}
+
 const IGNORED_SOURCE_PARTS = new Set([".git", "node_modules", "__pycache__", ".DS_Store"]);
 
 async function copySkillSource(sourceDir: string, dest: string): Promise<void> {
@@ -55,7 +72,7 @@ async function copySkillSource(sourceDir: string, dest: string): Promise<void> {
   });
 }
 
-async function finishEdit(name: string, before: string): Promise<void> {
+async function finishEdit(name: string, before: string, managed = false): Promise<void> {
   const dir = storeSkillDir(name);
   try {
     await readSkillMd(dir);
@@ -71,14 +88,28 @@ async function finishEdit(name: string, before: string): Promise<void> {
     return;
   }
 
-  await markUserEdited(name);
+  if (managed) await markManagedEdited(name);
+  else await markUserEdited(name);
   console.log(pc.green(`✓ updated ${pc.bold(name)}`));
   await syncCommand();
+  const state = await readState();
+  await appendHistoryEvent({
+    kind: "edited",
+    title: `${name} edited`,
+    detail: managed
+      ? "An agent-managed edit was saved and mirrored to every active model."
+      : "A manual edit was saved and mirrored to every active model.",
+    skillNames: [name],
+    agents: sharedSkillAgents(),
+    source: managed ? "agent" : "manual",
+  });
 }
 
 export interface EditOptions {
   stdin?: boolean;
   source?: string;
+  /** Agent-authored maintenance; does not mark an auto-managed skill as user-edited. */
+  managed?: boolean;
   /** Test/programmatic injection; not exposed as a CLI flag. */
   content?: string;
 }
@@ -135,7 +166,7 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
           {
             ...incoming.frontmatter,
             name,
-            tier: incoming.frontmatter.tier ?? current.frontmatter.tier,
+            tier: incoming.frontmatter.tier,
             origin: current.frontmatter.origin ?? "user-created",
             license: incoming.frontmatter.license ?? current.frontmatter.license,
           },
@@ -148,7 +179,7 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
       process.exitCode = 1;
       return;
     }
-    await finishEdit(name, before);
+    await finishEdit(name, before, options.managed);
     return;
   }
 
@@ -167,7 +198,7 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
     return;
   }
 
-  await finishEdit(name, before);
+  await finishEdit(name, before, options.managed);
 }
 
 export interface ShowOptions {
@@ -208,6 +239,8 @@ export async function showCommand(name: string, options: ShowOptions = {}): Prom
 
 export interface AddOptions {
   stdin?: boolean;
+  /** Mark a skill synthesized by an agent as eligible for future tuning. */
+  managed?: boolean;
   /** Test/programmatic injection; not exposed as a CLI flag. */
   content?: string;
 }
@@ -289,31 +322,83 @@ export async function addCommand(
   await writeFile(
     join(dest, "SKILL.md"),
     renderSkillMd(
-      { ...parsed.frontmatter, name, origin: "user-created" },
+      {
+        ...parsed.frontmatter,
+        name,
+        origin: options.managed ? "auto-created" : "user-created",
+      },
       parsed.body
     ),
     "utf8"
   );
 
   const state = await readState();
-  state.skills[name] = initialSkillState("user-created", { createdBy: "manual" });
+  state.skills[name] = options.managed
+    ? initialSkillState("auto-created", { createdBy: "agent" })
+    : initialSkillState("user-created", { createdBy: "manual" });
   await writeState(state);
   console.log(pc.green(`✓ added ${pc.bold(name)}`));
   await syncCommand();
+  const nextState = await readState();
+  await appendHistoryEvent({
+    kind: "created",
+    title: `${name} created`,
+    detail: options.managed
+      ? "An agent-created skill was added to the canonical library."
+      : "A manually authored skill was added to the canonical library.",
+    skillNames: [name],
+    agents: sharedSkillAgents(),
+    source: options.managed ? "agent" : "manual",
+  });
 }
 
-export async function removeCommand(name: string): Promise<void> {
+export interface RemoveOptions {
+  /**
+   * Also add the name to config.ignore so it is never adopted back from a
+   * mirror. Without this, removing a skill that still exists in an agent's own
+   * skills directory just invites the next sync to re-adopt it.
+   */
+  block?: boolean;
+}
+
+export async function removeCommand(
+  name: string,
+  options: RemoveOptions = {}
+): Promise<void> {
   const dir = storeSkillDir(name);
-  if (!existsSync(dir)) {
+  const existsCanonically = existsSync(dir);
+
+  if (!existsCanonically && !options.block) {
     console.error(pc.red(`no skill named "${name}"`));
     process.exitCode = 1;
     return;
   }
 
+  if (options.block) {
+    const config = await readConfig();
+    const ignore = new Set(config.ignore ?? []);
+    if (!ignore.has(name)) {
+      ignore.add(name);
+      await writeConfig({ ...config, ignore: [...ignore].sort() });
+    }
+    console.log(pc.dim(`  blocked — ${name} will never be adopted from a mirror`));
+  }
+
+  if (!existsCanonically) return;
+
+  const agents = sharedSkillAgents();
   await rm(dir, { recursive: true, force: true });
-  const state = await readState();
-  delete state.skills[name];
-  await writeState(state);
   console.log(pc.green(`✓ removed ${pc.bold(name)}`));
+  // The state entry is deliberately left in place: sync prunes a mirror copy
+  // only when it has a recorded hash proving skillset wrote it, and drops the
+  // now-orphaned state entry itself once the mirrors are clean.
   await syncCommand({ adoptUntracked: false });
+  await appendHistoryEvent({
+    kind: "deleted",
+    title: `${name} deleted`,
+    detail: "The canonical skill and its active model copies were removed.",
+    skillNames: [name],
+    agents,
+    source: "manual",
+  });
 }
