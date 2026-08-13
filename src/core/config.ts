@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import * as paths from "./paths.js";
 import type { SkillOrigin } from "./skill.js";
 
-export type AgentKind = "claude-code" | "codex" | "kimi-code" | "grok" | "cursor";
+export type AgentKind = "claude-code" | "codex" | "kimi-code" | "grok" | "cursor" | "agents";
 
 export interface Link {
   agent: AgentKind;

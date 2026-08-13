@@ -21,6 +21,7 @@ runs when the user runs it.
 ## Current Scope
 
 - **Five agents**: Claude Code, Codex, Kimi Code, Grok, and Cursor. Skills that ship with an agent (`vendorSkills` on the adapter) are surfaced but never adopted or deleted.
+- **Plus one generic mirror**: `agents` targets `~/.agents/skills`, the vendor-neutral directory some agents read in addition to their own (Kimi Code scans it as a lower-precedence user root). It covers convention-following agents without a dedicated adapter each.
 - **Store + mirroring**: canonical `~/.skillset/skills/` is source of truth; connected mirrors are rewritten automatically after mutations.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
 - **Authoring**: `sks build "<idea>"` decomposes an idea into the smallest reusable skills, validates each against `sks check`, and installs only what passes. `sks add` / `sks edit` / `sks remove` cover direct management.
