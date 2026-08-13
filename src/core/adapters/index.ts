@@ -5,6 +5,7 @@ import { codexAdapter } from "./codex.js";
 import { kimiCodeAdapter } from "./kimi-code.js";
 import { grokAdapter } from "./grok.js";
 import { cursorAdapter } from "./cursor.js";
+import { agentsAdapter } from "./agents.js";
 
 const ADAPTERS: Record<AgentKind, AgentAdapter | undefined> = {
   "claude-code": claudeCodeAdapter,
@@ -12,6 +13,7 @@ const ADAPTERS: Record<AgentKind, AgentAdapter | undefined> = {
   "kimi-code": kimiCodeAdapter,
   grok: grokAdapter,
   cursor: cursorAdapter,
+  agents: agentsAdapter,
 };
 
 export function getAdapter(kind: AgentKind): AgentAdapter {

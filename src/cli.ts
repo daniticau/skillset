@@ -14,6 +14,7 @@ import { addCommand, editCommand, removeCommand, showCommand } from "./commands/
 import { checkCommand } from "./commands/check.js";
 import { buildCommand } from "./commands/build.js";
 import { desktopSnapshotCommand } from "./commands/desktop.js";
+import { supportedAgents } from "./core/adapters/index.js";
 
 // Load ~/.skillset/.env before any command reads process.env.
 loadEnv();
@@ -101,7 +102,7 @@ export function createProgram(): Command {
 
   program
     .command("connect <agent>")
-    .description("connect a shared-skill mirror (claude-code | codex | kimi-code | grok)")
+    .description(`connect a shared-skill mirror (${supportedAgents().join(" | ")})`)
     .option("-p, --path <path>", "override the default mirror path")
     .action(async (agent: string, options: { path?: string }) => {
       await connectCommand(agent, options);
