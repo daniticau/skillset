@@ -23,6 +23,8 @@ runs when the user runs it.
 - **Five agents**: Claude Code, Codex, Kimi Code, Grok, and Cursor. Skills that ship with an agent (`vendorSkills` on the adapter) are surfaced but never adopted or deleted.
 - **Plus one generic mirror**: `agents` targets `~/.agents/skills`, the vendor-neutral directory some agents read in addition to their own (Kimi Code scans it as a lower-precedence user root). It covers convention-following agents without a dedicated adapter each.
 - **Store + mirroring**: canonical `~/.skillset/skills/` is source of truth; connected mirrors are rewritten automatically after mutations.
+- **Always-on rules**: a skill with `always: true` is also rendered into a managed block (`<!-- skillset:always:start/end -->`) of each agent's global instructions file, derived from the skills root (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, …). Text outside the block is never touched. `sks always <skill> [--off]` flips it. Cursor has no such file.
+- **Add from anywhere**: `sks add` accepts a local path, stdin, `owner/repo`, a GitHub repo/tree/blob URL, a raw `SKILL.md` URL, a skills.sh page, or a tweet that links to one of those (`src/core/remote.ts`). `--skill` picks one from a multi-skill repo; `--build` turns a link-less tweet's text into a skill via the builder.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
 - **Authoring**: `sks build "<idea>"` decomposes an idea into the smallest reusable skills, validates each against `sks check`, and installs only what passes. `sks add` / `sks edit` / `sks remove` cover direct management.
 - **Desktop app**: two surfaces — Library (browse, search, filter by kind, edit) and Builder (author).
@@ -49,7 +51,8 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `src/core/skill.ts` - parse/validate/render/hash skills.
 - `src/core/store.ts` - canonical store operations.
 - `src/core/mirror.ts` - import, conflict resolution, mirror reconciliation.
-- `src/core/adapters/` - agent mirror adapters.
+- `src/core/adapters/` - agent mirror adapters; `always-block.ts` renders and splices the always-on block.
+- `src/core/remote.ts` - resolve a URL / `owner/repo` / tweet into a local skill dir (injectable `fetch`).
 - `src/build/decompose.ts` - splits a raw idea into the smallest reusable skills.
 - `src/llm/` - provider adapters (one file per CLI/API backend).
 - `src/commands/` - public command wrappers.
@@ -65,8 +68,9 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `sks check [skill]` - validate structure, triggering metadata, and context size.
 - `sks status` - show connected mirrors and skill state.
 - `sks connect <agent>` / `sks disconnect <agent>` - manage mirrors.
-- `sks add` / `sks edit <skill>` / `sks remove <skill> [--block]` - manage skills.
-- `sks doctor [--repair]` - inspect health; `--repair` reconciles mirrors.
+- `sks add [source]` / `sks edit <skill>` / `sks remove <skill> [--block]` - manage skills.
+- `sks always <skill> [--off]` - toggle always-on.
+- `sks doctor [--repair [--store <path>]]` - inspect health; `--repair` relinks a moved store, then reconciles mirrors.
 
 ## Design Principles
 
@@ -79,6 +83,7 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - **Never delete what skillset did not write.** A mirror skill is pruned only when state holds a recorded hash proving skillset put it there. Skills the user installed into an agent themselves (including symlinked ones) are adopted or ignored, never removed.
 - **Symlinked skills are first-class.** Skills are commonly linked in from a repo or an app bundle. Listing follows links, copies dereference into real content, and a recursive delete never follows a link out of the store.
 - **Sync is crash-isolated.** One unreadable skill is reported in `SyncReport.failures`; it never aborts the pass and leaves state unwritten.
+- **A missing store never prunes.** If `~/.skillset/skills` is gone but `state.json` still tracks skills, `sync()` throws instead of treating every mirror copy as stale. `sks doctor --repair` finds and relinks the folder.
 
 ## Skill Kinds
 
@@ -108,5 +113,6 @@ All tiers install directly. Tier metadata is retained for conservative future cl
 - `pnpm build` - tsup bundles `src/cli.ts` to `dist/cli.js`
 - `pnpm test` - vitest
 - `pnpm typecheck`
+- `pnpm cli:link` - write `~/.local/bin/sks` for this checkout; rerun after moving the repo
 - `pnpm app:build`
 - `pnpm app:install`

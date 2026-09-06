@@ -1,7 +1,8 @@
 import pc from "picocolors";
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, readdir, readFile, readlink, stat, symlink, unlink } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import {
   STORE_ROOT,
   STORE_SKILLS_DIR,
@@ -14,7 +15,10 @@ import type { Provider } from "../llm/index.js";
 import { readConfig, readState } from "../core/config.js";
 import type { Link } from "../core/config.js";
 import { getAdapter } from "../core/adapters/index.js";
-import { listSkillDirs } from "../core/skill.js";
+import { alwaysBlockState } from "../core/adapters/always-block.js";
+import { listSkillDirs, readSkillMd } from "../core/skill.js";
+import type { ParsedSkill } from "../core/skill.js";
+import { listStoreSkills, storeSkillDir } from "../core/store.js";
 import { sync } from "../core/mirror.js";
 import { printSyncReport } from "./sync.js";
 
@@ -56,9 +60,113 @@ async function describeMirror(link: Link): Promise<{ name: string; detail: strin
   }
 }
 
+/**
+ * The canonical skills dir is often a symlink into a repo the user keeps
+ * elsewhere. When that repo moves, the link dangles: every command sees an
+ * empty store, and a sync would prune every mirror. Surface it loudly.
+ */
+async function skillsDirLink(): Promise<{ target?: string; dangling: boolean }> {
+  try {
+    const info = await lstat(STORE_SKILLS_DIR);
+    if (!info.isSymbolicLink()) return { dangling: false };
+    const target = await readlink(STORE_SKILLS_DIR);
+    return { target, dangling: !existsSync(STORE_SKILLS_DIR) };
+  } catch {
+    return { dangling: false };
+  }
+}
+
+const SEARCH_SKIP = new Set(["node_modules", "Library", ".Trash"]);
+
+/** Breadth-first search under home for a folder with this name that holds skills. */
+async function findSkillsDirCandidates(name: string, root = homedir(), maxDepth = 4): Promise<string[]> {
+  const found: string[] = [];
+  let frontier = [{ dir: root, depth: 0 }];
+  while (frontier.length > 0) {
+    const next: typeof frontier = [];
+    for (const { dir, depth } of frontier) {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".") || SEARCH_SKIP.has(entry.name)) continue;
+        const abs = join(dir, entry.name);
+        if (entry.name === name && (await listSkillDirs(abs)).length > 0) {
+          found.push(abs);
+          continue;
+        }
+        if (depth + 1 < maxDepth) next.push({ dir: abs, depth: depth + 1 });
+      }
+    }
+    frontier = next;
+  }
+  return found.sort();
+}
+
+async function repairSkillsLink(explicit?: string): Promise<void> {
+  const link = await skillsDirLink();
+  if (explicit && !link.target) {
+    console.log(`  ${ERR} ${pc.dim(STORE_SKILLS_DIR)} is a real folder, not a link; nothing to repoint`);
+    return;
+  }
+  if (!link.target || (!link.dangling && !explicit)) return;
+
+  let next = explicit ? resolve(explicit) : undefined;
+  if (!next) {
+    const wanted = basename(link.target);
+    process.stderr.write(`  ${pc.dim(`store link → ${link.target} is missing; searching ${homedir()} for ${wanted}…`)}\r`);
+    const candidates = await findSkillsDirCandidates(wanted);
+    process.stderr.write("\x1b[2K\r");
+    if (candidates.length === 1) {
+      next = candidates[0];
+    } else if (candidates.length === 0) {
+      console.log(`  ${ERR} store link → ${pc.dim(link.target)} is missing and no folder named ${pc.bold(wanted)} with skills was found under ${homedir()}`);
+      console.log(pc.dim(`    point it by hand: ${pc.bold("sks doctor --repair --store <path>")}`));
+      return;
+    } else {
+      console.log(`  ${ERR} store link → ${pc.dim(link.target)} is missing; ${candidates.length} folders could be it:`);
+      for (const c of candidates) console.log(pc.dim(`      ${c}`));
+      console.log(pc.dim(`    pick one: ${pc.bold("sks doctor --repair --store <path>")}`));
+      return;
+    }
+  }
+
+  const target = next;
+  if (!target) return;
+  let ok = false;
+  try {
+    ok = (await stat(target)).isDirectory();
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    console.log(`  ${ERR} ${pc.dim(target)} is not a folder`);
+    process.exitCode = 1;
+    return;
+  }
+  await unlink(STORE_SKILLS_DIR);
+  await symlink(target, STORE_SKILLS_DIR);
+  console.log(`  ${OK} relinked ${pc.dim(STORE_SKILLS_DIR)} → ${target}`);
+}
+
 async function sectionPaths(): Promise<void> {
   console.log(pc.bold("Paths"));
   console.log(`  ${label("store")} ${present(STORE_ROOT)} ${pc.dim(STORE_ROOT)}`);
+  const link = await skillsDirLink();
+  if (link.target) {
+    const mark = link.dangling ? ERR : OK;
+    const tail = link.dangling ? pc.red("  target missing") : "";
+    console.log(`  ${label("skills")} ${mark} ${pc.dim(`${STORE_SKILLS_DIR} → ${link.target}`)}${tail}`);
+    if (link.dangling) {
+      console.log(pc.dim(`    the folder the store links to is gone. Run ${pc.bold("sks doctor --repair")} to find it, or ${pc.bold("sks doctor --repair --store <path>")}.`));
+    }
+  } else {
+    console.log(`  ${label("skills")} ${present(STORE_SKILLS_DIR)} ${pc.dim(STORE_SKILLS_DIR)}`);
+  }
   console.log(`  ${label("config")} ${present(CONFIG_FILE)} ${pc.dim(CONFIG_FILE)}`);
   console.log(`  ${label("state")} ${present(STATE_FILE)} ${pc.dim(STATE_FILE)}`);
   console.log();
@@ -195,6 +303,58 @@ async function sectionMirrors(): Promise<void> {
   console.log();
 }
 
+async function alwaysSkills(): Promise<ParsedSkill[]> {
+  const out: ParsedSkill[] = [];
+  if (!existsSync(STORE_SKILLS_DIR)) return out;
+  for (const name of await listStoreSkills()) {
+    try {
+      const parsed = await readSkillMd(storeSkillDir(name));
+      if (parsed.frontmatter.always) out.push(parsed);
+    } catch {
+      // Reported by `sks check`; not this section's job.
+    }
+  }
+  return out;
+}
+
+async function sectionAlways(): Promise<void> {
+  console.log(pc.bold("Always-on"));
+  const config = await readConfig();
+  const always = await alwaysSkills();
+  console.log(
+    `  ${label("rules")} ${pc.dim(
+      always.length > 0
+        ? always.map((s) => s.frontmatter.name).join(", ")
+        : `none — mark one with ${pc.bold("sks always <skill>")}`
+    )}`
+  );
+  const seen = new Set<string>();
+  for (const link of config.links) {
+    let adapter;
+    try {
+      adapter = getAdapter(link.agent);
+    } catch {
+      continue;
+    }
+    if (!adapter.instructionsFile) continue;
+    const file = adapter.instructionsFile(link.path);
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const state = await alwaysBlockState(file, always);
+    const mark = state === "ok" ? OK : state === "none" ? MISS : ERR;
+    const note =
+      state === "ok"
+        ? "current"
+        : state === "none"
+          ? "no block"
+          : state === "missing"
+            ? "block missing — run sks doctor --repair"
+            : "block stale — run sks doctor --repair";
+    console.log(`  ${mark} ${pc.bold(adapter.displayName.padEnd(12))} ${pc.dim(file)} ${pc.dim(`(${note})`)}`);
+  }
+  console.log();
+}
+
 async function sectionConflicts(): Promise<void> {
   console.log(pc.bold("Conflicts"));
   const state = await readState();
@@ -221,17 +381,31 @@ async function sectionConflicts(): Promise<void> {
 export interface DoctorOptions {
   verbose?: boolean;
   repair?: boolean;
+  /** With --repair: the folder the store's skills link should point at. */
+  store?: string;
 }
 
 export async function doctorCommand(options: DoctorOptions = {}): Promise<void> {
+  if (options.store && !options.repair) {
+    console.error(pc.red("--store only makes sense with --repair"));
+    process.exitCode = 1;
+    return;
+  }
   if (options.repair) {
     console.log(pc.bold("Repair"));
-    printSyncReport(await sync({ importExisting: true }));
+    await repairSkillsLink(options.store);
+    try {
+      printSyncReport(await sync({ importExisting: true }));
+    } catch (err) {
+      console.log(`  ${ERR} ${pc.red(err instanceof Error ? err.message : String(err))}`);
+      process.exitCode = 1;
+    }
     console.log();
   }
   await sectionPaths();
   await sectionLLM(options.verbose ?? false);
   await sectionStore();
   await sectionMirrors();
+  await sectionAlways();
   await sectionConflicts();
 }

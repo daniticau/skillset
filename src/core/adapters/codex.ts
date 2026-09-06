@@ -8,7 +8,7 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DEFAULT_CODEX_SKILLS_DIR } from "../paths.js";
 import type { AgentAdapter } from "./types.js";
 import {
@@ -31,6 +31,8 @@ export const codexAdapter: AgentAdapter = {
     if (existsSync(codexHome)) return { path: DEFAULT_CODEX_SKILLS_DIR };
     return null;
   },
+
+  instructionsFile: (root) => join(dirname(root), "AGENTS.md"),
 
   mirrorSkill: mirrorSkillDir,
   hashMirrorSkill: hashMirrorSkillDir,

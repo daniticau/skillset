@@ -44,6 +44,14 @@ export interface SkillFrontmatter {
    * before origin tracking existed; treat as "user-created" for conservative safety.
    */
   origin?: SkillOrigin;
+  /**
+   * Always-on. The body is also written into a managed block of every connected
+   * agent's global instructions file (CLAUDE.md, AGENTS.md), so it applies to
+   * every session without waiting for a description match. A triggered skill
+   * can be missed; an always-on one cannot. It costs tokens on every turn, so
+   * keep these short and absolute: never do X, always do Y.
+   */
+  always?: boolean;
 }
 
 export interface ParsedSkill {
@@ -90,6 +98,15 @@ export function parseSkillMd(source: string): ParsedSkill {
     }
     origin = data.origin;
   }
+  let always: boolean | undefined;
+  if (data.always !== undefined && data.always !== null) {
+    if (typeof data.always !== "boolean") {
+      throw new SkillValidationError(
+        `SKILL.md frontmatter \`always\` must be true or false, got ${JSON.stringify(data.always)}`
+      );
+    }
+    always = data.always;
+  }
   return {
     frontmatter: {
       name: data.name,
@@ -97,13 +114,14 @@ export function parseSkillMd(source: string): ParsedSkill {
       license: typeof data.license === "string" ? data.license : undefined,
       tier,
       origin,
+      always,
     },
     body: content,
   };
 }
 
 /**
- * Render a SKILL.md with stable frontmatter ordering (name → description → tier → origin → license).
+ * Render a SKILL.md with stable frontmatter ordering (name → description → always → tier → origin → license).
  * Trailing newline included. Used by mirror / make / synthesize so the on-disk format is uniform.
  */
 export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): string {
@@ -113,6 +131,7 @@ export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): stri
     `name: ${frontmatter.name}`,
     `description: ${JSON.stringify(frontmatter.description)}`,
   ];
+  if (frontmatter.always) fm.push("always: true");
   if (frontmatter.tier) fm.push(`tier: ${frontmatter.tier}`);
   if (frontmatter.origin) fm.push(`origin: ${frontmatter.origin}`);
   if (frontmatter.license) fm.push(`license: ${JSON.stringify(frontmatter.license)}`);

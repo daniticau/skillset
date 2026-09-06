@@ -14,7 +14,7 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DEFAULT_AGENTS_SKILLS_DIR } from "../paths.js";
 import type { AgentAdapter } from "./types.js";
 import {
@@ -38,6 +38,8 @@ export const agentsAdapter: AgentAdapter = {
     if (!existsSync(agentsHome)) return null;
     return { path: DEFAULT_AGENTS_SKILLS_DIR };
   },
+
+  instructionsFile: (root) => join(dirname(root), "AGENTS.md"),
 
   mirrorSkill: mirrorSkillDir,
   hashMirrorSkill: hashMirrorSkillDir,

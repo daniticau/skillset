@@ -10,7 +10,7 @@ import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
 import { catalogCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { addCommand, editCommand, removeCommand, showCommand } from "./commands/manage.js";
+import { addCommand, alwaysCommand, editCommand, removeCommand, showCommand } from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
 import { buildCommand } from "./commands/build.js";
 import { desktopSnapshotCommand } from "./commands/desktop.js";
@@ -118,10 +118,28 @@ export function createProgram(): Command {
 
   program
     .command("add [source]")
-    .description("add a complete skill directory/file, or read SKILL.md from stdin")
+    .description(
+      "add a skill from a local path, a GitHub repo or URL, a skills.sh page, a tweet that links to one, or stdin"
+    )
     .option("--stdin", "read a complete SKILL.md from stdin")
-    .action(async (source: string | undefined, options: { stdin?: boolean }) => {
-      await addCommand(source, options);
+    .option("--skill <name>", "pick one skill when a remote repo holds several")
+    .option("--always", "make it always-on: its body goes into every agent's global instructions file")
+    .option("--build", "if a tweet has no skill link, build a skill from its text")
+    .action(
+      async (
+        source: string | undefined,
+        options: { stdin?: boolean; skill?: string; always?: boolean; build?: boolean }
+      ) => {
+        await addCommand(source, options);
+      }
+    );
+
+  program
+    .command("always <skill>")
+    .description("make a skill always-on (in every session), or return it to on-demand with --off")
+    .option("--off", "load on demand again")
+    .action(async (skill: string, options: { off?: boolean }) => {
+      await alwaysCommand(skill, options);
     });
 
   program
@@ -145,8 +163,9 @@ export function createProgram(): Command {
     .command("doctor")
     .description("check store health, LLM connectivity, and mirror state")
     .option("-v, --verbose", "show extra detail")
-    .option("--repair", "reconcile canonical skills with connected mirrors")
-    .action(async (options: { verbose?: boolean; repair?: boolean }) => {
+    .option("--repair", "relink a moved store, then reconcile canonical skills with connected mirrors")
+    .option("--store <path>", "with --repair: point the store's skills link at this folder")
+    .action(async (options: { verbose?: boolean; repair?: boolean; store?: string }) => {
       await doctorCommand(options);
     });
 

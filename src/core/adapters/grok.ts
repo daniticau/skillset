@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { AgentAdapter } from "./types.js";
 import {
   hashMirrorSkillDir,
@@ -45,6 +45,8 @@ export const grokAdapter: AgentAdapter = {
     const grokHome = join(homedir(), ".grok");
     return existsSync(grokHome) ? { path: join(grokHome, "skills") } : null;
   },
+  instructionsFile: (root) => join(dirname(root), "AGENTS.md"),
+
   mirrorSkill: mirrorSkillDir,
   hashMirrorSkill: hashMirrorSkillDir,
   mirrorSkillMtimeMs: mirrorSkillDirMtimeMs,

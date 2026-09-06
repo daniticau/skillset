@@ -87,6 +87,16 @@ async function inspectSkill(name: string): Promise<SkillCheckIssue[]> {
     issues.push(
       ...validateProposedSkill(name, parsed.frontmatter.description, parsed.body)
     );
+    if (parsed.frontmatter.always) {
+      const words = wordCount(parsed.body);
+      if (words > 150) {
+        issues.push({
+          severity: "warning",
+          skill: name,
+          message: `always-on body is ${words} words; it loads in every session, so keep it under 150`,
+        });
+      }
+    }
     // Require code/link-style delimiters so prose such as "icon assets/audit"
     // is not mistaken for a bundled path.
     const resourcePattern = /(?:^|[`'"(])((?:references|scripts|assets)\/[a-zA-Z0-9._/-]+)/g;
