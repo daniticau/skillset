@@ -8,6 +8,10 @@ struct RootView: View {
         VStack(spacing: 0) {
             TopBar(model: model)
 
+            Rectangle()
+                .fill(.primary.opacity(0.06))
+                .frame(height: 1)
+
             Group {
                 switch model.section {
                 case .library:
@@ -20,11 +24,17 @@ struct RootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // `.hiddenTitleBar` hides the title but SwiftUI still reserves the
+        // titlebar band as a safe area, which pushed the whole bar below the
+        // traffic lights and left an empty row above it. Claim that band so
+        // the switch and the traffic lights share one row, like a native
+        // unified toolbar.
+        .ignoresSafeArea(.container, edges: .top)
         .background(.background)
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 ToastView(toast: toast)
-                    .padding(.top, 54)
+                    .padding(.top, 38)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -66,7 +76,8 @@ private struct TopBar: View {
         // Height matches the standard macOS titlebar so everything here centers
         // on the same axis as the traffic lights. The switch is centered on the
         // full window width — not on the space left over after the traffic
-        // lights — so it reads as the true middle of the window.
+        // lights — so it reads as the true middle of the window. Nothing is
+        // placed in the leading 78pt; the traffic lights own that.
         ZStack {
             SegmentedSwitch(
                 selection: Binding(
