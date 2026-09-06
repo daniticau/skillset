@@ -7,7 +7,7 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DEFAULT_KIMI_SKILLS_DIR } from "../paths.js";
 import type { AgentAdapter } from "./types.js";
 import {
@@ -30,6 +30,8 @@ export const kimiCodeAdapter: AgentAdapter = {
     if (!existsSync(kimiHome)) return null;
     return { path: join(kimiHome, "skills") };
   },
+
+  instructionsFile: (root) => join(dirname(root), "AGENTS.md"),
 
   mirrorSkill: mirrorSkillDir,
   hashMirrorSkill: hashMirrorSkillDir,

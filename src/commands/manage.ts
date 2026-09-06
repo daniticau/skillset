@@ -20,6 +20,8 @@ import { storeSkillDir } from "../core/store.js";
 import { getAdapter } from "../core/adapters/index.js";
 import { syncCommand } from "./sync.js";
 import { appendHistoryEvent, sharedSkillAgents } from "../core/history.js";
+import { RemoteSourceError, isRemoteSource, resolveRemoteSkill } from "../core/remote.js";
+import { buildCommand } from "./build.js";
 
 function editorCommand(): string | undefined {
   return process.env.VISUAL || process.env.EDITOR;
@@ -243,12 +245,35 @@ export interface AddOptions {
   managed?: boolean;
   /** Test/programmatic injection; not exposed as a CLI flag. */
   content?: string;
+  /** Remote sources: pick one skill by name when a repo holds several. */
+  skill?: string;
+  /** Mark the new skill always-on. */
+  always?: boolean;
+  /** A tweet with no skill link: build a skill from its text instead of failing. */
+  build?: boolean;
+}
+
+interface LoadedSkillSource {
+  raw: string;
+  sourceDir?: string;
+  /** Where a remote skill came from. Unset for local sources. */
+  origin?: string;
+  cleanup?: () => Promise<void>;
 }
 
 async function loadSkillSource(
   source: string | undefined,
   options: AddOptions
-): Promise<{ raw: string; sourceDir?: string }> {
+): Promise<LoadedSkillSource> {
+  if (source && isRemoteSource(source)) {
+    const resolved = await resolveRemoteSkill(source, { skill: options.skill });
+    return {
+      raw: await readFile(join(resolved.dir, "SKILL.md"), "utf8"),
+      sourceDir: resolved.dir,
+      origin: resolved.origin,
+      cleanup: resolved.cleanup,
+    };
+  }
   if (source) {
     const path = resolve(source);
     if (!existsSync(path)) throw new Error(`source does not exist: ${path}`);
@@ -269,15 +294,27 @@ export async function addCommand(
   source: string | undefined,
   options: AddOptions = {}
 ): Promise<void> {
-  let loaded: { raw: string; sourceDir?: string };
+  let loaded: LoadedSkillSource;
   try {
     loaded = await loadSkillSource(source, options);
   } catch (err) {
+    if (err instanceof RemoteSourceError && err.tweetText && options.build) {
+      console.log(pc.dim("the tweet links to no skill; building one from its text"));
+      await buildCommand([err.tweetText], {});
+      return;
+    }
     console.error(pc.red(err instanceof Error ? err.message : String(err)));
     process.exitCode = 1;
     return;
   }
+  try {
+    await installLoadedSkill(loaded, options);
+  } finally {
+    await loaded.cleanup?.();
+  }
+}
 
+async function installLoadedSkill(loaded: LoadedSkillSource, options: AddOptions): Promise<void> {
   let parsed;
   try {
     parsed = parseSkillMd(loaded.raw);
@@ -285,6 +322,9 @@ export async function addCommand(
     console.error(pc.red(`invalid SKILL.md: ${err instanceof Error ? err.message : String(err)}`));
     process.exitCode = 1;
     return;
+  }
+  if (options.always) {
+    parsed = { ...parsed, frontmatter: { ...parsed.frontmatter, always: true } };
   }
 
   const name = parsed.frontmatter.name;
@@ -312,7 +352,7 @@ export async function addCommand(
   }
 
   if (loaded.sourceDir) {
-    if (basename(loaded.sourceDir) !== name) {
+    if (!loaded.origin && basename(loaded.sourceDir) !== name) {
       console.log(pc.yellow(`• source folder "${basename(loaded.sourceDir)}" contains skill "${name}"`));
     }
     await copySkillSource(loaded.sourceDir, dest);
@@ -337,15 +377,18 @@ export async function addCommand(
     ? initialSkillState("auto-created", { createdBy: "agent" })
     : initialSkillState("user-created", { createdBy: "manual" });
   await writeState(state);
-  console.log(pc.green(`✓ added ${pc.bold(name)}`));
+  console.log(pc.green(`✓ added ${pc.bold(name)}${parsed.frontmatter.always ? pc.blue(" ∞ always-on") : ""}`));
+  if (loaded.origin) console.log(pc.dim(`  from ${loaded.origin}`));
   await syncCommand();
   const nextState = await readState();
   await appendHistoryEvent({
     kind: "created",
     title: `${name} created`,
-    detail: options.managed
-      ? "An agent-created skill was added to the canonical library."
-      : "A manually authored skill was added to the canonical library.",
+    detail: loaded.origin
+      ? `Added from ${loaded.origin}.`
+      : options.managed
+        ? "An agent-created skill was added to the canonical library."
+        : "A manually authored skill was added to the canonical library.",
     skillNames: [name],
     agents: sharedSkillAgents(),
     source: options.managed ? "agent" : "manual",
@@ -401,4 +444,40 @@ export async function removeCommand(
     agents,
     source: "manual",
   });
+}
+
+export interface AlwaysOptions {
+  /** Return the skill to on-demand loading. */
+  off?: boolean;
+}
+
+/**
+ * `sks always <skill>`: flip a skill between on-demand and always-on.
+ *
+ * Always-on writes the body into a managed block of every connected agent's
+ * global instructions file, so it holds in every session. On-demand leaves it
+ * to the agent to pull in when the description matches.
+ */
+export async function alwaysCommand(name: string, options: AlwaysOptions = {}): Promise<void> {
+  const dir = storeSkillDir(name);
+  const file = join(dir, "SKILL.md");
+  if (!existsSync(file)) {
+    console.error(pc.red(`no skill named "${name}"`));
+    process.exitCode = 1;
+    return;
+  }
+  const next = !options.off;
+  const parsed = await readSkillMd(dir);
+  if ((parsed.frontmatter.always === true) === next) {
+    console.log(pc.dim(`• ${name} is already ${next ? "always-on" : "on-demand"}`));
+    return;
+  }
+  const before = await hashSkillDir(dir);
+  await writeFile(file, renderSkillMd({ ...parsed.frontmatter, always: next }, parsed.body), "utf8");
+  console.log(
+    next
+      ? pc.blue(`∞ ${pc.bold(name)} is now always-on; it goes into every agent's global instructions file`)
+      : pc.dim(`○ ${pc.bold(name)} is back to on-demand; agents load it when the description matches`)
+  );
+  await finishEdit(name, before);
 }

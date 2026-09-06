@@ -20,6 +20,7 @@ import { getAdapter } from "./adapters/index.js";
 import type { AgentAdapter } from "./adapters/index.js";
 import { CONFLICTS_DIR, STORE_SKILLS_DIR } from "./paths.js";
 import { appendHistoryEvent, sharedSkillAgents } from "./history.js";
+import { writeAlwaysBlock } from "./adapters/always-block.js";
 
 export type SyncAction =
   | { kind: "promoted"; skill: string; from: Link }
@@ -35,7 +36,14 @@ export type SyncAction =
       loserLabels?: string[];
       archivedLoserCount?: number;
     }
-  | { kind: "removed-from-mirror"; skill: string; link: Link };
+  | { kind: "removed-from-mirror"; skill: string; link: Link }
+  | {
+      kind: "always-written";
+      to: Link;
+      file: string;
+      skills: string[];
+      removed: boolean;
+    };
 
 export interface SyncReport {
   actions: SyncAction[];
@@ -96,6 +104,7 @@ function semanticHash(skill: ParsedSkill): string {
     description: skill.frontmatter.description,
     tier: skill.frontmatter.tier,
     license: skill.frontmatter.license,
+    always: skill.frontmatter.always ?? false,
     body: skill.body.trim(),
   });
   return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
@@ -122,6 +131,7 @@ function mergeFrontmatter(
     tier: mirror.tier ?? prior?.tier,
     license: mirror.license ?? prior?.license,
     origin: mirror.origin ?? prior?.origin ?? fallbackOrigin,
+    always: mirror.always ?? prior?.always,
   };
 }
 
@@ -506,11 +516,21 @@ async function importFromMirrors(
  *      (mirror hash != recorded) → promote mirror → canonical.
  *   3. Push canonical → every per-skill mirror, record new hashes.
  *   4. Rewrite aggregate-file mirrors with the whole canonical set.
- *   5. Prune mirror-side skills that are no longer in canonical.
+ *   5. Rewrite the always-on block in each agent's global instructions file.
+ *   6. Prune mirror-side skills that are no longer in canonical.
  */
 export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   const config = await readConfig();
   const state = await readState();
+  // A store that has vanished (deleted, or a link whose target moved) reads as
+  // zero canonical skills. Left unchecked, the prune step below would then
+  // delete every skill skillset ever wrote from every mirror. Stop here instead.
+  if (!existsSync(STORE_SKILLS_DIR) && Object.keys(state.skills).length > 0) {
+    throw new Error(
+      `canonical store ${STORE_SKILLS_DIR} is missing but state.json still tracks ${Object.keys(state.skills).length} skill(s); ` +
+        `refusing to sync because it would prune every mirror. Run \`sks doctor --repair\` to relink the store.`
+    );
+  }
   const actions: SyncAction[] = [];
   const links = linkedAdapters(config.links);
   const operationalLinks = links.filter(({ link }) => !aliasesCanonicalStore(link.path));
@@ -684,6 +704,37 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
     }
   }
 
+  // Always-on skills: rewrite the managed block in each agent's global
+  // instructions file. This walks every linked adapter, not only the
+  // operational ones. A skills dir that aliases the canonical store (Kimi
+  // symlinked to it, say) is skipped for skill writes but still owns an
+  // AGENTS.md that must carry the block.
+  const alwaysSkills = aggregateParsedSkills.filter((s) => s.frontmatter.always === true);
+  const alwaysFilesSeen = new Set<string>();
+  for (const { link, adapter } of links) {
+    if (!adapter.instructionsFile) continue;
+    const file = adapter.instructionsFile(link.path);
+    if (alwaysFilesSeen.has(file)) continue;
+    alwaysFilesSeen.add(file);
+    try {
+      const result = await writeAlwaysBlock(file, alwaysSkills);
+      if (result.changed) {
+        actions.push({
+          kind: "always-written",
+          to: link,
+          file,
+          skills: alwaysSkills.map((s) => s.frontmatter.name),
+          removed: result.removed,
+        });
+      }
+    } catch (err) {
+      failures.push({
+        skill: `always-on → ${file}`,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // Prune mirror-side skills no longer in canonical.
   //
   // Only skills skillset actually wrote to this mirror are eligible. A skill the
@@ -761,36 +812,49 @@ export async function status(): Promise<{
     name: string;
     userEdited: boolean;
     origin: SkillOrigin;
+    always: boolean;
     mirrors: string[];
     conflicts: number;
     lastConflictAt?: string;
   }>;
-  links: Array<Link & { layout: AgentAdapter["layout"] }>;
+  links: Array<Link & { layout: AgentAdapter["layout"]; instructionsFile?: string }>;
 }> {
   const config = await readConfig();
   const state = await readState();
   const storeSkillNames = await listStoreSkills();
+  const skills = [];
+  for (const name of storeSkillNames) {
+    const s: State["skills"][string] | undefined = state.skills[name];
+    const history = s?.conflictHistory ?? [];
+    let always = false;
+    try {
+      always = (await readSkillMd(storeSkillDir(name))).frontmatter.always === true;
+    } catch {
+      // A malformed skill still shows up in status; check reports the error.
+    }
+    skills.push({
+      name,
+      userEdited: s?.userEdited ?? false,
+      origin: s?.origin ?? "user-created",
+      always,
+      mirrors: Object.keys(s?.mirrorHashes ?? {}),
+      conflicts: history.length,
+      lastConflictAt: history.length > 0 ? history[history.length - 1]!.at : undefined,
+    });
+  }
   return {
-    skills: storeSkillNames.map((name) => {
-      const s: State["skills"][string] | undefined = state.skills[name];
-      const history = s?.conflictHistory ?? [];
-      return {
-        name,
-        userEdited: s?.userEdited ?? false,
-        origin: s?.origin ?? "user-created",
-        mirrors: Object.keys(s?.mirrorHashes ?? {}),
-        conflicts: history.length,
-        lastConflictAt: history.length > 0 ? history[history.length - 1]!.at : undefined,
-      };
-    }),
+    skills,
     links: config.links.map((link) => {
       let layout: AgentAdapter["layout"];
+      let instructionsFile: string | undefined;
       try {
-        layout = getAdapter(link.agent).layout;
+        const adapter = getAdapter(link.agent);
+        layout = adapter.layout;
+        instructionsFile = adapter.instructionsFile?.(link.path);
       } catch {
         layout = "per-skill-dir";
       }
-      return { ...link, layout };
+      return { ...link, layout, instructionsFile };
     }),
   };
 }
