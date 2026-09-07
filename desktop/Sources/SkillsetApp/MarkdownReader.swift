@@ -8,7 +8,7 @@ struct MarkdownReader: View {
     }
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 12) {
+        LazyVStack(alignment: .leading, spacing: 10) {
             ForEach(blocks) { block in
                 blockView(block)
             }
@@ -22,55 +22,61 @@ struct MarkdownReader: View {
         case .heading(let level):
             Text(inline(block.text))
                 .font(headingFont(level))
-                .padding(.top, level == 1 ? 4 : 8)
+                .padding(.top, level == 1 ? 6 : 10)
         case .paragraph:
             Text(inline(block.text))
-                .font(.system(size: 15.5))
-                .lineSpacing(5)
+                .font(.system(size: 14))
+                .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
         case .bullet:
             HStack(alignment: .firstTextBaseline, spacing: 9) {
                 Circle()
                     .fill(.secondary)
                     .frame(width: 4, height: 4)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 }
                 Text(inline(block.text))
-                    .font(.system(size: 15.5))
+                    .font(.system(size: 14))
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.leading, 8)
+            .padding(.leading, 6)
         case .numbered(let number):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(number).")
+                    .font(.system(size: 14))
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
                     .frame(minWidth: 18, alignment: .trailing)
                 Text(inline(block.text))
-                    .font(.system(size: 15.5))
+                    .font(.system(size: 14))
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
         case .quote:
             HStack(alignment: .top, spacing: 11) {
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.accentColor.opacity(0.6))
+                    .fill(Color.accentColor.opacity(0.55))
                     .frame(width: 3)
                 Text(inline(block.text))
-                    .font(.system(size: 15.5))
+                    .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .italic()
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 2)
         case .code:
             ScrollView(.horizontal) {
                 Text(block.text)
-                    .font(.system(size: 14, design: .monospaced))
+                    .font(.system(size: 12.5, design: .monospaced))
+                    .lineSpacing(3)
                     .textSelection(.enabled)
-                    .padding(13)
+                    .padding(12)
             }
-            .background(.quaternary.opacity(0.65), in: .rect(cornerRadius: 9))
+            .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(UI.hairline))
         case .divider:
-            Divider().padding(.vertical, 4)
+            Hairline().padding(.vertical, 6)
         }
     }
 
@@ -83,10 +89,10 @@ struct MarkdownReader: View {
 
     private func headingFont(_ level: Int) -> Font {
         switch level {
-        case 1: .title.weight(.bold)
-        case 2: .title2.weight(.semibold)
-        case 3: .title3.weight(.semibold)
-        default: .headline
+        case 1: .system(size: 22, weight: .bold)
+        case 2: .system(size: 18, weight: .semibold)
+        case 3: .system(size: 15.5, weight: .semibold)
+        default: .system(size: 14, weight: .semibold)
         }
     }
 }

@@ -1,35 +1,5 @@
 import Foundation
 
-/// Skillset is two things: one canonical place to see every skill, and a place
-/// to build new ones. The navigation says exactly that and nothing else —
-/// activity and reports live inside Library as context, not as destinations.
-enum SidebarSection: String, CaseIterable, Identifiable {
-    case library
-    case builder
-    case settings
-
-    var id: String { rawValue }
-
-    /// The two primary surfaces. Settings is reachable but is not a peer.
-    static var primary: [SidebarSection] { [.library, .builder] }
-
-    var title: String {
-        return switch self {
-        case .library: "Library"
-        case .builder: "Builder"
-        case .settings: "Settings"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .library: "square.stack"
-        case .builder: "hammer"
-        case .settings: "gearshape"
-        }
-    }
-}
-
 struct DesktopSnapshot: Decodable, Equatable {
     let generatedAt: String
     let storePath: String
@@ -86,30 +56,6 @@ struct HistoryRecord: Decodable, Equatable, Identifiable {
 }
 
 enum AgentPresentation {
-    static let ids = ["claude-code", "codex", "kimi-code", "grok", "cursor"]
-
-    static func name(for id: String) -> String {
-        switch id {
-        case "claude-code": "Claude Code"
-        case "codex": "Codex"
-        case "kimi-code": "Kimi Code"
-        case "grok": "Grok CLI"
-        case "cursor": "Cursor"
-        default: id
-        }
-    }
-
-    static func shortName(for id: String) -> String {
-        switch id {
-        case "claude-code": "Claude"
-        case "codex": "Codex"
-        case "kimi-code": "Kimi"
-        case "grok": "Grok"
-        case "cursor": "Cursor"
-        default: id
-        }
-    }
-
     static func symbol(for id: String) -> String {
         switch id {
         case "claude-code": "brain.head.profile"
@@ -117,6 +63,7 @@ enum AgentPresentation {
         case "kimi-code": "moon.stars"
         case "grok": "bolt.circle"
         case "cursor": "cursorarrow.rays"
+        case "agents": "square.grid.2x2"
         default: "terminal"
         }
     }
@@ -125,27 +72,6 @@ enum AgentPresentation {
 struct AppToast: Equatable, Identifiable {
     let id = UUID()
     let message: String
-}
-
-enum DisplayDate {
-    static func relative(_ value: String?) -> String {
-        guard let value, let date = date(from: value) else { return "Never" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    static func day(_ value: String) -> String {
-        guard let date = date(from: value) else { return value }
-        return date.formatted(date: .abbreviated, time: .shortened)
-    }
-
-    static func date(from value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) { return date }
-        return ISO8601DateFormatter().date(from: value)
-    }
 }
 
 /// One proposed skill returned by `sks build --json`, plus the validation
@@ -164,6 +90,16 @@ struct BuilderProposal: Codable, Equatable, Identifiable {
     let installable: Bool
 
     var id: String { name }
+
+    /// The Library's capitalised kind label, for the shared colour coding.
+    var kindLabel: String {
+        switch kind {
+        case "rule": "Rule"
+        case "workflow": "Workflow"
+        case "tool": "Tool"
+        default: "Judgement"
+        }
+    }
 
     /// Only the fields `sks build --from-json` consumes; verdict fields are
     /// recomputed on install rather than trusted from the client.
