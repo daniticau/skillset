@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rename as renameDir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import pc from "picocolors";
 import {
@@ -15,6 +15,7 @@ import {
   parseSkillMd,
   readSkillMd,
   renderSkillMd,
+  validateSkillName,
 } from "../core/skill.js";
 import { storeSkillDir } from "../core/store.js";
 import { getAdapter } from "../core/adapters/index.js";
@@ -35,7 +36,7 @@ async function runEditor(command: string, file: string): Promise<number> {
   });
 }
 
-async function readStdin(): Promise<string> {
+export async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -74,7 +75,21 @@ async function copySkillSource(sourceDir: string, dest: string): Promise<void> {
   });
 }
 
-async function finishEdit(name: string, before: string, managed = false): Promise<void> {
+interface FinishEditOptions {
+  /** Agent-authored maintenance; does not mark an auto-managed skill as user-edited. */
+  managed?: boolean;
+  /** Replaces the default history line, for example after a rename. */
+  note?: { title: string; detail: string };
+  /** Passed through to sync. A rename turns this off so the old name cannot be adopted back. */
+  adoptUntracked?: boolean;
+}
+
+async function finishEdit(
+  name: string,
+  before: string,
+  options: FinishEditOptions = {}
+): Promise<void> {
+  const managed = options.managed === true;
   const dir = storeSkillDir(name);
   try {
     await readSkillMd(dir);
@@ -93,14 +108,15 @@ async function finishEdit(name: string, before: string, managed = false): Promis
   if (managed) await markManagedEdited(name);
   else await markUserEdited(name);
   console.log(pc.green(`✓ updated ${pc.bold(name)}`));
-  await syncCommand();
-  const state = await readState();
+  await syncCommand({ adoptUntracked: options.adoptUntracked });
   await appendHistoryEvent({
     kind: "edited",
-    title: `${name} edited`,
-    detail: managed
-      ? "An agent-managed edit was saved and mirrored to every active model."
-      : "A manual edit was saved and mirrored to every active model.",
+    title: options.note?.title ?? `${name} edited`,
+    detail:
+      options.note?.detail ??
+      (managed
+        ? "An agent-managed edit was saved and mirrored to every active model."
+        : "A manual edit was saved and mirrored to every active model."),
     skillNames: [name],
     agents: sharedSkillAgents(),
     source: managed ? "agent" : "manual",
@@ -181,7 +197,7 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
       process.exitCode = 1;
       return;
     }
-    await finishEdit(name, before, options.managed);
+    await finishEdit(name, before, { managed: options.managed });
     return;
   }
 
@@ -200,7 +216,132 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
     return;
   }
 
-  await finishEdit(name, before, options.managed);
+  await finishEdit(name, before, { managed: options.managed });
+}
+
+export interface SaveSkillFieldsInput {
+  name: string;
+  /** New kebab-case name. The store directory and every mirror copy move with it. */
+  rename?: string;
+  /** Replaces the frontmatter description. Every other frontmatter field is kept. */
+  description?: string;
+  /** Replaces the body. */
+  body?: string;
+}
+
+/**
+ * Change a skill's name, description, or body and keep the rest of its
+ * frontmatter (always, tier, origin, license) as it is.
+ *
+ * `sks rename` and the desktop app both come through here, so a rename and an
+ * edit land in one sync and one history entry. A rename moves the store
+ * directory and leaves the old state entry in place: sync prunes the old
+ * mirror copies from that entry, then drops it.
+ */
+export async function saveSkillFields(input: SaveSkillFieldsInput): Promise<boolean> {
+  const { name } = input;
+  let dir: string;
+  try {
+    dir = storeSkillDir(name);
+  } catch (err) {
+    console.error(pc.red(err instanceof Error ? err.message : String(err)));
+    process.exitCode = 1;
+    return false;
+  }
+  if (!existsSync(join(dir, "SKILL.md"))) {
+    console.error(pc.red(`no skill named "${name}"`));
+    process.exitCode = 1;
+    return false;
+  }
+
+  const rename = input.rename !== undefined && input.rename !== name ? input.rename : undefined;
+  if (rename !== undefined) {
+    try {
+      validateSkillName(rename);
+    } catch (err) {
+      console.error(pc.red(err instanceof Error ? err.message : String(err)));
+      process.exitCode = 1;
+      return false;
+    }
+    if (existsSync(storeSkillDir(rename))) {
+      console.error(pc.red(`skill "${rename}" already exists`));
+      process.exitCode = 1;
+      return false;
+    }
+    const config = await readConfig();
+    for (const link of config.links) {
+      const adapter = getAdapter(link.agent);
+      if (!adapter.listMirrorSkills) continue;
+      if ((await adapter.listMirrorSkills(link.path)).includes(rename)) {
+        console.error(
+          pc.red(
+            `skill "${rename}" already exists in ${adapter.displayName}; run ${pc.bold("sks doctor --repair")} to adopt it before renaming`
+          )
+        );
+        process.exitCode = 1;
+        return false;
+      }
+    }
+  }
+
+  const current = await readSkillMd(dir);
+  const description =
+    input.description === undefined ? current.frontmatter.description : input.description.trim();
+  if (!description) {
+    console.error(pc.red("description cannot be empty"));
+    process.exitCode = 1;
+    return false;
+  }
+  const body = input.body === undefined ? current.body : input.body;
+  let rendered: string;
+  try {
+    rendered = renderSkillMd({ ...current.frontmatter, name: rename ?? name, description }, body);
+    parseSkillMd(rendered);
+  } catch (err) {
+    console.error(pc.red(`invalid SKILL.md: ${err instanceof Error ? err.message : String(err)}`));
+    process.exitCode = 1;
+    return false;
+  }
+
+  const before = await hashSkillDir(dir);
+  if (rename !== undefined) {
+    const dest = storeSkillDir(rename);
+    await renameDir(dir, dest);
+    const state = await readState();
+    const prior = state.skills[name];
+    state.skills[rename] = {
+      ...(prior ?? initialSkillState("user-created", { createdBy: "manual" })),
+      canonicalHash: "",
+      mirrorHashes: {},
+    };
+    await writeState(state);
+    console.log(pc.green(`✓ renamed ${pc.bold(name)} → ${pc.bold(rename)}`));
+    dir = dest;
+  }
+  await writeFile(join(dir, "SKILL.md"), rendered, "utf8");
+  await finishEdit(
+    rename ?? name,
+    before,
+    rename !== undefined
+      ? {
+          adoptUntracked: false,
+          note: {
+            title: `${name} renamed to ${rename}`,
+            detail: `The canonical skill moved to "${rename}" and every active mirror followed.`,
+          },
+        }
+      : {}
+  );
+  return process.exitCode !== 1;
+}
+
+/** `sks rename <skill> <new-name>`: move a skill to a new name everywhere. */
+export async function renameCommand(name: string, newName: string): Promise<void> {
+  if (name === newName) {
+    console.log(pc.dim(`• ${name} already has that name`));
+    return;
+  }
+  await saveSkillFields({ name, rename: newName });
 }
 
 export interface ShowOptions {

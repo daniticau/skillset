@@ -27,7 +27,7 @@ runs when the user runs it.
 - **Add from anywhere**: `sks add` accepts a local path, stdin, `owner/repo`, a GitHub repo/tree/blob URL, a raw `SKILL.md` URL, a skills.sh page, or a tweet that links to one of those (`src/core/remote.ts`). `--skill` picks one from a multi-skill repo; `--build` turns a link-less tweet's text into a skill via the builder.
 - **Initial consolidation**: `sks init` and `sks connect` import existing skills from mirrors before writing to them.
 - **Authoring**: `sks build "<idea>"` decomposes an idea into the smallest reusable skills, validates each against `sks check`, and installs only what passes. `sks add` / `sks edit` / `sks remove` cover direct management.
-- **Desktop app**: two surfaces — Library (browse, search, filter by kind, edit) and Builder (author).
+- **Desktop app**: one window. The sidebar lists every skill (search, kind shown as a faint row tint); the detail pane shows the selected skill for reading or editing (name, description, body), or the builder after **New skill**. Settings is a native Settings window (agents, editor, store path).
 - **Version history**: every mutation commits the canonical store, so nothing is unrecoverable.
 - **Pluggable LLM provider**: `claude-cli`, `codex-cli`, `kimi-cli`, `grok-cli`, `anthropic`, or `ollama`, auto-detected and overridable with `SKILLSET_LLM_PROVIDER` in `~/.skillset/.env`. Availability probes run a real completion, so a signed-out CLI reports unreachable instead of looking healthy.
 
@@ -56,7 +56,7 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `src/build/decompose.ts` - splits a raw idea into the smallest reusable skills.
 - `src/llm/` - provider adapters (one file per CLI/API backend).
 - `src/commands/` - public command wrappers.
-- `src/desktop/` - JSON snapshot backend consumed by the app.
+- `src/desktop/` - JSON snapshot backend consumed by the app. `sks desktop save` takes `{ name, rename?, description?, body? }` on stdin so the app never composes frontmatter.
 - `desktop/` - native SwiftUI app and bundle scripts.
 
 ## Public CLI
@@ -68,7 +68,7 @@ Before writing mirrors, skillset checks recorded mirror hashes. If a mirror chan
 - `sks check [skill]` - validate structure, triggering metadata, and context size.
 - `sks status` - show connected mirrors and skill state.
 - `sks connect <agent>` / `sks disconnect <agent>` - manage mirrors.
-- `sks add [source]` / `sks edit <skill>` / `sks remove <skill> [--block]` - manage skills.
+- `sks add [source]` / `sks edit <skill>` / `sks rename <skill> <new-name>` / `sks remove <skill> [--block]` - manage skills.
 - `sks always <skill> [--off]` - toggle always-on.
 - `sks doctor [--repair [--store <path>]]` - inspect health; `--repair` relinks a moved store, then reconciles mirrors.
 
@@ -116,3 +116,4 @@ All tiers install directly. Tier metadata is retained for conservative future cl
 - `pnpm cli:link` - write `~/.local/bin/sks` for this checkout; rerun after moving the repo
 - `pnpm app:build`
 - `pnpm app:install`
+- App snapshot without screen-recording permission: `SKILLSET_SNAPSHOT_PATH=/tmp/app.png SKILLSET_SNAPSHOT_STATE=edit SKILLSET_SNAPSHOT_QUIT=1 desktop/build/Skillset.app/Contents/MacOS/Skillset` (states: `edit`, `edit-type`, `builder`, `settings`; `SKILLSET_SNAPSHOT_APPEARANCE=light|dark`). See `desktop/Sources/SkillsetApp/DebugSnapshot.swift`.
