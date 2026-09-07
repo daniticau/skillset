@@ -18,7 +18,8 @@ export async function statusCommand(): Promise<void> {
       }
       const name = displayName.padEnd(14);
       const layout = pc.dim(`[${l.layout}]`);
-      console.log(`  ${name} ${layout} ${pc.dim(l.path)}`);
+      const always = l.instructionsFile ? pc.dim(`  ∞ ${l.instructionsFile}`) : "";
+      console.log(`  ${name} ${layout} ${pc.dim(l.path)}${always}`);
     }
   }
 
@@ -37,13 +38,19 @@ export async function statusCommand(): Promise<void> {
       sk.conflicts > 0
         ? ` ${pc.yellow(`⚠ ${sk.conflicts} conflict(s), last ${sk.lastConflictAt}`)}`
         : "";
-    console.log(`  ${marker} ${sk.name}${conflict}`);
+    const always = sk.always ? ` ${pc.blue("∞")}` : "";
+    console.log(`  ${marker} ${sk.name}${always}${conflict}`);
   }
   console.log(
     pc.dim(
       `\n${pc.cyan("◆")} = user-authored (never touched by automation)    ${pc.magenta("✎")} = user-edited (your edits to an auto-skill are preserved)    ${pc.green("•")} = auto-managed`
     )
   );
+  if (s.skills.some((sk) => sk.always)) {
+    console.log(
+      pc.dim(`${pc.blue("∞")} = always-on; written into every agent's global instructions file, loaded in every session`)
+    );
+  }
   const hasConflicts = s.skills.some((sk) => sk.conflicts > 0);
   if (hasConflicts) {
     console.log(

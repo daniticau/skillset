@@ -20,6 +20,7 @@ vi.mock("../src/core/paths.js", () => ({
   DEFAULT_CODEX_SKILLS_DIR: join(ROOT, ".codex", "skills"),
   DEFAULT_KIMI_SKILLS_DIR: MIRROR,
   DEFAULT_CURSOR_SKILLS_DIR: MIRROR,
+  DEFAULT_AGENTS_SKILLS_DIR: MIRROR,
   LEGACY_CODEX_SKILLS_DIR: join(ROOT, ".agents", "skills"),
 }));
 

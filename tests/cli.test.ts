@@ -10,6 +10,7 @@ describe("public CLI", () => {
     const commands = createProgram().commands.map((c) => c.name()).sort();
     expect(commands).toEqual([
       "add",
+      "always",
       "build",
       "catalog",
       "check",

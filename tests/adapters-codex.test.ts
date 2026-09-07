@@ -19,6 +19,7 @@ vi.mock("../src/core/paths.js", () => ({
   DEFAULT_CODEX_SKILLS_DIR: MIRROR,
   DEFAULT_KIMI_SKILLS_DIR: join(ROOT, "kimi-skills"),
   DEFAULT_CURSOR_SKILLS_DIR: join(ROOT, "cursor"),
+  DEFAULT_AGENTS_SKILLS_DIR: join(ROOT, "agents"),
 }));
 
 const { codexAdapter } = await import("../src/core/adapters/codex.js");
