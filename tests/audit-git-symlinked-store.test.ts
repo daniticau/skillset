@@ -20,6 +20,7 @@ vi.mock("../src/core/paths.js", () => ({
   STATE_FILE: join(STORE, "state.json"),
   DEFAULT_CLAUDE_SKILLS_DIR: join(TEST_ROOT, "mirror"),
   DEFAULT_CURSOR_SKILLS_DIR: join(TEST_ROOT, "cursor"),
+  DEFAULT_AGENTS_SKILLS_DIR: join(TEST_ROOT, "agents"),
   SESSIONS_DIR: join(STORE, "sessions"),
 }));
 

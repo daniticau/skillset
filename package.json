@@ -50,7 +50,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "start": "node ./dist/cli.js",
-    "cli": "node ./dist/cli.js"
+    "cli": "node ./dist/cli.js",
+    "cli:link": "node scripts/link-cli.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

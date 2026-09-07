@@ -5,27 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="skillset gives Claude Code, Codex, and Kimi Code a shared CLI-managed skill library: portable SKILL.md files mirrored automatically."
+      content="One skill library, mirrored into every coding agent you use. Add a skill from a tweet, a repo, or a file. Make a rule always-on everywhere."
     />
-    <meta property="og:title" content="skillset — portable memory for coding agents" />
+    <meta property="og:title" content="skillset — one skill library, every coding agent" />
     <meta
       property="og:description"
-      content="Turn agent-session lessons into reusable SKILL.md files you own, mirrored across Claude Code, Codex, and Kimi Code."
+      content="One skill library, mirrored into Claude Code, Codex, Kimi, Grok, and Cursor. Add a skill from a tweet, a repo, or a file. Make a rule always-on everywhere."
     />
     <meta property="og:image" content="./assets/skillset-preview.png?v=4" />
     <meta
       property="og:image:alt"
-      content="skillset mirroring portable skills across Claude Code, Codex, and Kimi Code."
+      content="skillset mirroring one skill library across Claude Code, Codex, Kimi, Grok, and Cursor."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="skillset" />
     <meta
       name="twitter:description"
-      content="Turn agent-session lessons into reusable SKILL.md files you own, mirrored across Claude Code, Codex, and Kimi Code."
+      content="One skill library, mirrored into Claude Code, Codex, Kimi, Grok, and Cursor. Add a skill from a tweet, a repo, or a file. Make a rule always-on everywhere."
     />
     <meta name="twitter:image" content="./assets/skillset-preview.png?v=4" />
     <meta name="theme-color" content="#0a0a0a" />
-    <title>skillset — portable memory for coding agents</title>
+    <title>skillset — one skill library, every coding agent</title>
     <link rel="icon" href="./assets/skillset-logo-gpt.png" type="image/png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -55,10 +55,11 @@
     <main>
       <section class="hero" id="install" aria-labelledby="hero-title">
         <div class="hero-glow" aria-hidden="true"></div>
-        <h1 id="hero-title">Teach your agent once.</h1>
+        <h1 id="hero-title">One skill library. Every agent.</h1>
         <p class="lede">
-          skillset turns corrections and preferences from agent sessions into portable
-          <code>SKILL.md</code> files you own — mirrored automatically to every agent you use.
+          skillset keeps your <code>SKILL.md</code> files in one folder you own and mirrors them into
+          Claude Code, Codex, Kimi, Grok, and Cursor. Paste a link, get a skill everywhere.
+          Mark a rule always-on and it holds in every session.
         </p>
 
         <div class="hero-actions">
@@ -78,18 +79,19 @@
           <a class="btn btn-ghost" href="https://github.com/daniticau/skillset">View on GitHub</a>
         </div>
 
-        <figure class="terminal" aria-label="Example sks tailor output">
+        <figure class="terminal" aria-label="Example sks add and sks always output">
           <div class="terminal-bar">
             <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
             <span class="terminal-title">~/.skillset</span>
           </div>
-          <pre class="terminal-body"><code><span class="t-prompt">$</span> <span class="t-cmd">sks tailor</span>
-<span class="t-dim">scraping sessions…</span>
-<span class="t-ok">✓</span> 132 sessions read from Claude Code, Codex, and Kimi
-<span class="t-ok">✓</span> 42 nuggets mined · 6 clusters ranked
-<span class="t-ok">✓</span> created <span class="t-hl">prefer-pnpm-workspace-commands</span> <span class="t-dim">tier: high</span>
-<span class="t-ok">✓</span> updated <span class="t-hl">verify-app-ui-paths</span>
-<span class="t-ok">✓</span> mirrored 2 skills <span class="t-dim">→ Claude · Codex · Kimi</span></code></pre>
+          <pre class="terminal-body"><code><span class="t-prompt">$</span> <span class="t-cmd">sks add https://x.com/juampitech/status/2090491139103064305</span>
+<span class="t-ok">✓</span> added <span class="t-hl">unslop</span>
+<span class="t-dim">  from github.com/cursor/plugins@main/pstack/skills/unslop (via the tweet)</span>
+<span class="t-ok">✓</span> synced 14 skills <span class="t-dim">→ Claude · Codex · Kimi · Grok · Cursor · .agents</span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">sks always no-eyebrows</span>
+<span class="t-hl">∞</span> no-eyebrows is now always-on
+<span class="t-hl">∞</span> 2 rules <span class="t-dim">→ ~/.claude/CLAUDE.md · ~/.codex/AGENTS.md · ~/.grok/AGENTS.md · ~/.kimi-code/AGENTS.md</span></code></pre>
         </figure>
       </section>
 
@@ -101,7 +103,7 @@
           </div>
           <div>
             <h3>Agent-operable</h3>
-            <p>Claude Code, Codex, and Kimi can inspect, validate, add, and tune one canonical store through the CLI.</p>
+            <p>Claude Code, Codex, Kimi, Grok, and Cursor can inspect, validate, add, and edit one canonical store through the CLI.</p>
           </div>
           <div>
             <h3>Edit-safe</h3>
@@ -111,7 +113,7 @@
       </section>
 
       <section class="section" id="how" aria-labelledby="how-title">
-        <h2 id="how-title">Give good corrections somewhere to live.</h2>
+        <h2 id="how-title">One place for every skill.</h2>
         <div class="steps">
           <div class="step">
             <span class="step-num">01</span>
@@ -125,8 +127,8 @@
           </div>
           <div class="step">
             <span class="step-num">03</span>
-            <h3>Tailor</h3>
-            <p>Mine past sessions — or capture a rule directly — into skills.</p>
+            <h3>Add</h3>
+            <p>From a tweet, a repo, a skills.sh page, a folder, or stdin. One command.</p>
           </div>
           <div class="step">
             <span class="step-num">04</span>
@@ -144,8 +146,12 @@
             <span>Create the store, connect agents, import existing skills.</span>
           </div>
           <div class="command-row">
-            <code>sks tailor</code>
-            <span>Learn from session history, or capture an explicit rule.</span>
+            <code>sks add &lt;url&gt;</code>
+            <span>Install a skill from a tweet, a GitHub repo, or a skills.sh page.</span>
+          </div>
+          <div class="command-row">
+            <code>sks always &lt;skill&gt;</code>
+            <span>Put a rule into every agent's global instructions file, every session.</span>
           </div>
           <div class="command-row">
             <code>sks show &lt;skill&gt;</code>
@@ -168,7 +174,7 @@
 
       <section class="section cta" aria-labelledby="cta-title">
         <h2 id="cta-title">Stop repeating yourself.</h2>
-        <p class="lede">Install skillset and let your best corrections follow you everywhere.</p>
+        <p class="lede">Install skillset and take every skill to every agent.</p>
         <div class="hero-actions">
           <div class="install-bar" aria-label="Install skillset">
             <span class="install-prompt" aria-hidden="true">$</span>

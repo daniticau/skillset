@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { DEFAULT_CLAUDE_SKILLS_DIR } from "../paths.js";
 import type { AgentAdapter } from "./types.js";
 import {
@@ -25,6 +25,8 @@ export const claudeCodeAdapter: AgentAdapter = {
     if (!existsSync(claudeDir)) return null;
     return { path: DEFAULT_CLAUDE_SKILLS_DIR };
   },
+
+  instructionsFile: (root) => join(dirname(root), "CLAUDE.md"),
 
   mirrorSkill: mirrorSkillDir,
   hashMirrorSkill: hashMirrorSkillDir,

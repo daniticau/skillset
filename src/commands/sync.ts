@@ -55,6 +55,15 @@ export function printSyncReport(report: SyncReport): void {
       )
     );
   }
+  for (const a of report.actions) {
+    if (a.kind !== "always-written") continue;
+    const who = getAdapter(a.to.agent).displayName;
+    console.log(
+      a.removed
+        ? pc.dim(`− always-on block removed from ${who} ${a.file}`)
+        : pc.blue(`∞ always-on: ${a.skills.length} rule(s) → ${who} ${a.file}`)
+    );
+  }
   for (const f of report.failures ?? []) {
     console.log(pc.red(`✗ could not reconcile "${f.skill}": ${f.error}`));
   }

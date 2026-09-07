@@ -21,6 +21,15 @@ export interface AgentAdapter {
    */
   detect(): Promise<{ path: string } | null>;
 
+  /**
+   * The agent's global instructions file: the text it loads into every session
+   * unconditionally (CLAUDE.md, AGENTS.md). Skills marked `always: true` are
+   * written into a managed block there. Derived from the skills root so a
+   * `--path` override moves both together. Absent for agents that keep global
+   * instructions outside a file (Cursor's User Rules live in its settings UI).
+   */
+  instructionsFile?(skillsRoot: string): string;
+
   // Per-skill layouts (per-skill-dir, per-skill-file):
   /** Write one skill into the mirror. Returns a path or identifier for logging. */
   mirrorSkill?(skill: ParsedSkill, targetRoot: string): Promise<string>;

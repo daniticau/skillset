@@ -7,12 +7,36 @@ APP_DIR="$DESKTOP_DIR/build/Skillset.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-ICONSET_DIR="$DESKTOP_DIR/.build/Skillset.iconset"
-NODE_PATH="$(command -v node)"
+BUILD_DIR="$DESKTOP_DIR/.build"
+ROOT_MARKER="$BUILD_DIR/.skillset-root"
+ICONSET_DIR="$BUILD_DIR/Skillset.iconset"
+# Pin the node the user's login shell resolves. Under `pnpm app:install` the
+# PATH carries pnpm's own bundled node, which may not exist later.
+NODE_PATH="$(${SHELL:-/bin/zsh} -lc 'command -v node' 2>/dev/null || command -v node)"
 
 cd "$ROOT_DIR"
 pnpm build
-swift build -c release --package-path "$DESKTOP_DIR"
+
+# SwiftPM's module cache bakes in absolute paths. If this checkout moved since
+# the last build, every .pcm in it is unusable and swift build fails with
+# "was compiled with module cache path ...". Detect the move and start clean.
+if [[ -d "$BUILD_DIR" ]]; then
+  if [[ ! -f "$ROOT_MARKER" || "$(<"$ROOT_MARKER")" != "$ROOT_DIR" ]]; then
+    print -r -- "desktop/.build was built at a different path; clearing it" >&2
+    rm -rf "$BUILD_DIR"
+  fi
+fi
+mkdir -p "$BUILD_DIR"
+print -r -- "$ROOT_DIR" > "$ROOT_MARKER"
+
+# Belt and braces: a stale cache the marker did not catch still gets one clean retry.
+if ! swift build -c release --package-path "$DESKTOP_DIR"; then
+  print -r -- "swift build failed; clearing desktop/.build and retrying once" >&2
+  rm -rf "$BUILD_DIR"
+  mkdir -p "$BUILD_DIR"
+  print -r -- "$ROOT_DIR" > "$ROOT_MARKER"
+  swift build -c release --package-path "$DESKTOP_DIR"
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

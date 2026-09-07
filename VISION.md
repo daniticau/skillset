@@ -1,75 +1,43 @@
 # Vision: skillset
 
-## What Is This?
+## The problem
 
-A macOS coding-agent harness that gets better at working with *you* the more you use it. On the day you install it, skillset gathers the agent skills you already have in Claude, Codex, and Kimi Code, consolidates them into a store you own, and mirrors them back into all three native skill roots. When you ask it to tailor or dream nightly, it reads their on-device session history, finds the friction you keep reliving, and writes small skills that make every agent better at you.
+You teach a coding agent how you work. Then you open a different agent and teach it again. Every agent keeps its own skills folder and its own instructions file. Nothing you learn in one carries to the next.
 
-Its compact native desktop companion makes that learning legible without becoming a second source of truth: connection health, the shared library, nightly explanations, and safe individual undo all sit on top of the same canonical CLI/store boundary.
+Skills are the fix the industry settled on: a `SKILL.md` with a name, a one-line description, and a body. Claude Code, Codex, Kimi Code, Grok, and Cursor all read the same format. What they do not share is the folder.
 
-## The Problem
+## What skillset is
 
-Every conversation with a coding agent is training data about you: your stack, your taste, your pet peeves, your repeated corrections, and the workflows you keep having to explain. Almost none of it gets captured in a portable way. You correct the same thing on Monday that you corrected on Friday. You switch between Claude, Codex, and Kimi and start from zero.
+Two things. Nothing else.
 
-The agent learns only inside one harness, if it learns at all. Your personalization should not be trapped there.
+**A canonical store.** One folder you own that holds every skill. Every connected agent is a mirror of it. Add a skill once and it is everywhere. Edit a mirror by hand and the edit flows back.
 
-## How It Works
+**A skill builder.** Fast ways to get knowledge into that store: paste a link, pipe a file, or give the builder an idea and let it split the idea into small skills that each pass `sks check`.
 
-`sks init` creates a canonical skill store on disk, detects the coding agents you have installed, asks which ones to connect, imports existing skills from those stores, resolves same-name conflicts by newest edit time, and mirrors the consolidated result back out.
+## Two ways a skill can load
 
-After that, the loop is explicit and simple:
+A skill normally loads on demand. The agent reads the description at session start and pulls the body in when it decides the skill applies. This is cheap. It is also a judgment call, and judgment calls miss.
 
-```sh
-sks tailor
-```
+Some rules must not miss. They belong in the file the agent reads unconditionally, every session, before your first message. Each agent has one: `CLAUDE.md`, `AGENTS.md`. Skillset owns a block in each of those files and fills it with the skills you mark always-on.
 
-`tailor` scrapes past sessions, mines corrections and preferences, clusters recurring signals, asks an LLM whether each signal should edit an existing skill or create a new one, writes the result directly to canonical, and mirrors it automatically. There is no draft/promote ceremony. `--dry-run` is the preview escape hatch.
+So a skill has two modes, and you pick per skill. Long, procedural, situational knowledge stays on demand. Short, absolute constraints go always-on. Both live in the same store, both mirror everywhere, and one command flips between them.
 
-When transcript contents must stay on the machine, `sks tailor --local` performs local scraping, heuristic extraction, and candidate ranking without LLM synthesis. Claude Code, Codex, or Kimi can then inspect the ranked signals and apply durable changes through `sks add --managed` or `sks edit --managed`.
+## What a skill must earn
 
-```sh
-sks dream
-```
+A skill earns its place only if it holds something an agent cannot work out on its own: a private tool, a personal preference, a workflow you paid for, a way of judging you invented. Knowledge the model already has is not a skill. Repeating the description in the body is not a skill.
 
-`dream` installs a macOS LaunchAgent that runs the same improvement loop nightly. Each run scrapes and mines new or changed sessions, balances agent-mistake and user-preference signals, tunes existing auto-created skills, mirrors changes, commits the canonical store, and records the reviewed or skipped day in `state.json`.
+## What success looks like
 
-The skills themselves live in a canonical store that you own. Claude, Codex, and Kimi are mirrors of that store. Native session records also feed a usage ledger, so Skillset can distinguish skills that are invoked from skills that merely exist.
-
-## The User Loop
-
-**First run.** `sks init` sets up the store, connects detected agents, imports existing skills, and mirrors the consolidated store back out.
-
-**When you want it to learn.** Run `sks tailor`. It turns past session friction into skills and installs them directly.
-
-**When you want it to keep learning.** Run `sks dream`. It sets up nightly macOS tailoring and tracks which days have already been reviewed.
-
-**When you notice a rule in the moment.** Run `sks tailor "prefer pnpm over npm"` or pipe a fuller instruction into `sks tailor --stdin`.
-
-**When something looks off.** Run `sks doctor --repair`. It reconciles canonical and connected mirrors, promotes mirror-side edits, archives conflicts, and mirrors the repaired store.
-
-**When an agent manages the library.** It uses `sks show`, `sks check`, `sks add --managed`, or `sks edit --managed` so changes go through canonical validation, stay eligible for future tuning, and mirror automatically.
-
-## Who It's For
-
-Right now: people who work with coding agents enough that the friction compounds. People who notice they keep repeating themselves. People who switch between agent tools and resent starting over each time.
-
-Later: deeper cross-agent workflows whose history contains enough signal to become a useful personal operating manual.
-
-## What Success Looks Like
-
-The agents I work with in six months know things about how I work that I never had to encode by hand each time, because skillset noticed repeated friction and wrote it down. Moving between Claude, Codex, and Kimi is nearly zero-friction because my personalization is not trapped in one vendor's harness. I own it. It follows me.
+You see a skill in a tweet and it is in every agent you use thirty seconds later. You write a rule once and never see it broken again in any agent. You move between tools and nothing is lost, because the store was never inside any of them.
 
 ## Principles
 
-**Your personalization is yours.** It should live on your disk, in a git-backed store you control. Any agent that wants access is a mirror, not an owner.
+**You own it.** Files on your disk, in a folder you can put in git.
 
-**The public surface is agent-operable.** The CLI provides non-interactive inspection, validation, capture, addition, and editing while keeping canonical ownership and automatic mirroring intact.
+**Agents are normal operators.** Every command works without a human at the keyboard.
 
-**Agents are normal authors.** Agent-created skills are managed artifacts that later agents can tune as usage evidence changes.
+**Manual edits survive.** Mirror-side changes are promoted, never overwritten.
 
-**Manual edits stay recoverable.** Mirror-side edits are promoted and conflicts are archived, but manual editing is a compatibility path rather than the center of the product.
+**Mirrors are automatic.** Any command that changes the store writes the mirrors before it returns.
 
-**Mirrors are automatic.** Commands that mutate canonical skills or connected mirrors reconcile and mirror as part of the command.
-
-**No draft ceremony.** Generated skills install directly with tier metadata. The user can preview with `--dry-run`, edit with `sks edit`, or remove with `sks remove`.
-
-**Start boring.** Canonical skills are files. The store is a git repo. Conflicts are archived on disk. Nothing exotic, nothing you cannot inspect.
+**Nothing exotic.** Plain files, content hashes, a symlink, a managed block between two comments.
