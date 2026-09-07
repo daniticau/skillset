@@ -6,14 +6,20 @@ import SwiftUI
 @Observable
 final class AppModel {
     var snapshot = DesktopSnapshot.empty
-    var section: SidebarSection = .library
     var selectedSkillID: String?
+    /// The detail pane shows the builder instead of a skill.
+    var isBuilding = false
     var searchText = ""
-    var selectedCategory: String?
+    var searchFocusToken = 0
+    /// Bumped by the Edit Skill command; the open skill switches to edit mode.
+    var editRequestToken = 0
     var isRefreshing = false
     var savingSkillID: String?
     var deletingSkillID: String?
     var busyConnectionID: String?
+    /// The open editor holds changes that are not saved yet.
+    var dirtyEditor = false
+    var showDiscardAlert = false
     var builderIdea = ""
     var builderProposals: [BuilderProposal] = []
     var builderRationale: String?
@@ -22,47 +28,94 @@ final class AppModel {
     var toast: AppToast?
     var errorMessage: String?
 
+    private enum PendingNavigation {
+        case select(String)
+        case build
+    }
+
+    private var pending: PendingNavigation?
     private let bridge = SkillsetBridge()
 
     var filteredSkills: [SkillRecord] {
         ranked(snapshot.skills, query: searchText) { skill in
-            [
-                skill.name,
-                skill.description,
-                skill.body,
-                skill.category,
-            ]
-        }.filter {
-            selectedCategory == nil || $0.category == selectedCategory
+            [skill.name, skill.description, skill.body]
         }
     }
-
-
-    var skillCategories: [String] {
-        let categories = Set(snapshot.skills.map(\.category))
-        return categories.sorted { lhs, rhs in
-            if lhs == "Other" { return false }
-            if rhs == "Other" { return true }
-            return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
-        }
-    }
-
-    var hasActiveSkillFilter: Bool {
-        selectedCategory != nil
-    }
-
 
     var selectedSkill: SkillRecord? {
         guard let selectedSkillID else { return filteredSkills.first }
         return filteredSkills.first { $0.id == selectedSkillID } ?? filteredSkills.first
     }
 
+    // MARK: navigation
+
+    func select(_ id: String) {
+        guard id != selectedSkillID || isBuilding else { return }
+        if dirtyEditor {
+            pending = .select(id)
+            showDiscardAlert = true
+            return
+        }
+        selectedSkillID = id
+        isBuilding = false
+    }
+
+    func startBuilding() {
+        guard !isBuilding else { return }
+        if dirtyEditor {
+            pending = .build
+            showDiscardAlert = true
+            return
+        }
+        isBuilding = true
+    }
+
+    func stopBuilding() {
+        isBuilding = false
+    }
+
+    func discardAndContinue() {
+        dirtyEditor = false
+        showDiscardAlert = false
+        guard let pending else { return }
+        self.pending = nil
+        switch pending {
+        case .select(let id):
+            selectedSkillID = id
+            isBuilding = false
+        case .build:
+            isBuilding = true
+        }
+    }
+
+    func keepEditing() {
+        pending = nil
+        showDiscardAlert = false
+    }
+
+    /// Keeps a selection that the search just filtered out from pointing at nothing.
+    func ensureSelection(in visibleIDs: [String]) {
+        guard !dirtyEditor, !visibleIDs.contains(selectedSkillID ?? "") else { return }
+        selectedSkillID = visibleIDs.first
+    }
+
+    func requestSearchFocus() {
+        searchFocusToken += 1
+    }
+
+    func requestEdit() {
+        guard !isBuilding, selectedSkill != nil else { return }
+        editRequestToken += 1
+    }
+
+    // MARK: data
+
     func refresh(showSpinner: Bool = true) async {
         if showSpinner { isRefreshing = true }
         defer { isRefreshing = false }
         do {
             snapshot = try await bridge.snapshot()
-            if !filteredSkills.contains(where: { $0.id == selectedSkillID }) {
+            if !dirtyEditor, !filteredSkills.contains(where: { $0.id == selectedSkillID }) {
                 selectedSkillID = filteredSkills.first?.id
             }
             errorMessage = nil
@@ -71,16 +124,20 @@ final class AppModel {
         }
     }
 
-
-
-
-    func saveSkill(_ skill: SkillRecord, markdown: String) async -> Bool {
+    func saveSkill(_ skill: SkillRecord, name: String, description: String, body: String) async -> Bool {
         savingSkillID = skill.id
         defer { savingSkillID = nil }
         do {
-            try await bridge.saveSkill(name: skill.id, markdown: markdown)
+            try await bridge.saveSkill(
+                name: skill.id,
+                rename: name == skill.id ? nil : name,
+                description: description,
+                body: body
+            )
+            dirtyEditor = false
+            selectedSkillID = name
             await refresh(showSpinner: false)
-            showToast("\(skill.name) saved")
+            showToast(name == skill.id ? "Saved" : "Saved as \(name)")
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -93,6 +150,7 @@ final class AppModel {
         defer { deletingSkillID = nil }
         do {
             try await bridge.deleteSkill(name: skill.id)
+            dirtyEditor = false
             selectedSkillID = nil
             await refresh(showSpinner: false)
             showToast("\(skill.name) deleted")
@@ -101,30 +159,37 @@ final class AppModel {
         }
     }
 
-    func performConnectionAction(_ connection: Connection) async {
+    func connect(_ connection: Connection) async {
+        await withConnection(connection) {
+            try await bridge.connect(connection)
+            showToast("\(connection.name) connected")
+        }
+    }
+
+    func disconnect(_ connection: Connection) async {
+        await withConnection(connection) {
+            try await bridge.disconnect(connection)
+            showToast("\(connection.name) disconnected")
+        }
+    }
+
+    func repair(_ connection: Connection) async {
+        await withConnection(connection) {
+            try await bridge.repairConnections()
+            showToast("\(connection.name) repaired")
+        }
+    }
+
+    private func withConnection(_ connection: Connection, _ work: () async throws -> Void) async {
         busyConnectionID = connection.id
         defer { busyConnectionID = nil }
         do {
-            if !connection.configured {
-                try await bridge.connect(connection)
-                showToast("\(connection.name) connected")
-            } else if connection.status == .live {
-                try await bridge.disconnect(connection)
-                showToast("\(connection.name) disconnected")
-            } else {
-                try await bridge.repairConnections()
-                showToast("\(connection.name) reconnected")
-            }
+            try await work()
             await refresh(showSpinner: false)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
-
-    func clearSkillFilters() {
-        selectedCategory = nil
-    }
-
 
     func showToast(_ message: String) {
         let next = AppToast(message: message)
@@ -140,16 +205,17 @@ final class AppModel {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         var scored: [(item: Item, score: Int, index: Int)] = []
         for (index, item) in items.enumerated() {
-            let itemFields = fields(item)
-            if let score = SearchMatcher.score(query: trimmedQuery, fields: itemFields) {
+            if let score = SearchMatcher.score(query: trimmedQuery, fields: fields(item)) {
                 scored.append((item, score, index))
             }
         }
         return scored.sorted { lhs, rhs in
-            lhs.1 == rhs.1 ? lhs.2 < rhs.2 : lhs.1 > rhs.1
+            lhs.score == rhs.score ? lhs.index < rhs.index : lhs.score > rhs.score
         }
-        .map(\.0)
+        .map(\.item)
     }
+
+    // MARK: builder
 
     func decompose() async {
         let idea = builderIdea.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -163,7 +229,7 @@ final class AppModel {
             builderProposals = response.skills
             builderRationale = response.rationale
             if response.skills.isEmpty {
-                toast = AppToast(message: "No new skill proposed")
+                showToast("No new skill proposed")
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -178,11 +244,10 @@ final class AppModel {
         do {
             try await bridge.installProposals(installable)
             clearBuilder()
+            selectedSkillID = installable.first?.name
+            isBuilding = false
             await refresh(showSpinner: false)
-            toast = AppToast(
-                message: "Built \(installable.count) skill\(installable.count == 1 ? "" : "s")"
-            )
-            section = .library
+            showToast("Built \(installable.count) skill\(installable.count == 1 ? "" : "s")")
         } catch {
             errorMessage = error.localizedDescription
         }

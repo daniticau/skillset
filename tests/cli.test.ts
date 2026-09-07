@@ -22,6 +22,7 @@ describe("public CLI", () => {
       "init",
       "list",
       "remove",
+      "rename",
       "show",
       "status",
     ]);

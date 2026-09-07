@@ -24,7 +24,7 @@ vi.mock("../src/core/paths.js", () => ({
   LEGACY_CODEX_SKILLS_DIR: join(ROOT, "legacy-codex-skills"),
 }));
 
-const { addCommand, editCommand, showCommand } = await import("../src/commands/manage.js");
+const { addCommand, editCommand, renameCommand, saveSkillFields, showCommand } = await import("../src/commands/manage.js");
 const { readState } = await import("../src/core/config.js");
 
 const RAW = `---
@@ -166,6 +166,82 @@ describe("agent-safe skill management", () => {
     await editCommand("test-skill", { content: RAW.replace("tier: medium\n", "") });
 
     expect(readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8")).not.toContain("tier:");
+  });
+
+  it("renames a skill, keeps its frontmatter and state, and moves every mirror copy", async () => {
+    const codex = join(ROOT, "codex-skills");
+    mkdirSync(STORE, { recursive: true });
+    writeFileSync(
+      join(STORE, "config.json"),
+      JSON.stringify({ version: 1, links: [{ agent: "codex", path: codex }] })
+    );
+    await addCommand(undefined, { content: RAW });
+    expect(existsSync(join(codex, "test-skill", "SKILL.md"))).toBe(true);
+
+    await renameCommand("test-skill", "focused-testing");
+
+    expect(process.exitCode).toBeUndefined();
+    expect(existsSync(join(SKILLS, "test-skill"))).toBe(false);
+    const markdown = readFileSync(join(SKILLS, "focused-testing", "SKILL.md"), "utf8");
+    expect(markdown).toContain("name: focused-testing");
+    expect(markdown).toContain("tier: medium");
+    expect(markdown).toContain("origin: user-created");
+    expect(markdown).toContain("Run the exact test requested.");
+
+    const state = await readState();
+    expect(state.skills["test-skill"]).toBeUndefined();
+    expect(state.skills["focused-testing"]).toMatchObject({
+      origin: "user-created",
+      createdBy: "manual",
+      userEdited: true,
+    });
+    expect(existsSync(join(codex, "test-skill"))).toBe(false);
+    expect(existsSync(join(codex, "focused-testing", "SKILL.md"))).toBe(true);
+  });
+
+  it("refuses a rename onto an existing or invalid name", async () => {
+    await addCommand(undefined, { content: RAW });
+    await addCommand(undefined, { content: RAW.replace("test-skill", "other-skill") });
+
+    await renameCommand("test-skill", "other-skill");
+    expect(process.exitCode).toBe(1);
+    expect(existsSync(join(SKILLS, "test-skill"))).toBe(true);
+
+    process.exitCode = undefined;
+    await renameCommand("test-skill", "Not A Slug");
+    expect(process.exitCode).toBe(1);
+    expect(existsSync(join(SKILLS, "test-skill"))).toBe(true);
+  });
+
+  it("saves description and body together while keeping the other frontmatter", async () => {
+    await addCommand(undefined, { content: RAW });
+
+    const ok = await saveSkillFields({
+      name: "test-skill",
+      description: "  Use when running one narrow test.  ",
+      body: "# Narrow\n\nRun one test.\n",
+    });
+
+    expect(ok).toBe(true);
+    const markdown = readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8");
+    expect(markdown).toContain('description: "Use when running one narrow test."');
+    expect(markdown).toContain("tier: medium");
+    expect(markdown).toContain("origin: user-created");
+    expect(markdown).toContain("Run one test.");
+    expect(markdown).not.toContain("Run the exact test requested.");
+    expect((await readState()).skills["test-skill"]?.userEdited).toBe(true);
+  });
+
+  it("rejects an empty description", async () => {
+    await addCommand(undefined, { content: RAW });
+
+    const ok = await saveSkillFields({ name: "test-skill", description: "   " });
+
+    expect(ok).toBe(false);
+    expect(process.exitCode).toBe(1);
+    expect(readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8")).toContain(
+      "Use when testing deterministic skill management."
+    );
   });
 
   it("shows raw or machine-readable canonical content", async () => {

@@ -10,10 +10,10 @@ import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
 import { catalogCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { addCommand, alwaysCommand, editCommand, removeCommand, showCommand } from "./commands/manage.js";
+import { addCommand, alwaysCommand, editCommand, removeCommand, renameCommand, showCommand } from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
 import { buildCommand } from "./commands/build.js";
-import { desktopSnapshotCommand } from "./commands/desktop.js";
+import { desktopSaveCommand, desktopSnapshotCommand } from "./commands/desktop.js";
 import { supportedAgents } from "./core/adapters/index.js";
 
 // Load ~/.skillset/.env before any command reads process.env.
@@ -152,6 +152,13 @@ export function createProgram(): Command {
     });
 
   program
+    .command("rename <skill> <new-name>")
+    .description("rename a canonical skill and move it in every connected agent")
+    .action(async (skill: string, newName: string) => {
+      await renameCommand(skill, newName);
+    });
+
+  program
     .command("remove <skill>")
     .description("remove a canonical skill and prune it from connected mirrors")
     .option("--block", "also never adopt this skill back from a mirror")
@@ -178,6 +185,13 @@ export function createProgram(): Command {
     .description("print connections and the skill library as JSON")
     .action(async () => {
       await desktopSnapshotCommand();
+    });
+
+  desktop
+    .command("save")
+    .description("update one skill's name, description, or body from JSON on stdin")
+    .action(async () => {
+      await desktopSaveCommand();
     });
 
   return program;
