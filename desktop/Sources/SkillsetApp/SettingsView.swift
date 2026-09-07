@@ -1,62 +1,56 @@
 import AppKit
 import SwiftUI
 
-/// Connections only.
-///
-/// Skillset does two things — hold the canonical library and build skills — so
-/// settings is just the list of agents the library mirrors into.
+/// The Settings window: how the editor behaves, which agents the library
+/// mirrors into, and where the library lives.
 struct SettingsView: View {
     @Bindable var model: AppModel
+    @AppStorage("editorStylesMarkdown") private var stylesMarkdown = true
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeading(
-                    "Connections",
-                    subtitle: "Every skill in the library is mirrored into each connected agent."
-                )
-
-                SoftPanel {
-                    VStack(spacing: 0) {
-                        ForEach(Array(model.snapshot.connections.enumerated()), id: \.element.id) { index, connection in
-                            if index > 0 {
-                                Rectangle()
-                                    .fill(.primary.opacity(0.06))
-                                    .frame(height: 1)
-                                    .padding(.vertical, 9)
-                            }
-                            ConnectionRow(model: model, connection: connection)
-                        }
-                    }
+        Form {
+            Section("Editor") {
+                Toggle(isOn: $stylesMarkdown) {
+                    Text("Style Markdown while editing")
+                    Text("Headings, emphasis, lists, and code take their shape as you type.")
                 }
+            }
 
-                SoftPanel {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Canonical library")
-                            .font(.system(size: 12.5, weight: .medium))
+            Section("Agents") {
+                ForEach(model.snapshot.connections) { connection in
+                    ConnectionRow(model: model, connection: connection)
+                }
+            }
+
+            Section("Library") {
+                LabeledContent("Store") {
+                    HStack(spacing: 8) {
                         Text(model.snapshot.storePath)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                             .textSelection(.enabled)
-                        Text("Every change is committed here, so nothing is lost.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([
+                                URL(fileURLWithPath: (model.snapshot.storePath as NSString).expandingTildeInPath)
+                            ])
+                        }
+                        .buttonStyle(PillButtonStyle())
                     }
                 }
             }
-            .frame(maxWidth: 660, alignment: .leading)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 28)
-            .padding(.top, 28)
-            .padding(.bottom, 32)
         }
-        .scrollIndicators(.never)
+        .formStyle(.grouped)
+        .frame(width: 560, height: 620)
     }
 }
 
 private struct ConnectionRow: View {
     @Bindable var model: AppModel
     let connection: Connection
+
+    private var busy: Bool { model.busyConnectionID == connection.id }
 
     private var statusColor: Color {
         switch connection.status {
@@ -67,17 +61,17 @@ private struct ConnectionRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: AgentPresentation.symbol(for: connection.agent))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-                .frame(width: 18)
+                .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(connection.name)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                 Text(connection.path)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 10.5, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -87,20 +81,36 @@ private struct ConnectionRow: View {
 
             if connection.configured {
                 HStack(spacing: 5) {
-                    Circle().fill(statusColor).frame(width: 5, height: 5)
+                    Circle().fill(statusColor).frame(width: 6, height: 6)
                     Text("\(connection.skillCount)")
-                        .font(.system(size: 11))
+                        .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
+                .help(statusHelp)
             }
 
-            Button(connection.configured ? "Disconnect" : "Connect") {
-                Task { await model.performConnectionAction(connection) }
+            if busy {
+                ProgressView().controlSize(.mini)
+            } else if !connection.configured {
+                Button("Connect") { Task { await model.connect(connection) } }
+                    .buttonStyle(PillButtonStyle(tone: .accent))
+            } else {
+                if connection.status != .live {
+                    Button("Repair") { Task { await model.repair(connection) } }
+                        .buttonStyle(PillButtonStyle())
+                }
+                Button("Disconnect") { Task { await model.disconnect(connection) } }
+                    .buttonStyle(PillButtonStyle(tone: .destructive))
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 11))
-            .foregroundStyle(connection.configured ? .secondary : Color.accentColor)
-            .disabled(model.busyConnectionID == connection.id)
+        }
+    }
+
+    private var statusHelp: String {
+        switch connection.status {
+        case .live: "Every skill is mirrored"
+        case .attention: "\(connection.skillCount) of \(connection.expectedSkillCount) skills mirrored"
+        case .offline: "The skills folder is missing"
         }
     }
 }

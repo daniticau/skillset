@@ -20,11 +20,16 @@ struct SkillsetBridge: Sendable {
         return try JSONDecoder().decode(DesktopSnapshot.self, from: data)
     }
 
-
-
-
-    func saveSkill(name: String, markdown: String) async throws {
-        _ = try await run(["edit", name, "--stdin"], standardInput: markdown)
+    /// The CLI renders the frontmatter, so the app never composes YAML. A
+    /// `rename` moves the store folder and every mirror copy in the same pass.
+    func saveSkill(name: String, rename: String?, description: String, body: String) async throws {
+        var payload: [String: Any] = ["name": name, "description": description, "body": body]
+        if let rename, rename != name { payload["rename"] = rename }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw SkillsetBridgeError.commandFailed("Could not encode the skill.")
+        }
+        _ = try await run(["desktop", "save"], standardInput: json)
     }
 
     func deleteSkill(name: String) async throws {

@@ -59,6 +59,7 @@ The skill itself still mirrors as a normal skill, so an agent can also load it b
 | `sks show <skill>` | Print one canonical `SKILL.md`. `--json` or `--path` for agents. |
 | `sks check [skill]` | Validate structure, trigger wording, context size, and always-on length. |
 | `sks edit <skill>` | Edit in `$EDITOR`, or replace from `--stdin` / `--source`. |
+| `sks rename <skill> <new-name>` | Rename a skill. The store folder and every mirror copy move with it. |
 | `sks remove <skill>` | Delete a skill and prune it from every mirror. `--block` also stops it being adopted back. |
 | `sks status` | Connected mirrors, their instructions files, and every skill's state. |
 | `sks connect <agent>` / `sks disconnect <agent>` | Manage mirrors. Connecting imports the agent's existing skills first. |
