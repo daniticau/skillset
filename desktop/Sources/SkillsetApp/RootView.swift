@@ -20,7 +20,7 @@ struct RootView: View {
         // `.hiddenTitleBar` still reserves the title-bar band as a safe area.
         // Claim it so the sidebar runs to the top edge, under the traffic lights.
         .ignoresSafeArea(.container, edges: .top)
-        .background(WindowConfigurator())
+        .background(WindowConfigurator(model: model))
         .background(DebugSnapshot(model: model))
         .frame(minWidth: 840, minHeight: 540)
         .overlay(alignment: .bottom) {
@@ -33,7 +33,8 @@ struct RootView: View {
         .task {
             await model.refresh()
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                do { try await Task.sleep(for: .seconds(30)) }
+                catch { break }
                 await model.refresh(showSpinner: false)
             }
         }
@@ -79,7 +80,9 @@ struct RootView: View {
 }
 
 private struct WindowConfigurator: NSViewRepresentable {
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    let model: AppModel
+
+    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -93,6 +96,7 @@ private struct WindowConfigurator: NSViewRepresentable {
 
     private func configure(_ window: NSWindow?, coordinator: Coordinator) {
         guard let window else { return }
+        window.delegate = coordinator
         window.level = .normal
         window.collectionBehavior.remove(.fullScreenAuxiliary)
         window.collectionBehavior.insert(.fullScreenPrimary)
@@ -116,7 +120,28 @@ private struct WindowConfigurator: NSViewRepresentable {
         coordinator.positioned = true
     }
 
-    final class Coordinator {
+    final class Coordinator: NSObject, NSWindowDelegate {
+        let model: AppModel
         var positioned = false
+
+        init(model: AppModel) { self.model = model }
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            if model.isMutating {
+                let alert = NSAlert()
+                alert.messageText = "Wait for this change to finish"
+                alert.informativeText = "Skillset is updating your library."
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+                return false
+            }
+            guard model.dirtyEditor else { return true }
+            let alert = NSAlert()
+            alert.messageText = "Discard changes?"
+            alert.informativeText = "Your edits to this skill are not saved."
+            alert.addButton(withTitle: "Keep Editing")
+            alert.addButton(withTitle: "Discard")
+            return alert.runModal() == .alertSecondButtonReturn
+        }
     }
 }

@@ -42,7 +42,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 620)
+        .frame(width: 640, height: 620)
     }
 }
 
@@ -71,8 +71,8 @@ private struct ConnectionRow: View {
                 Text(connection.name)
                     .font(.system(size: 13, weight: .medium))
                 Text(connection.path)
-                    .font(.system(size: 10.5, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -82,8 +82,8 @@ private struct ConnectionRow: View {
             if connection.configured {
                 HStack(spacing: 5) {
                     Circle().fill(statusColor).frame(width: 6, height: 6)
-                    Text("\(connection.skillCount)")
-                        .font(.system(size: 11.5))
+                    Text(connection.status == .live ? "Connected" : "Needs attention")
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
@@ -104,6 +104,7 @@ private struct ConnectionRow: View {
                     .buttonStyle(PillButtonStyle(tone: .destructive))
             }
         }
+        .disabled(model.busyConnectionID != nil && !busy)
     }
 
     private var statusHelp: String {

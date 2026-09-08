@@ -20,7 +20,13 @@ final class AppModel {
     /// The open editor holds changes that are not saved yet.
     var dirtyEditor = false
     var showDiscardAlert = false
-    var builderIdea = ""
+    var builderIdea = "" {
+        didSet {
+            guard builderIdea != oldValue else { return }
+            builderProposals = []
+            builderRationale = nil
+        }
+    }
     var builderProposals: [BuilderProposal] = []
     var builderRationale: String?
     var isDecomposing = false
@@ -35,6 +41,14 @@ final class AppModel {
 
     private var pending: PendingNavigation?
     private let bridge = SkillsetBridge()
+    private var refreshInFlight = false
+
+    var isMutating: Bool {
+        savingSkillID != nil || deletingSkillID != nil || isInstallingProposals || busyConnectionID != nil
+    }
+
+    var hasPendingWork: Bool { dirtyEditor || isMutating }
+
 
     var filteredSkills: [SkillRecord] {
         ranked(snapshot.skills, query: searchText) { skill in
@@ -44,13 +58,16 @@ final class AppModel {
 
     var selectedSkill: SkillRecord? {
         guard let selectedSkillID else { return filteredSkills.first }
+        if dirtyEditor || savingSkillID != nil {
+            return snapshot.skills.first { $0.id == selectedSkillID }
+        }
         return filteredSkills.first { $0.id == selectedSkillID } ?? filteredSkills.first
     }
 
     // MARK: navigation
 
     func select(_ id: String) {
-        guard id != selectedSkillID || isBuilding else { return }
+        guard !isMutating, id != selectedSkillID || isBuilding else { return }
         if dirtyEditor {
             pending = .select(id)
             showDiscardAlert = true
@@ -61,7 +78,7 @@ final class AppModel {
     }
 
     func startBuilding() {
-        guard !isBuilding else { return }
+        guard !isMutating, !isBuilding else { return }
         if dirtyEditor {
             pending = .build
             showDiscardAlert = true
@@ -71,6 +88,7 @@ final class AppModel {
     }
 
     func stopBuilding() {
+        guard !isMutating else { return }
         isBuilding = false
     }
 
@@ -95,7 +113,7 @@ final class AppModel {
 
     /// Keeps a selection that the search just filtered out from pointing at nothing.
     func ensureSelection(in visibleIDs: [String]) {
-        guard !dirtyEditor, !visibleIDs.contains(selectedSkillID ?? "") else { return }
+        guard !dirtyEditor, !isMutating, !visibleIDs.contains(selectedSkillID ?? "") else { return }
         selectedSkillID = visibleIDs.first
     }
 
@@ -104,18 +122,41 @@ final class AppModel {
     }
 
     func requestEdit() {
-        guard !isBuilding, selectedSkill != nil else { return }
+        guard !isMutating, !isBuilding, selectedSkill != nil else { return }
         editRequestToken += 1
     }
 
     // MARK: data
 
     func refresh(showSpinner: Bool = true) async {
+        // A save must read fresh data after an earlier background read ends.
+        while refreshInFlight {
+            do { try await Task.sleep(for: .milliseconds(25)) }
+            catch { return }
+        }
+        guard !Task.isCancelled else { return }
+        refreshInFlight = true
         if showSpinner { isRefreshing = true }
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            refreshInFlight = false
+        }
         do {
-            snapshot = try await bridge.snapshot()
-            if !dirtyEditor, !filteredSkills.contains(where: { $0.id == selectedSkillID }) {
+            let next = try await bridge.snapshot()
+            guard !Task.isCancelled else { return }
+            // A background refresh must not change the editor's baseline.
+            if dirtyEditor, let current = selectedSkill {
+                var skills = next.skills.filter { $0.id != current.id }
+                skills.append(current)
+                skills.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                snapshot = DesktopSnapshot(
+                    generatedAt: next.generatedAt, storePath: next.storePath,
+                    connections: next.connections, skills: skills, history: next.history
+                )
+            } else {
+                snapshot = next
+            }
+            if !dirtyEditor, !isMutating, !filteredSkills.contains(where: { $0.id == selectedSkillID }) {
                 selectedSkillID = filteredSkills.first?.id
             }
             errorMessage = nil
@@ -125,6 +166,7 @@ final class AppModel {
     }
 
     func saveSkill(_ skill: SkillRecord, name: String, description: String, body: String) async -> Bool {
+        guard !isMutating else { return false }
         savingSkillID = skill.id
         defer { savingSkillID = nil }
         do {
@@ -146,6 +188,7 @@ final class AppModel {
     }
 
     func deleteSkill(_ skill: SkillRecord) async {
+        guard !isMutating else { return }
         deletingSkillID = skill.id
         defer { deletingSkillID = nil }
         do {
@@ -181,6 +224,7 @@ final class AppModel {
     }
 
     private func withConnection(_ connection: Connection, _ work: () async throws -> Void) async {
+        guard !isMutating else { return }
         busyConnectionID = connection.id
         defer { busyConnectionID = nil }
         do {
@@ -219,13 +263,15 @@ final class AppModel {
 
     func decompose() async {
         let idea = builderIdea.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !idea.isEmpty, !isDecomposing else { return }
+        guard !idea.isEmpty, !isDecomposing, !isMutating else { return }
         isDecomposing = true
         builderProposals = []
         builderRationale = nil
         defer { isDecomposing = false }
         do {
             let response = try await bridge.decompose(idea: idea)
+            guard !Task.isCancelled,
+                  idea == builderIdea.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
             builderProposals = response.skills
             builderRationale = response.rationale
             if response.skills.isEmpty {
@@ -238,7 +284,7 @@ final class AppModel {
 
     func installProposals() async {
         let installable = builderProposals.filter(\.installable)
-        guard !installable.isEmpty, !isInstallingProposals else { return }
+        guard !installable.isEmpty, !isMutating, !isDecomposing else { return }
         isInstallingProposals = true
         defer { isInstallingProposals = false }
         do {

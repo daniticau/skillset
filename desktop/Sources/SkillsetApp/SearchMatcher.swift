@@ -21,7 +21,7 @@ enum SearchMatcher {
                 matchedTokens += 1
                 score += 100
             } else if token.count >= 3,
-                      fieldTokens.contains(where: { $0.hasPrefix(token) || token.hasPrefix($0) }) {
+                      fieldTokens.contains(where: { $0.hasPrefix(token) }) {
                 matchedTokens += 1
                 score += 72
             }

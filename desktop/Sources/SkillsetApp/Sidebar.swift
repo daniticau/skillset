@@ -32,7 +32,7 @@ private struct SearchField: View {
 
             TextField(placeholder, text: $model.searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12.5))
+                .font(.system(size: 13))
                 .focused($focused)
 
             if model.isRefreshing {
@@ -47,6 +47,8 @@ private struct SearchField: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+                .help("Clear search")
             }
         }
         .padding(.horizontal, 9)
@@ -71,27 +73,42 @@ private struct SearchField: View {
 
 private struct SkillList: View {
     @Bindable var model: AppModel
+    @FocusState private var focused: Bool
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 3) {
-                ForEach(model.filteredSkills) { skill in
-                    SkillRow(
-                        skill: skill,
-                        isSelected: !model.isBuilding && model.selectedSkillID == skill.id
-                    ) {
-                        model.select(skill.id)
-                    }
-                }
+        List(selection: Binding<String?>(
+            get: { model.isBuilding ? nil : model.selectedSkillID },
+            set: { if let id = $0 { model.select(id) } }
+        )) {
+            ForEach(model.filteredSkills) { skill in
+                SkillRow(skill: skill)
+                    .tag(skill.id)
+                    .listRowSeparator(.hidden)
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 12)
-
+        }
+        .listStyle(.sidebar)
+        .focusable()
+        .focused($focused)
+        .simultaneousGesture(TapGesture().onEnded { focused = true })
+        .onMoveCommand { direction in
+            let skills = model.filteredSkills
+            guard !skills.isEmpty else { return }
+            let current = skills.firstIndex { $0.id == model.selectedSkillID } ?? 0
+            switch direction {
+            case .down: model.select(skills[min(current + 1, skills.count - 1)].id)
+            case .up: model.select(skills[max(current - 1, 0)].id)
+            default: break
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .overlay {
             if model.filteredSkills.isEmpty, !model.snapshot.skills.isEmpty {
-                Text("No matches")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 24)
+                VStack(spacing: 8) {
+                    Text("No matches")
+                        .font(.system(size: 13, weight: .medium))
+                    Button("Clear search") { model.searchText = "" }
+                        .buttonStyle(.link)
+                }
             }
         }
         .onChange(of: model.filteredSkills.map(\.id)) { _, visibleIDs in
@@ -100,45 +117,32 @@ private struct SkillList: View {
     }
 }
 
-/// Colour says what kind of knowledge a skill holds. It tints the whole row,
-/// faintly, and deepens for the selected one.
 private struct SkillRow: View {
     let skill: SkillRecord
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var hovered = false
-
-    private var kindColor: Color { SkillKindStyle.color(skill.category) }
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 15))
+                .foregroundStyle(SkillKindStyle.color(skill.category))
+                .frame(width: 20)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(skill.name)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
                 Text(skill.description)
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(kindColor.opacity(isSelected ? 0.22 : hovered ? 0.14 : 0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(kindColor.opacity(isSelected ? 0.35 : 0))
-            )
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovered)
-        .animation(.easeOut(duration: 0.12), value: isSelected)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
+        .help(skill.description)
+        .accessibilityElement(children: .combine)
     }
 }
 

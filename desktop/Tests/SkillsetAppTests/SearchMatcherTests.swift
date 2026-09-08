@@ -31,4 +31,9 @@ final class SearchMatcherTests: XCTestCase {
             fields: ["ai-research-project-evaluation", "Evaluate AI research projects"]
         ))
     }
+    func testLongQueryDoesNotMatchShortBodyWords() {
+        XCTAssertNil(SearchMatcher.score(query: "zzzzqqqqvvv", fields: ["Coast", "z flag"]))
+        XCTAssertNil(SearchMatcher.score(query: "researchxyz", fields: ["research"]))
+        XCTAssertNotNil(SearchMatcher.score(query: "rese", fields: ["research"]))
+    }
 }

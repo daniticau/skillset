@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum UI {
-    static let sidebarWidth: CGFloat = 272
+    static let sidebarWidth: CGFloat = 292
     /// Clears the traffic lights. The band above it drags the window.
     static let topInset: CGFloat = 44
     /// Reading column for a skill, centred in the detail pane.
@@ -102,7 +102,7 @@ enum ButtonTone {
     case prominent
 }
 
-/// Text buttons: a capsule that lifts on hover and settles on press.
+/// Text buttons share a stable hit area and distinct hover and press states.
 struct PillButtonStyle: ButtonStyle {
     var tone: ButtonTone = .neutral
 
@@ -119,13 +119,13 @@ private struct PillButtonBody: View {
 
     var body: some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(foreground)
             .padding(.horizontal, 11)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(fill))
-            .contentShape(.capsule)
-            .scaleEffect(configuration.isPressed ? 0.96 : hovered && isEnabled ? 1.03 : 1)
+            .frame(minHeight: 44)
+            .background(RoundedRectangle(cornerRadius: 12).fill(fill))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(UI.hairline))
+            .contentShape(.rect)
             .onHover { hovered = $0 }
             .animation(.snappy(duration: 0.16), value: hovered)
             .animation(.snappy(duration: 0.1), value: configuration.isPressed)
@@ -146,7 +146,7 @@ private struct PillButtonBody: View {
     private var fill: Color {
         guard isEnabled else { return .primary.opacity(0.05) }
         switch tone {
-        case .neutral: return .primary.opacity(hovered ? 0.11 : 0.06)
+        case .neutral: return .primary.opacity(configuration.isPressed ? 0.16 : hovered ? 0.11 : 0.06)
         case .accent: return .accentColor.opacity(hovered ? 0.18 : 0.11)
         case .destructive: return .red.opacity(hovered ? 0.13 : 0)
         case .prominent: return .accentColor.opacity(hovered ? 0.86 : 1)
@@ -154,10 +154,10 @@ private struct PillButtonBody: View {
     }
 }
 
-/// Symbol-only buttons: a square hit area, a soft highlight and a small lift on hover.
+/// Symbol-only buttons use a square hit area and a quiet highlight.
 struct IconButtonStyle: ButtonStyle {
     var tone: ButtonTone = .neutral
-    var size: CGFloat = 28
+    var size: CGFloat = 44
 
     func makeBody(configuration: Configuration) -> some View {
         IconButtonBody(configuration: configuration, tone: tone, size: size)
@@ -178,10 +178,10 @@ private struct IconButtonBody: View {
             .frame(width: size, height: size)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(highlight.opacity(hovered ? 0.12 : 0))
+                    .fill(highlight.opacity(configuration.isPressed ? 0.18 : hovered && isEnabled ? 0.12 : 0))
             )
             .contentShape(.rect)
-            .scaleEffect(configuration.isPressed ? 0.9 : hovered ? 1.08 : 1)
+
             .opacity(isEnabled ? 1 : 0.4)
             .onHover { hovered = $0 }
             .animation(.snappy(duration: 0.16), value: hovered)

@@ -42,7 +42,10 @@ struct BuilderView: View {
                 .padding(.bottom, 40)
             }
         }
-        .onAppear { ideaFocused = true }
+        .task {
+            await Task.yield()
+            ideaFocused = true
+        }
     }
 
     private var header: some View {
@@ -62,6 +65,7 @@ struct BuilderView: View {
                 Button("Close") { model.stopBuilding() }
                     .buttonStyle(PillButtonStyle())
                     .padding(.top, 5)
+                    .disabled(model.isInstallingProposals)
             }
         }
     }
@@ -82,6 +86,7 @@ struct BuilderView: View {
             .lineSpacing(3)
             .lineLimit(4...12)
             .focused($ideaFocused)
+            .disabled(model.isDecomposing || model.isInstallingProposals)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
@@ -104,6 +109,7 @@ struct BuilderView: View {
                 if !model.builderProposals.isEmpty || !model.builderIdea.isEmpty {
                     Button("Clear") { model.clearBuilder() }
                         .buttonStyle(PillButtonStyle())
+                        .disabled(model.isDecomposing || model.isInstallingProposals)
                 }
 
                 Button {
@@ -120,7 +126,7 @@ struct BuilderView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(
                     model.builderIdea.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || model.isDecomposing
+                        || model.isDecomposing || model.isMutating
                 )
             }
         }
@@ -187,7 +193,7 @@ struct BuilderView: View {
                     }
                 }
                 .buttonStyle(PillButtonStyle(tone: .prominent))
-                .disabled(installable == 0 || model.isInstallingProposals)
+                .disabled(installable == 0 || model.isMutating || model.isDecomposing)
             }
 
             ForEach(model.builderProposals) { proposal in
@@ -255,6 +261,8 @@ private struct ProposalCard: View {
                         .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
                 .buttonStyle(IconButtonStyle(size: 22))
+                .accessibilityLabel(expanded ? "Hide skill content" : "Review skill content")
+                .help(expanded ? "Hide skill content" : "Review skill content")
             }
 
             Text(proposal.description)

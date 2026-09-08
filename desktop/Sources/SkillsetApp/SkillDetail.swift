@@ -12,6 +12,7 @@ struct SkillDetail: View {
     @State private var draftDescription: String
     @State private var draftBody: String
     @State private var showDeleteConfirmation = false
+    @State private var showCancelConfirmation = false
 
     init(model: AppModel, skill: SkillRecord) {
         self.model = model
@@ -39,7 +40,8 @@ struct SkillDetail: View {
         hasChanges
             && SkillName.isValid(finalName)
             && !trimmedDescription.isEmpty
-            && model.savingSkillID == nil
+            && !model.isMutating
+            && !model.snapshot.skills.contains { $0.id == finalName && $0.id != skill.id }
     }
 
     var body: some View {
@@ -53,6 +55,7 @@ struct SkillDetail: View {
 
             if editing {
                 MarkdownTextView(text: $draftBody, styled: stylesMarkdown)
+                    .disabled(model.savingSkillID != nil)
             } else {
                 ScrollView {
                     MarkdownReader(markdown: skill.body)
@@ -68,6 +71,12 @@ struct SkillDetail: View {
             if !editing { beginEditing() }
         }
         .onDisappear { model.dirtyEditor = false }
+        .alert("Discard edits?", isPresented: $showCancelConfirmation) {
+            Button("Discard", role: .destructive) { cancelEditing() }
+            Button("Keep Editing", role: .cancel) { }
+        } message: {
+            Text("Your edits to this skill are not saved.")
+        }
         .alert("Delete \(skill.name)?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 Task { await model.deleteSkill(skill) }
@@ -90,6 +99,7 @@ struct SkillDetail: View {
                             if normalised != value { draftName = normalised }
                         }
                         .modifier(FieldChrome(active: true))
+                    .disabled(model.savingSkillID != nil)
 
                     TextField(
                         "When should an agent reach for this skill?",
@@ -100,6 +110,7 @@ struct SkillDetail: View {
                     .font(.system(size: 13))
                     .lineLimit(1...6)
                     .modifier(FieldChrome(active: true))
+                    .disabled(model.savingSkillID != nil)
                 } else {
                     Text(skill.name)
                         .font(.system(size: 21, weight: .semibold))
@@ -112,6 +123,12 @@ struct SkillDetail: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .modifier(FieldChrome(active: false))
+                }
+                if editing, finalName != skill.id,
+                   model.snapshot.skills.contains(where: { $0.id == finalName }) {
+                    Text("A skill with this name already exists.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
                 }
             }
             // The field chrome pads the text by 8pt; pull it back so the title
@@ -134,8 +151,13 @@ struct SkillDetail: View {
     private var actions: some View {
         HStack(spacing: 6) {
             if editing {
-                Button("Cancel") { cancelEditing() }
-                    .buttonStyle(PillButtonStyle())
+                Button("Cancel") {
+                    if hasChanges { showCancelConfirmation = true }
+                    else { cancelEditing() }
+                }
+                .buttonStyle(PillButtonStyle())
+                .keyboardShortcut(.cancelAction)
+                .disabled(model.savingSkillID != nil)
 
                 Button {
                     save()
@@ -158,6 +180,7 @@ struct SkillDetail: View {
                 }
                 .buttonStyle(PillButtonStyle())
                 .help("Edit (⌘E)")
+                .disabled(model.isMutating)
 
                 Button {
                     showDeleteConfirmation = true
@@ -165,7 +188,7 @@ struct SkillDetail: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(IconButtonStyle(tone: .destructive))
-                .disabled(model.deletingSkillID != nil)
+                .disabled(model.isMutating)
                 .help("Delete skill")
             }
         }
@@ -179,6 +202,7 @@ struct SkillDetail: View {
     }
 
     private func cancelEditing() {
+        model.dirtyEditor = false
         withAnimation(.easeOut(duration: 0.15)) { editing = false }
         draftName = skill.name
         draftDescription = skill.description
