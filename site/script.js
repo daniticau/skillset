@@ -1,4 +1,4 @@
-// Copy-to-clipboard buttons
+// Copy-to-clipboard buttons next to the install command.
 for (const button of document.querySelectorAll("[data-copy-target]")) {
   button.addEventListener("click", async () => {
     const target = document.getElementById(button.getAttribute("data-copy-target"));
@@ -10,12 +10,12 @@ for (const button of document.querySelectorAll("[data-copy-target]")) {
       button.classList.add("copied");
       window.setTimeout(() => button.classList.remove("copied"), 1600);
     } catch {
-      // Clipboard unavailable (e.g. insecure context); nothing sensible to do.
+      // Clipboard unavailable (for example an insecure context). Nothing sensible to do.
     }
   });
 }
 
-// Hairline under the header once the page scrolls
+// Hairline under the header once the page scrolls.
 const header = document.querySelector(".site-header");
 if (header) {
   const update = () => header.classList.toggle("scrolled", window.scrollY > 8);

@@ -48,10 +48,10 @@ print -r -- "$NODE_PATH" > "$RESOURCES_DIR/node-path.txt"
 rm -rf "$ICONSET_DIR"
 mkdir -p "$ICONSET_DIR"
 for SIZE in 16 32 128 256 512; do
-  sips -z "$SIZE" "$SIZE" "$ROOT_DIR/site/assets/skillset-logo-gpt.png" \
+  sips -z "$SIZE" "$SIZE" "$DESKTOP_DIR/AppIcon.png" \
     --out "$ICONSET_DIR/icon_${SIZE}x${SIZE}.png" >/dev/null
   DOUBLE_SIZE=$((SIZE * 2))
-  sips -z "$DOUBLE_SIZE" "$DOUBLE_SIZE" "$ROOT_DIR/site/assets/skillset-logo-gpt.png" \
+  sips -z "$DOUBLE_SIZE" "$DOUBLE_SIZE" "$DESKTOP_DIR/AppIcon.png" \
     --out "$ICONSET_DIR/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/Skillset.icns"

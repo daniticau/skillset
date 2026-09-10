@@ -2,19 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         --bg: #0a0a0a;
         --surface: #0f0f0f;
-        --surface-raised: #141414;
         --ink: #ededed;
         --muted: #a1a1a1;
         --faint: #666666;
-        --line: #1f1f1f;
         --line-strong: #2e2e2e;
-        --green: #4ade80;
-        --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
         --text: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "Geist Mono", "SF Mono", ui-monospace, Menlo, monospace;
       }
 
       * {
@@ -23,13 +26,12 @@
 
       body {
         position: relative;
+        width: 1200px;
+        height: 630px;
+        margin: 0;
+        padding: 64px 72px 60px;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 1200px;
-        height: 760px;
-        margin: 0;
         background: var(--bg);
         color: var(--ink);
         font-family: var(--text);
@@ -39,37 +41,29 @@
 
       .glow {
         position: absolute;
-        inset: -120px 0 auto;
+        inset: -160px 0 auto;
         height: 520px;
         background: radial-gradient(ellipse 55% 60% at 50% 0%, rgba(255, 255, 255, 0.09), transparent 70%);
       }
 
-      .badge {
-        display: inline-flex;
+      .brand {
+        position: relative;
+        display: flex;
         align-items: center;
-        gap: 9px;
-        margin-bottom: 30px;
-        padding: 8px 16px;
-        border: 1px solid var(--line-strong);
-        border-radius: 999px;
-        background: rgba(20, 20, 20, 0.6);
-        color: var(--muted);
-        font-size: 17px;
-      }
-
-      .badge i {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--green);
+        gap: 12px;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
       }
 
       h1 {
-        margin: 0 0 16px;
-        font-size: 84px;
+        position: relative;
+        margin: 48px 0 0;
+        max-width: 980px;
+        font-size: 76px;
         font-weight: 600;
         letter-spacing: -0.035em;
-        line-height: 1;
+        line-height: 1.04;
         background: linear-gradient(180deg, #ffffff 30%, #9b9b9b 100%);
         -webkit-background-clip: text;
         background-clip: text;
@@ -77,84 +71,77 @@
       }
 
       p {
-        margin: 0 0 44px;
+        position: relative;
+        margin: 26px 0 0;
+        max-width: 860px;
         color: var(--muted);
-        font-size: 23px;
+        font-size: 25px;
+        line-height: 1.45;
       }
 
-      p code {
-        color: var(--ink);
+      .install {
+        position: relative;
+        margin-top: 30px;
+        color: var(--faint);
         font-family: var(--mono);
-        font-size: 21px;
+        font-size: 20px;
       }
 
-      .terminal {
-        width: 720px;
+      .install b {
+        color: var(--ink);
+        font-weight: 500;
+      }
+
+      .row {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: auto;
+      }
+
+      .row div {
+        padding: 12px 14px;
         border: 1px solid var(--line-strong);
         border-radius: 10px;
         background: var(--surface);
-        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-        overflow: hidden;
-        text-align: left;
       }
 
-      .terminal-bar {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--line);
-        background: var(--surface-raised);
-      }
-
-      .dots {
-        display: inline-flex;
-        gap: 7px;
-      }
-
-      .dots i {
-        width: 11px;
-        height: 11px;
-        border-radius: 50%;
-        background: var(--line-strong);
-      }
-
-      .terminal-title {
-        color: var(--faint);
-        font-family: var(--mono);
+      .row b {
+        display: block;
         font-size: 14px;
+        font-weight: 500;
       }
 
-      pre {
-        margin: 0;
-        padding: 22px 26px;
+      .row code {
+        display: block;
+        margin-top: 4px;
         color: var(--muted);
         font-family: var(--mono);
-        font-size: 17px;
-        line-height: 2;
+        font-size: 11.5px;
+        white-space: nowrap;
       }
-
-      .t-prompt { color: var(--faint); }
-      .t-cmd { color: var(--ink); font-weight: 500; }
-      .t-dim { color: var(--faint); }
-      .t-ok { color: var(--green); }
-      .t-hl { color: var(--ink); }
     </style>
   </head>
   <body>
     <div class="glow"></div>
-    <span class="badge"><i></i>skillset · portable memory for coding agents</span>
-    <h1>Teach your agent once.</h1>
-    <p>Session lessons become <code>SKILL.md</code> files you own — mirrored everywhere.</p>
-    <div class="terminal">
-      <div class="terminal-bar">
-        <span class="dots"><i></i><i></i><i></i></span>
-        <span class="terminal-title">~/.skillset</span>
-      </div>
-      <pre><span class="t-prompt">$</span> <span class="t-cmd">sks tailor</span>
-<span class="t-ok">✓</span> 132 sessions read from Claude Code, Codex, and Kimi
-<span class="t-ok">✓</span> created <span class="t-hl">prefer-pnpm-workspace-commands</span> <span class="t-dim">tier: high</span>
-<span class="t-ok">✓</span> mirrored 2 skills <span class="t-dim">→ Claude · Codex · Kimi</span></pre>
+    <div class="brand">
+      <svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#ededed" />
+        <path d="M44 16H27a8 8 0 0 0 0 16h10a8 8 0 0 1 0 16H20" fill="none" stroke="#0a0a0a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      skillset
+    </div>
+    <h1>One folder of skills. Every coding agent reads it.</h1>
+    <p>Mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill once and every agent has it.</p>
+    <div class="install">$ <b>npm i -g skillset-cli</b></div>
+    <div class="row">
+      <div><b>Claude Code</b><code>~/.claude/skills</code></div>
+      <div><b>Codex</b><code>~/.codex/skills</code></div>
+      <div><b>Kimi Code</b><code>~/.kimi-code/skills</code></div>
+      <div><b>Grok CLI</b><code>~/.grok/skills</code></div>
+      <div><b>Cursor</b><code>~/.cursor/skills</code></div>
+      <div><b>Any other agent</b><code>~/.agents/skills</code></div>
     </div>
   </body>
 </html>
