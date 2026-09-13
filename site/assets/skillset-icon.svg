@@ -1,4 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="skillset">
-  <rect width="64" height="64" rx="14" fill="#171717"/>
-  <path d="M44 16H27a8 8 0 0 0 0 16h10a8 8 0 0 1 0 16H20" fill="none" stroke="#f7f6f1" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Skillset side-node mark</title>
+  <desc id="desc">A central pentagon connected from the middle of each side to five circular nodes.</desc>
+  <rect width="1024" height="1024" fill="#fff"/>
+  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="none" stroke="#000" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 220 L778 414 L677 726 L347 726 L246 414 Z"/>
+    <path d="M645 317 L777 138 M728 570 L940 639 M512 726 L512 960 M296 570 L84 639 M379 317 L247 138"/>
+  </g>
+  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="#000">
+    <circle cx="777" cy="138" r="44"/>
+    <circle cx="940" cy="639" r="44"/>
+    <circle cx="512" cy="960" r="44"/>
+    <circle cx="84" cy="639" r="44"/>
+    <circle cx="247" cy="138" r="44"/>
+  </g>
 </svg>
