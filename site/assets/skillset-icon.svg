@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
   <title id="title">Skillset side-node mark</title>
   <desc id="desc">A central pentagon connected from the middle of each side to five circular nodes.</desc>
-  <rect width="1024" height="1024" fill="#fff"/>
-  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="none" stroke="#000" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="1024" height="1024" fill="#0a0a0a"/>
+  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="none" stroke="#fff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
     <path d="M512 220 L778 414 L677 726 L347 726 L246 414 Z"/>
     <path d="M645 317 L777 138 M728 570 L940 639 M512 726 L512 960 M296 570 L84 639 M379 317 L247 138"/>
   </g>
-  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="#000">
+  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="#fff">
     <circle cx="777" cy="138" r="44"/>
     <circle cx="940" cy="639" r="44"/>
     <circle cx="512" cy="960" r="44"/>
