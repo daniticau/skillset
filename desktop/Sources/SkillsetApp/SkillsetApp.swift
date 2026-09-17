@@ -13,7 +13,9 @@ struct SkillsetDesktopApp: App {
         }
         .defaultSize(width: 1_040, height: 700)
         .windowResizability(.contentMinSize)
-        .windowStyle(.hiddenTitleBar)
+        // A real toolbar puts the traffic lights at their native inset and
+        // gives the sidebar its system (Liquid Glass) surface.
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Skill") { model.startBuilding() }
@@ -36,6 +38,17 @@ struct SkillsetDesktopApp: App {
 @MainActor
 final class SkillsetAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
+
+    /// A background launch (a script, `open -g`) gets no main window until the
+    /// app receives a reopen event. The snapshot hook lives in that window, so
+    /// a snapshot run asks for one. It does not take focus.
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard ProcessInfo.processInfo.environment["SKILLSET_SNAPSHOT_PATH"] != nil,
+              Bundle.main.bundleURL.pathExtension == "app" else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        NSWorkspace.shared.open(Bundle.main.bundleURL, configuration: configuration)
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }

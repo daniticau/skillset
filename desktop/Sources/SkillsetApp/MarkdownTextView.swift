@@ -45,7 +45,7 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.importsGraphics = false
         textView.usesFontPanel = false
         textView.usesFindBar = false
-        textView.textContainerInset = NSSize(width: UI.pageInset, height: 22)
+        textView.textContainerInset = NSSize(width: UI.pageInset, height: UI.bodyTop)
         textView.delegate = context.coordinator
         textView.string = text
 
@@ -115,7 +115,7 @@ private final class ColumnTextView: NSTextView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         let horizontal = max(UI.pageInset, (newSize.width - UI.columnWidth) / 2)
-        let inset = NSSize(width: horizontal, height: 22)
+        let inset = NSSize(width: horizontal, height: UI.bodyTop)
         if textContainerInset != inset {
             textContainerInset = inset
         }
@@ -131,8 +131,8 @@ private final class ColumnTextView: NSTextView {
 
 @MainActor
 enum MarkdownStyler {
-    private static let bodySize: CGFloat = 14
-    private static let monoSize: CGFloat = 12.5
+    private static let bodySize = MarkdownMetrics.body
+    private static let monoSize = MarkdownMetrics.mono
 
     static func baseAttributes(styled: Bool) -> [NSAttributedString.Key: Any] {
         [
@@ -193,7 +193,7 @@ enum MarkdownStyler {
             let font = headingFont(level: hashes)
             storage.addAttributes([
                 .font: font,
-                .paragraphStyle: paragraph(spacingBefore: hashes == 1 ? 8 : 12, spacing: 4),
+                .paragraphStyle: paragraph(spacingBefore: hashes <= 2 ? 16 : 10, spacing: 4),
             ], range: range)
             storage.addAttribute(
                 .foregroundColor,
@@ -298,12 +298,8 @@ enum MarkdownStyler {
     // MARK: fonts
 
     private static func headingFont(level: Int) -> NSFont {
-        switch level {
-        case 1: NSFont.systemFont(ofSize: 22, weight: .bold)
-        case 2: NSFont.systemFont(ofSize: 18, weight: .semibold)
-        case 3: NSFont.systemFont(ofSize: 15.5, weight: .semibold)
-        default: NSFont.systemFont(ofSize: bodySize, weight: .semibold)
-        }
+        let metrics = MarkdownMetrics.heading(level)
+        return NSFont.systemFont(ofSize: metrics.size, weight: metrics.weight)
     }
 
     private static func monoFont(_ size: CGFloat) -> NSFont {
@@ -333,7 +329,7 @@ enum MarkdownStyler {
         headIndent: CGFloat = 0
     ) -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
-        style.lineSpacing = 3
+        style.lineSpacing = MarkdownMetrics.lineSpacing
         style.paragraphSpacingBefore = spacingBefore
         style.paragraphSpacing = spacing
         style.headIndent = headIndent

@@ -41,6 +41,15 @@ fi
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$DESKTOP_DIR/.build/release/Skillset" "$MACOS_DIR/Skillset"
+
+# SwiftPM stamps the binary with an SDK version equal to the deployment target
+# (14.0). macOS reads that stamp to choose the design: a 14.0 stamp puts the app
+# in compatibility mode, with no Liquid Glass sidebar or toolbar. Stamp the SDK
+# the app was really built with.
+MIN_OS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$DESKTOP_DIR/Info.plist")"
+xcrun vtool -set-build-version macos "$MIN_OS" "$(xcrun --sdk macosx --show-sdk-version)" \
+  -replace -output "$MACOS_DIR/Skillset" "$MACOS_DIR/Skillset"
+
 cp "$DESKTOP_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$ROOT_DIR/dist-app/cli.cjs" "$RESOURCES_DIR/skillset-cli.cjs"
 print -r -- "$NODE_PATH" > "$RESOURCES_DIR/node-path.txt"

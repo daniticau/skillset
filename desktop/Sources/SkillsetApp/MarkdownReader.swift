@@ -1,99 +1,110 @@
+import AppKit
 import SwiftUI
 
 struct MarkdownReader: View {
     let markdown: String
 
-    private var blocks: [MarkdownBlock] {
-        MarkdownBlock.parse(markdown)
-    }
-
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 10) {
-            ForEach(blocks) { block in
+        let blocks = MarkdownBlock.parse(markdown)
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 blockView(block)
+                    .padding(.top, index == 0 ? 0 : gap(above: block, below: blocks[index - 1]))
             }
         }
         .textSelection(.enabled)
+    }
+
+    /// Space above a block. List items sit close together, a heading opens a
+    /// section, and the text under a heading stays near it.
+    private func gap(above block: MarkdownBlock, below previous: MarkdownBlock) -> CGFloat {
+        switch (previous.kind, block.kind) {
+        case (_, .heading(let level)): level <= 2 ? 28 : 20
+        case (.heading, _): 8
+        case (.bullet, .bullet), (.numbered, .numbered), (.bullet, .numbered), (.numbered, .bullet): 6
+        case (.quote, .quote): 0
+        default: 12
+        }
     }
 
     @ViewBuilder
     private func blockView(_ block: MarkdownBlock) -> some View {
         switch block.kind {
         case .heading(let level):
-            Text(inline(block.text))
-                .font(headingFont(level))
-                .padding(.top, level == 1 ? 6 : 10)
-        case .paragraph:
-            Text(inline(block.text))
-                .font(.system(size: 14))
-                .lineSpacing(4)
+            let metrics = MarkdownMetrics.heading(level)
+            Text(inline(block.text, size: metrics.size))
+                .font(.system(size: metrics.size, weight: Font.Weight(metrics.weight)))
                 .fixedSize(horizontal: false, vertical: true)
-        case .bullet:
-            HStack(alignment: .firstTextBaseline, spacing: 9) {
-                Circle()
-                    .fill(.secondary)
-                    .frame(width: 4, height: 4)
-                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 }
-                Text(inline(block.text))
-                    .font(.system(size: 14))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+        case .paragraph:
+            prose(block.text)
+        case .bullet(let indent):
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text("•")
+                    .font(.reading)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, alignment: .leading)
+                prose(block.text)
             }
-            .padding(.leading, 6)
-        case .numbered(let number):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            .padding(.leading, 2 + CGFloat(indent) * 18)
+        case .numbered(let number, let indent):
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text("\(number).")
-                    .font(.system(size: 14))
+                    .font(.reading)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                    .frame(minWidth: 18, alignment: .trailing)
-                Text(inline(block.text))
-                    .font(.system(size: 14))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minWidth: 22, alignment: .leading)
+                prose(block.text)
             }
+            .padding(.leading, 2 + CGFloat(indent) * 18)
         case .quote:
-            HStack(alignment: .top, spacing: 11) {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.accentColor.opacity(0.55))
+            HStack(alignment: .top, spacing: 12) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.tertiary)
                     .frame(width: 3)
-                Text(inline(block.text))
-                    .font(.system(size: 14))
+                prose(block.text)
                     .foregroundStyle(.secondary)
-                    .italic()
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 2)
         case .code:
             ScrollView(.horizontal) {
                 Text(block.text)
-                    .font(.system(size: 12.5, design: .monospaced))
+                    .font(.system(size: MarkdownMetrics.mono, design: .monospaced))
                     .lineSpacing(3)
                     .textSelection(.enabled)
-                    .padding(12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
             }
-            .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(UI.hairline))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.045), in: .rect(cornerRadius: UI.fieldRadius, style: .continuous))
         case .divider:
-            Hairline().padding(.vertical, 6)
+            Hairline().padding(.vertical, 8)
         }
     }
 
-    private func inline(_ source: String) -> AttributedString {
-        (try? AttributedString(
+    private func prose(_ source: String) -> some View {
+        Text(inline(source, size: MarkdownMetrics.body))
+            .font(.reading)
+            .lineSpacing(MarkdownMetrics.lineSpacing)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Inline Markdown. Code spans get the editor's look: a smaller monospaced
+    /// face on a faint fill.
+    private func inline(_ source: String, size: CGFloat) -> AttributedString {
+        var text = (try? AttributedString(
             markdown: source,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(source)
-    }
-
-    private func headingFont(_ level: Int) -> Font {
-        switch level {
-        case 1: .system(size: 22, weight: .bold)
-        case 2: .system(size: 18, weight: .semibold)
-        case 3: .system(size: 15.5, weight: .semibold)
-        default: .system(size: 14, weight: .semibold)
+        for run in text.runs where run.inlinePresentationIntent?.contains(.code) == true {
+            text[run.range].font = .system(size: max(size - 1.5, MarkdownMetrics.mono), design: .monospaced)
+            text[run.range].backgroundColor = .primary.opacity(0.06)
         }
+        return text
+    }
+}
+
+private extension Font.Weight {
+    init(_ weight: NSFont.Weight) {
+        self = weight == .bold ? .bold : .semibold
     }
 }
 
@@ -101,8 +112,8 @@ private struct MarkdownBlock: Identifiable {
     enum Kind {
         case heading(Int)
         case paragraph
-        case bullet
-        case numbered(Int)
+        case bullet(indent: Int)
+        case numbered(Int, indent: Int)
         case quote
         case code
         case divider
@@ -168,15 +179,23 @@ private struct MarkdownBlock: Identifiable {
                 continue
             }
 
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
                 flushParagraph()
-                result.append(MarkdownBlock(id: lineNumber, kind: .bullet, text: String(trimmed.dropFirst(2))))
+                result.append(MarkdownBlock(
+                    id: lineNumber,
+                    kind: .bullet(indent: indent(of: line)),
+                    text: String(trimmed.dropFirst(2))
+                ))
                 continue
             }
 
             if let numbered = numbered(from: trimmed) {
                 flushParagraph()
-                result.append(MarkdownBlock(id: lineNumber, kind: .numbered(numbered.number), text: numbered.text))
+                result.append(MarkdownBlock(
+                    id: lineNumber,
+                    kind: .numbered(numbered.number, indent: indent(of: line)),
+                    text: numbered.text
+                ))
                 continue
             }
 
@@ -195,6 +214,17 @@ private struct MarkdownBlock: Identifiable {
             result.append(MarkdownBlock(id: codeStart, kind: .code, text: code.joined(separator: "\n")))
         }
         return result
+    }
+
+    /// Nesting depth of a list item: two spaces, or one tab, per level.
+    private static func indent(of line: String) -> Int {
+        var columns = 0
+        for character in line {
+            if character == " " { columns += 1 }
+            else if character == "\t" { columns += 2 }
+            else { break }
+        }
+        return min(columns / 2, 4)
     }
 
     private static func heading(from line: String) -> (level: Int, text: String)? {

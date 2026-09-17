@@ -2,24 +2,21 @@ import AppKit
 import SwiftUI
 
 /// One window, two columns: the library on the left, one thing on the right —
-/// the selected skill, or the builder when you are making a new one.
+/// the selected skill, or the builder when you are making a new one. The split
+/// view, the sidebar surface, and the toolbar all come from the system.
 struct RootView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        HStack(spacing: 0) {
+        NavigationSplitView {
             Sidebar(model: model)
-                .frame(width: UI.sidebarWidth)
-
-            Hairline(axis: .vertical)
-
+                .navigationSplitViewColumnWidth(min: 260, ideal: UI.sidebarWidth, max: 400)
+        } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
         }
-        // `.hiddenTitleBar` still reserves the title-bar band as a safe area.
-        // Claim it so the sidebar runs to the top edge, under the traffic lights.
-        .ignoresSafeArea(.container, edges: .top)
+        .modifier(HiddenWindowTitle())
         .background(WindowConfigurator(model: model))
         .background(DebugSnapshot(model: model))
         .frame(minWidth: 840, minHeight: 540)
@@ -79,6 +76,18 @@ struct RootView: View {
     }
 }
 
+/// Drops the title from the toolbar but keeps the toolbar's layout, so the
+/// detail actions stay on the trailing edge.
+private struct HiddenWindowTitle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.toolbar(removing: .title)
+        } else {
+            content
+        }
+    }
+}
+
 private struct WindowConfigurator: NSViewRepresentable {
     let model: AppModel
 
@@ -100,11 +109,7 @@ private struct WindowConfigurator: NSViewRepresentable {
         window.level = .normal
         window.collectionBehavior.remove(.fullScreenAuxiliary)
         window.collectionBehavior.insert(.fullScreenPrimary)
-        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        window.isMovableByWindowBackground = false
         guard !coordinator.positioned, let screen = window.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
         let size = NSSize(width: 1_040, height: 700)

@@ -36,13 +36,15 @@ struct SettingsView: View {
                                 URL(fileURLWithPath: (model.snapshot.storePath as NSString).expandingTildeInPath)
                             ])
                         }
-                        .buttonStyle(PillButtonStyle())
+                        .buttonStyle(PillButtonStyle(size: .small))
                     }
                 }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 640, height: 620)
+        // The window takes the height of the form, as a Settings pane does.
+        .frame(width: 600)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -71,7 +73,7 @@ private struct ConnectionRow: View {
                 Text(connection.name)
                     .font(.system(size: 13, weight: .medium))
                 Text(connection.path)
-                    .font(.system(size: 12, design: .monospaced))
+                    .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -94,14 +96,14 @@ private struct ConnectionRow: View {
                 ProgressView().controlSize(.mini)
             } else if !connection.configured {
                 Button("Connect") { Task { await model.connect(connection) } }
-                    .buttonStyle(PillButtonStyle(tone: .accent))
+                    .buttonStyle(PillButtonStyle(tone: .accent, size: .small))
             } else {
                 if connection.status != .live {
                     Button("Repair") { Task { await model.repair(connection) } }
-                        .buttonStyle(PillButtonStyle())
+                        .buttonStyle(PillButtonStyle(size: .small))
                 }
                 Button("Disconnect") { Task { await model.disconnect(connection) } }
-                    .buttonStyle(PillButtonStyle(tone: .destructive))
+                    .buttonStyle(PillButtonStyle(tone: .destructive, size: .small))
             }
         }
         .disabled(model.busyConnectionID != nil && !busy)

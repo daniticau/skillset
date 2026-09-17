@@ -45,27 +45,10 @@ struct SkillDetail: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            WindowDragArea()
-                .frame(height: UI.topInset)
-
-            header
-
-            Hairline()
-
-            if editing {
-                MarkdownTextView(text: $draftBody, styled: stylesMarkdown)
-                    .disabled(model.savingSkillID != nil)
-            } else {
-                ScrollView {
-                    MarkdownReader(markdown: skill.body)
-                        .frame(maxWidth: UI.columnWidth, alignment: .leading)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, UI.pageInset)
-                        .padding(.vertical, 22)
-                }
-            }
+        Group {
+            if editing { editor } else { reader }
         }
+        .toolbar { actions }
         .onChange(of: hasChanges) { _, dirty in model.dirtyEditor = dirty }
         .onChange(of: model.editRequestToken) { _, _ in
             if !editing { beginEditing() }
@@ -87,109 +70,147 @@ struct SkillDetail: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                if editing {
-                    TextField("skill-name", text: $draftName)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 21, weight: .semibold))
-                        .onChange(of: draftName) { _, value in
-                            let normalised = SkillName.typing(value)
-                            if normalised != value { draftName = normalised }
-                        }
-                        .modifier(FieldChrome(active: true))
-                    .disabled(model.savingSkillID != nil)
-
-                    TextField(
-                        "When should an agent reach for this skill?",
-                        text: $draftDescription,
-                        axis: .vertical
-                    )
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .lineLimit(1...6)
-                    .modifier(FieldChrome(active: true))
-                    .disabled(model.savingSkillID != nil)
-                } else {
-                    Text(skill.name)
-                        .font(.system(size: 21, weight: .semibold))
-                        .textSelection(.enabled)
-                        .modifier(FieldChrome(active: false))
-
-                    Text(skill.description)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .modifier(FieldChrome(active: false))
-                }
-                if editing, finalName != skill.id,
-                   model.snapshot.skills.contains(where: { $0.id == finalName }) {
-                    Text("A skill with this name already exists.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.red)
-                }
+    /// Reading: the header and the body are one page that scrolls under the toolbar.
+    private var reader: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Hairline()
+                MarkdownReader(markdown: skill.body)
+                    .padding(.top, UI.bodyTop)
             }
-            // The field chrome pads the text by 8pt; pull it back so the title
-            // lines up with the body below in both modes.
-            .padding(.horizontal, -8)
-
-            Spacer(minLength: 12)
-
-            actions
-                .padding(.top, 5)
+            .frame(maxWidth: UI.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, UI.pageInset)
+            .padding(.top, UI.pageTop)
+            .padding(.bottom, 40)
         }
-        .frame(maxWidth: UI.columnWidth)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, UI.pageInset)
-        .padding(.top, 2)
-        .padding(.bottom, 16)
     }
 
-    @ViewBuilder
-    private var actions: some View {
-        HStack(spacing: 6) {
+    /// Editing: the fields stay put and the text view scrolls below them.
+    private var editor: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                Hairline()
+            }
+            .frame(maxWidth: UI.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, UI.pageInset)
+            .padding(.top, UI.pageTop)
+            .modifier(ScrollBarGutter())
+
+            MarkdownTextView(text: $draftBody, styled: stylesMarkdown)
+                .disabled(model.savingSkillID != nil)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
             if editing {
+                TextField("skill-name", text: $draftName)
+                    .textFieldStyle(.plain)
+                    .font(.pageTitle)
+                    .onChange(of: draftName) { _, value in
+                        let normalised = SkillName.typing(value)
+                        if normalised != value { draftName = normalised }
+                    }
+                    .modifier(FieldChrome(active: true))
+                    .disabled(model.savingSkillID != nil)
+
+                TextField(
+                    "When should an agent reach for this skill?",
+                    text: $draftDescription,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
+                .font(.pageSummary)
+                .lineLimit(1...6)
+                .modifier(FieldChrome(active: true))
+                .disabled(model.savingSkillID != nil)
+            } else {
+                Text(skill.name)
+                    .font(.pageTitle)
+                    .textSelection(.enabled)
+                    .modifier(FieldChrome(active: false))
+
+                Text(skill.description)
+                    .font(.pageSummary)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .modifier(FieldChrome(active: false))
+            }
+            if editing, finalName != skill.id,
+               model.snapshot.skills.contains(where: { $0.id == finalName }) {
+                Text("A skill with this name already exists.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+            }
+        }
+        // The field chrome pads the text by 8pt; pull it back so the title
+        // lines up with the body below in both modes.
+        .padding(.horizontal, -8)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ToolbarContentBuilder
+    private var actions: some ToolbarContent {
+        TrailingToolbarSpace()
+
+        if editing {
+            ToolbarItem(placement: .primaryAction) {
                 Button("Cancel") {
                     if hasChanges { showCancelConfirmation = true }
                     else { cancelEditing() }
                 }
-                .buttonStyle(PillButtonStyle())
                 .keyboardShortcut(.cancelAction)
                 .disabled(model.savingSkillID != nil)
+            }
 
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
                 Button {
                     save()
                 } label: {
                     if model.savingSkillID == skill.id {
-                        ProgressView().controlSize(.mini)
-                            .frame(width: 30)
+                        ProgressView().controlSize(.small)
                     } else {
                         Text("Save")
                     }
                 }
-                .buttonStyle(PillButtonStyle(tone: .prominent))
                 .keyboardShortcut("s", modifiers: .command)
                 .disabled(!canSave)
-            } else {
+            }
+        } else {
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     beginEditing()
                 } label: {
                     Label("Edit", systemImage: "pencil")
                 }
-                .buttonStyle(PillButtonStyle())
                 .help("Edit (⌘E)")
                 .disabled(model.isMutating)
+            }
 
-                Button {
+            if #available(macOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
-                    Image(systemName: "trash")
+                    Label("Delete", systemImage: "trash")
+                        .foregroundStyle(.red)
                 }
-                .buttonStyle(IconButtonStyle(tone: .destructive))
-                .disabled(model.isMutating)
                 .help("Delete skill")
+                .disabled(model.isMutating)
             }
         }
     }

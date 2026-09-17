@@ -17,29 +17,35 @@ struct BuilderView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            WindowDragArea()
-                .frame(height: UI.topInset)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                composer
+                    .padding(.top, UI.bodyTop)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    composer
-                        .padding(.top, 22)
-
-                    if model.isDecomposing {
-                        thinking
-                    } else if !model.builderProposals.isEmpty {
-                        results
-                    } else if model.builderIdea.isEmpty {
-                        starters
-                    }
+                if model.isDecomposing {
+                    thinking
+                } else if !model.builderProposals.isEmpty {
+                    results
+                } else if model.builderIdea.isEmpty {
+                    starters
                 }
-                .frame(maxWidth: UI.columnWidth, alignment: .leading)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, UI.pageInset)
-                .padding(.top, 2)
-                .padding(.bottom, 40)
+            }
+            .frame(maxWidth: UI.columnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, UI.pageInset)
+            .padding(.top, UI.pageTop)
+            .padding(.bottom, 40)
+        }
+        .toolbar {
+            TrailingToolbarSpace()
+
+            if !model.snapshot.skills.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Close") { model.stopBuilding() }
+                        .keyboardShortcut(.cancelAction)
+                        .disabled(model.isInstallingProposals)
+                }
             }
         }
         .task {
@@ -48,25 +54,17 @@ struct BuilderView: View {
         }
     }
 
+    /// Same padding as a skill's header, so both pages start on one line.
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("New skill")
-                    .font(.system(size: 21, weight: .semibold))
-                Text("Say what your agents should know. Skillset splits it into the smallest reusable skills and shows each one before anything is written.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 12)
-
-            if !model.snapshot.skills.isEmpty {
-                Button("Close") { model.stopBuilding() }
-                    .buttonStyle(PillButtonStyle())
-                    .padding(.top, 5)
-                    .disabled(model.isInstallingProposals)
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("New Skill")
+                .font(.pageTitle)
+                .padding(.vertical, 4)
+            Text("Say what your agents should know. Skillset splits it into the smallest reusable skills and shows each one before anything is written.")
+                .font(.pageSummary)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 4)
         }
     }
 
@@ -82,19 +80,19 @@ struct BuilderView: View {
                 axis: .vertical
             )
             .textFieldStyle(.plain)
-            .font(.system(size: 13.5))
-            .lineSpacing(3)
+            .font(.reading)
+            .lineSpacing(MarkdownMetrics.lineSpacing)
             .lineLimit(4...12)
             .focused($ideaFocused)
             .disabled(model.isDecomposing || model.isInstallingProposals)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: UI.cardRadius, style: .continuous)
                     .fill(.primary.opacity(0.04))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: UI.cardRadius, style: .continuous)
                     .stroke(.primary.opacity(ideaFocused ? 0.16 : 0.08))
             )
             .animation(.easeOut(duration: 0.15), value: ideaFocused)
@@ -135,11 +133,11 @@ struct BuilderView: View {
     // MARK: states
 
     private var starters: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text("Try one")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.tertiary)
-                .padding(.bottom, 4)
+                .padding(.bottom, 6)
 
             ForEach(examples, id: \.self) { example in
                 StarterRow(text: example) {
@@ -148,17 +146,17 @@ struct BuilderView: View {
                 }
             }
         }
-        .padding(.top, 28)
+        .padding(.top, 32)
     }
 
     private var thinking: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
             Text("Finding the smallest units…")
-                .font(.system(size: 12.5))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
-        .padding(.top, 28)
+        .padding(.top, 32)
     }
 
     private var results: some View {
@@ -200,7 +198,7 @@ struct BuilderView: View {
                 ProposalCard(proposal: proposal)
             }
         }
-        .padding(.top, 28)
+        .padding(.top, 32)
     }
 }
 
@@ -216,20 +214,22 @@ private struct StarterRow: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.quaternary)
                 Text(text)
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 13))
                     .foregroundStyle(hovered ? .primary : .secondary)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: UI.fieldRadius, style: .continuous)
                     .fill(.primary.opacity(hovered ? 0.05 : 0))
             )
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        // The hover fill pads the row by 8pt; pull it back onto the column edge.
+        .padding(.horizontal, -8)
         .onHover { hovered = $0 }
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
@@ -266,7 +266,7 @@ private struct ProposalCard: View {
             }
 
             Text(proposal.description)
-                .font(.system(size: 12.5))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -277,7 +277,7 @@ private struct ProposalCard: View {
                         .foregroundStyle(.quaternary)
                         .padding(.top, 2)
                     Text(proposal.prevents)
-                        .font(.system(size: 11.5))
+                        .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -294,15 +294,15 @@ private struct ProposalCard: View {
                     .foregroundStyle(issue.severity == "error" ? .red : .orange)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: UI.cardRadius, style: .continuous)
                 .fill(kindColor.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: UI.cardRadius, style: .continuous)
                 .stroke(kindColor.opacity(0.2))
         )
         .opacity(proposal.installable ? 1 : 0.6)

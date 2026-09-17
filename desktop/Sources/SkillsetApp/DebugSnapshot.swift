@@ -9,7 +9,8 @@ import SwiftUI
 ///     [SKILLSET_SNAPSHOT_APPEARANCE=light|dark] \
 ///     [SKILLSET_SNAPSHOT_QUIT=1] Skillset.app/Contents/MacOS/Skillset
 ///
-/// Does nothing unless the path is set.
+/// Does nothing unless the path is set. The window server draws the sidebar's
+/// glass, so the sidebar comes out black here; take a real screenshot to check it.
 struct DebugSnapshot: View {
     let model: AppModel
     @Environment(\.openSettings) private var openSettings
@@ -60,7 +61,8 @@ private struct SnapshotHook: NSViewRepresentable {
                 let window = state == "settings"
                     ? NSApp.windows.first { $0.isVisible && $0 !== view.window }
                     : view.window
-                Self.write(window?.contentView, to: path)
+                // The frame view holds the toolbar and the traffic lights too.
+                Self.write(window?.contentView?.superview ?? window?.contentView, to: path)
                 if environment["SKILLSET_SNAPSHOT_QUIT"] == "1" { NSApp.terminate(nil) }
             }
         }
