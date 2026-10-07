@@ -52,3 +52,9 @@ yarn-debug.log*
 *.cast
 recordings/
 captures/
+
+# Agent files and scratch captures, kept local
+VISION.md
+AGENTS.md
+CLAUDE.md
+.tmp-site-shots/
