@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import SwiftUI
@@ -13,9 +14,15 @@ final class AppModel {
     var searchFocusToken = 0
     /// Bumped by the Edit Skill command; the open skill switches to edit mode.
     var editRequestToken = 0
+    /// A skill the detail pane should open in edit mode once it appears.
+    var editOnOpenID: String?
     var isRefreshing = false
     var savingSkillID: String?
     var deletingSkillID: String?
+    var togglingAlwaysID: String?
+    var isAddingSource = false
+    /// The skill waiting on the delete confirmation.
+    var pendingDelete: SkillRecord?
     var busyConnectionID: String?
     /// The open editor holds changes that are not saved yet.
     var dirtyEditor = false
@@ -41,10 +48,13 @@ final class AppModel {
 
     private var pending: PendingNavigation?
     private let bridge = SkillsetBridge()
-    private var refreshInFlight = false
+    /// The last refresh. Each new one waits for it, so reads land in order.
+    private var refreshChain: Task<Void, Never>?
+    private var watcher: StoreWatcher?
 
     var isMutating: Bool {
-        savingSkillID != nil || deletingSkillID != nil || isInstallingProposals || busyConnectionID != nil
+        savingSkillID != nil || deletingSkillID != nil || togglingAlwaysID != nil
+            || isInstallingProposals || isAddingSource || busyConnectionID != nil
     }
 
     var hasPendingWork: Bool { dirtyEditor || isMutating }
@@ -56,12 +66,28 @@ final class AppModel {
         }
     }
 
+    /// The sidebar's two groups: rules that load in every session, then the
+    /// skills an agent loads when the description matches.
+    var alwaysSkills: [SkillRecord] { filteredSkills.filter(\.always) }
+    var onDemandSkills: [SkillRecord] { filteredSkills.filter { !$0.always } }
+
+    /// Sidebar order, which search ranking and the two groups both shape.
+    var visibleSkillIDs: [String] { (alwaysSkills + onDemandSkills).map(\.id) }
+
+    /// The New Skill page holds a link or a folder, not an idea.
+    var builderSource: String? { SkillSource.detect(builderIdea) }
+
     var selectedSkill: SkillRecord? {
-        guard let selectedSkillID else { return filteredSkills.first }
+        let first = visibleSkillIDs.first.flatMap(skill(_:))
+        guard let selectedSkillID else { return first }
         if dirtyEditor || savingSkillID != nil {
-            return snapshot.skills.first { $0.id == selectedSkillID }
+            return skill(selectedSkillID)
         }
-        return filteredSkills.first { $0.id == selectedSkillID } ?? filteredSkills.first
+        return filteredSkills.first { $0.id == selectedSkillID } ?? first
+    }
+
+    func skill(_ id: String) -> SkillRecord? {
+        snapshot.skills.first { $0.id == id }
     }
 
     // MARK: navigation
@@ -126,21 +152,43 @@ final class AppModel {
         editRequestToken += 1
     }
 
+    /// Opens a skill straight into edit mode, from the sidebar's menu.
+    func edit(_ skill: SkillRecord) {
+        guard !isMutating else { return }
+        if skill.id == selectedSkill?.id, !isBuilding {
+            requestEdit()
+            return
+        }
+        select(skill.id)
+        if selectedSkillID == skill.id, !isBuilding { editOnOpenID = skill.id }
+    }
+
     // MARK: data
 
+    /// Reads the library. A refresh queued behind another runs after it, so a
+    /// save always sees data read after the save.
     func refresh(showSpinner: Bool = true) async {
-        // A save must read fresh data after an earlier background read ends.
-        while refreshInFlight {
-            do { try await Task.sleep(for: .milliseconds(25)) }
-            catch { return }
+        let previous = refreshChain
+        let next = Task { [weak self] in
+            await previous?.value
+            await self?.load(showSpinner: showSpinner)
         }
-        guard !Task.isCancelled else { return }
-        refreshInFlight = true
+        refreshChain = next
+        await next.value
+    }
+
+    /// Starts watching the store, so changes made outside the app show up.
+    func watchStore() {
+        guard watcher == nil else { return }
+        watcher = StoreWatcher(storePath: snapshot.storePath) { [weak self] in
+            guard let self, !self.isMutating else { return }
+            Task { await self.refresh(showSpinner: false) }
+        }
+    }
+
+    private func load(showSpinner: Bool) async {
         if showSpinner { isRefreshing = true }
-        defer {
-            isRefreshing = false
-            refreshInFlight = false
-        }
+        defer { isRefreshing = false }
         do {
             let next = try await bridge.snapshot()
             guard !Task.isCancelled else { return }
@@ -156,8 +204,8 @@ final class AppModel {
             } else {
                 snapshot = next
             }
-            if !dirtyEditor, !isMutating, !filteredSkills.contains(where: { $0.id == selectedSkillID }) {
-                selectedSkillID = filteredSkills.first?.id
+            if !dirtyEditor, !isMutating, !visibleSkillIDs.contains(selectedSkillID ?? "") {
+                selectedSkillID = visibleSkillIDs.first
             }
             errorMessage = nil
         } catch {
@@ -185,6 +233,74 @@ final class AppModel {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    /// Asks before a delete. The sidebar menu and the toolbar share one alert.
+    func requestDelete(_ skill: SkillRecord) {
+        guard !isMutating else { return }
+        pendingDelete = skill
+    }
+
+    func confirmDelete() async {
+        guard let skill = pendingDelete else { return }
+        pendingDelete = nil
+        await deleteSkill(skill)
+    }
+
+    func setAlways(_ skill: SkillRecord, on: Bool) async {
+        guard !isMutating, skill.always != on else { return }
+        togglingAlwaysID = skill.id
+        defer { togglingAlwaysID = nil }
+        do {
+            try await bridge.setAlways(name: skill.id, on: on)
+            await refresh(showSpinner: false)
+            showToast(on ? "\(skill.name) loads in every session" : "\(skill.name) loads on demand")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Adds a skill from a link or a folder and opens it.
+    func addSkill(from source: String) async {
+        guard !isMutating, !isDecomposing else { return }
+        isAddingSource = true
+        defer { isAddingSource = false }
+        let before = Set(snapshot.skills.map(\.id))
+        do {
+            try await bridge.addSkill(source: source)
+            await refresh(showSpinner: false)
+            let added = snapshot.skills.map(\.id).filter { !before.contains($0) }
+            clearBuilder()
+            isBuilding = false
+            if let first = added.first { selectedSkillID = first }
+            showToast(added.count > 1 ? "Added \(added.count) skills" : "Added \(added.first ?? "skill")")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// File > Add Skill from Folder: picks a skill folder or a SKILL.md.
+    func chooseFolderToAdd() {
+        guard !isMutating else { return }
+        let panel = NSOpenPanel()
+        panel.message = "Choose a skill folder or a SKILL.md file."
+        panel.prompt = "Add"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await addSkill(from: url.path) }
+    }
+
+    func revealInFinder(_ skill: SkillRecord) {
+        guard !skill.path.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([skill.folderURL.appending(path: "SKILL.md")])
+    }
+
+    func copyName(_ skill: SkillRecord) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(skill.name, forType: .string)
+        showToast("Copied \(skill.name)")
     }
 
     func deleteSkill(_ skill: SkillRecord) async {

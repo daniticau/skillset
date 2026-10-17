@@ -71,4 +71,23 @@ final class AppModelTests: XCTestCase {
             XCTAssertNil(model.builderRationale)
         }
     }
+
+    func testAlwaysOnSkillsListFirstAndASourceSwitchesTheBuilder() async {
+        await MainActor.run {
+            let model = AppModel()
+            var rule = SkillRecord(id: "zulu", name: "zulu", description: "z", body: "z",
+                                   markdown: "z", origin: "manual", userEdited: false, category: "Rule")
+            rule.always = true
+            let tool = SkillRecord(id: "alpha", name: "alpha", description: "a", body: "a",
+                                   markdown: "a", origin: "manual", userEdited: false, category: "Tool")
+            model.snapshot = DesktopSnapshot(generatedAt: "", storePath: "", connections: [], skills: [tool, rule], history: [])
+            XCTAssertEqual(model.visibleSkillIDs, ["zulu", "alpha"])
+            XCTAssertEqual(model.selectedSkill?.id, "zulu")
+
+            model.builderIdea = "prefer Arc over Chrome"
+            XCTAssertNil(model.builderSource)
+            model.builderIdea = "https://github.com/a/b"
+            XCTAssertEqual(model.builderSource, "https://github.com/a/b")
+        }
+    }
 }

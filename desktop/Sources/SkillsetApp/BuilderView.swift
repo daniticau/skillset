@@ -23,12 +23,16 @@ struct BuilderView: View {
                 composer
                     .padding(.top, UI.bodyTop)
 
-                if model.isDecomposing {
-                    thinking
+                if model.isAddingSource {
+                    progress("Adding the skill…")
+                } else if model.isDecomposing {
+                    progress("Finding the smallest units…")
                 } else if !model.builderProposals.isEmpty {
                     results
                 } else if model.builderIdea.isEmpty {
                     starters
+                } else if model.builderSource != nil {
+                    sourceHint
                 }
             }
             .frame(maxWidth: UI.columnWidth, alignment: .leading)
@@ -60,7 +64,7 @@ struct BuilderView: View {
             Text("New Skill")
                 .font(.pageTitle)
                 .padding(.vertical, 4)
-            Text("Say what your agents should know. Skillset splits it into the smallest reusable skills and shows each one before anything is written.")
+            Text("Say what your agents should know, and Skillset splits it into the smallest reusable skills. Or paste a link to a skill: a GitHub repo, a skills.sh page, a tweet, or a folder on this Mac.")
                 .font(.pageSummary)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -75,7 +79,7 @@ struct BuilderView: View {
             // A vertical TextField carries a real placeholder, so the prompt and
             // the caret share one text container and cannot drift apart.
             TextField(
-                "Describe a preference, a workflow, or a correction…",
+                "Describe a preference, a workflow, or a correction, or paste a link…",
                 text: $model.builderIdea,
                 axis: .vertical
             )
@@ -84,7 +88,7 @@ struct BuilderView: View {
             .lineSpacing(MarkdownMetrics.lineSpacing)
             .lineLimit(4...12)
             .focused($ideaFocused)
-            .disabled(model.isDecomposing || model.isInstallingProposals)
+            .disabled(model.isDecomposing || model.isInstallingProposals || model.isAddingSource)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
@@ -98,9 +102,10 @@ struct BuilderView: View {
             .animation(.easeOut(duration: 0.15), value: ideaFocused)
 
             HStack(spacing: 8) {
-                Text("⌘↩ to build")
+                Text(model.builderSource == nil ? "⌘↩ to build" : "⌘↩ to add this skill")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
+                    .contentTransition(.opacity)
 
                 Spacer(minLength: 8)
 
@@ -110,24 +115,35 @@ struct BuilderView: View {
                         .disabled(model.isDecomposing || model.isInstallingProposals)
                 }
 
-                Button {
-                    Task { await model.decompose() }
-                } label: {
-                    if model.isDecomposing {
-                        ProgressView().controlSize(.mini)
-                            .frame(width: 30)
-                    } else {
-                        Text("Build")
-                    }
-                }
-                .buttonStyle(PillButtonStyle(tone: .prominent))
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(
-                    model.builderIdea.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || model.isDecomposing || model.isMutating
-                )
+                primaryButton
             }
         }
+    }
+
+    /// Build for an idea, Add for a link or a folder. The CLI resolves the link.
+    private var primaryButton: some View {
+        let source = model.builderSource
+        let busy = model.isDecomposing || model.isAddingSource
+        return Button {
+            if let source {
+                Task { await model.addSkill(from: source) }
+            } else {
+                Task { await model.decompose() }
+            }
+        } label: {
+            if busy {
+                ProgressView().controlSize(.mini)
+                    .frame(width: 30)
+            } else {
+                Text(source == nil ? "Build" : "Add")
+            }
+        }
+        .buttonStyle(PillButtonStyle(tone: .prominent))
+        .keyboardShortcut(.return, modifiers: .command)
+        .disabled(
+            model.builderIdea.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || busy || model.isMutating
+        )
     }
 
     // MARK: states
@@ -149,10 +165,22 @@ struct BuilderView: View {
         .padding(.top, 32)
     }
 
-    private var thinking: some View {
+    private var sourceHint: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "link")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("Skillset adds the skill at this link as it is, without the builder.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 32)
+    }
+
+    private func progress(_ message: String) -> some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("Finding the smallest units…")
+            Text(message)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }

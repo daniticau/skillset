@@ -20,12 +20,15 @@ struct SkillsetDesktopApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Skill") { model.startBuilding() }
                     .keyboardShortcut("n", modifiers: .command)
+                Button("Add Skill from Folder…") { model.chooseFolderToAdd() }
+                    .keyboardShortcut("o", modifiers: .command)
             }
             CommandGroup(before: .textEditing) {
                 Button("Search Skills") { model.requestSearchFocus() }
                     .keyboardShortcut("f", modifiers: .command)
-                Button("Edit Skill") { model.requestEdit() }
-                    .keyboardShortcut("e", modifiers: .command)
+            }
+            CommandMenu("Skill") {
+                SkillCommands(model: model)
             }
         }
 
@@ -52,20 +55,59 @@ final class SkillsetAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
+        return CloseGuard.allowsClose(model, action: "Discard and Quit") ? .terminateNow : .terminateCancel
+    }
+}
+
+/// The Skill menu acts on the open skill, with the same items as the
+/// sidebar's context menu.
+private struct SkillCommands: View {
+    @Bindable var model: AppModel
+
+    private var skill: SkillRecord? { model.isBuilding ? nil : model.selectedSkill }
+
+    var body: some View {
+        Button("Edit") { model.requestEdit() }
+            .keyboardShortcut("e", modifiers: .command)
+            .disabled(skill == nil || model.isMutating)
+        Button(skill?.always == true ? "Load on Demand" : "Load in Every Session") {
+            guard let skill else { return }
+            Task { await model.setAlways(skill, on: !skill.always) }
+        }
+        .keyboardShortcut("l", modifiers: [.command, .shift])
+        .disabled(skill == nil || model.isMutating)
+        Divider()
+        Button("Show in Finder") { skill.map(model.revealInFinder) }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(skill?.path.isEmpty ?? true)
+        Button("Copy Name") { skill.map(model.copyName) }
+            .disabled(skill == nil)
+        Divider()
+        Button("Delete…") { skill.map(model.requestDelete) }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(skill == nil || model.isMutating)
+    }
+}
+
+/// Asks before a window closes or the app quits with work in flight. A save
+/// that is still running blocks the close. Unsaved edits ask first.
+@MainActor
+enum CloseGuard {
+    static func allowsClose(_ model: AppModel, action: String) -> Bool {
         if model.isMutating {
             let alert = NSAlert()
-            alert.messageText = "Please wait for Skillset to finish."
-            alert.informativeText = "A change is still being saved. Quit after it finishes."
+            alert.messageText = "Wait for this change to finish"
+            alert.informativeText = "Skillset is still updating your library."
             alert.addButton(withTitle: "OK")
             alert.runModal()
-            return .terminateCancel
+            return false
         }
-        guard model.dirtyEditor else { return .terminateNow }
+        guard model.dirtyEditor else { return true }
         let alert = NSAlert()
-        alert.messageText = "Discard edits and quit?"
+        alert.messageText = "Discard your edits?"
         alert.informativeText = "Your edits to this skill are not saved."
         alert.addButton(withTitle: "Keep Editing")
-        alert.addButton(withTitle: "Discard and Quit")
-        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+        alert.addButton(withTitle: action)
+        return alert.runModal() == .alertSecondButtonReturn
     }
 }

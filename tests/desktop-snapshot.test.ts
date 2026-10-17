@@ -39,6 +39,9 @@ beforeEach(() => {
   const markdown = `---\nname: focused-testing\ndescription: Use focused tests.\ntier: medium\norigin: user-created\n---\n\n# Focused testing\n\nRun the narrow test first.\n`;
   writeFileSync(join(SKILLS, "focused-testing", "SKILL.md"), markdown);
   writeFileSync(join(CODEX, "focused-testing", "SKILL.md"), markdown);
+  mkdirSync(join(SKILLS, "focused-testing", "references"), { recursive: true });
+  writeFileSync(join(SKILLS, "focused-testing", "references", "notes.md"), "notes");
+  writeFileSync(join(SKILLS, "focused-testing", ".DS_Store"), "");
   writeFileSync(
     join(ROOT, "config.json"),
     JSON.stringify({ version: 1, links: [{ agent: "codex", path: CODEX }] })
@@ -61,7 +64,12 @@ describe("desktop snapshot", () => {
     expect(snapshot.skills[0]).toMatchObject({ name: "focused-testing" });
     expect(snapshot.skills[0]?.markdown).toContain("# Focused testing");
     expect(snapshot.skills[0]?.markdown).not.toContain("tier:");
-    expect(snapshot.skills[0]).toMatchObject({ category: "Workflow" });
+    expect(snapshot.skills[0]).toMatchObject({
+      category: "Workflow",
+      always: false,
+      path: join(SKILLS, "focused-testing"),
+      files: [join("references", "notes.md")],
+    });
     expect(snapshot.history).toEqual([]);
     expect(snapshot.connections).toEqual(expect.arrayContaining([
       expect.objectContaining({ agent: "codex", configured: true, status: "live" }),

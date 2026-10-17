@@ -48,49 +48,77 @@ struct SkillsetBridge: Sendable {
         _ = try await run(["doctor", "--repair"])
     }
 
+    /// Turns a skill's always-on flag on or off. The CLI rewrites every
+    /// agent's managed instructions block in the same pass.
+    func setAlways(name: String, on: Bool) async throws {
+        _ = try await run(on ? ["always", name] : ["always", name, "--off"])
+    }
+
+    /// Adds a skill from a local folder, `owner/repo`, a GitHub or skills.sh
+    /// link, or a tweet that links to one. The CLI resolves the source.
+    func addSkill(source: String) async throws {
+        _ = try await run(["add", source])
+    }
+
     private func run(_ arguments: [String], standardInput: String? = nil) async throws -> Data {
         let launch = try resolveLaunch()
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                let output = Pipe()
-                let errors = Pipe()
-                let input = Pipe()
-                process.executableURL = launch.node
-                process.arguments = [launch.cli.path] + arguments
-                process.standardOutput = output
-                process.standardError = errors
-                if standardInput != nil {
-                    process.standardInput = input
-                }
-                process.environment = ProcessInfo.processInfo.environment
-
                 do {
-                    try process.run()
-                    if let standardInput {
-                        input.fileHandleForWriting.write(Data(standardInput.utf8))
-                        try? input.fileHandleForWriting.close()
-                    }
-                    let data = output.fileHandleForReading.readDataToEndOfFile()
-                    let errorData = errors.fileHandleForReading.readDataToEndOfFile()
-                    process.waitUntilExit()
-                    if process.terminationStatus == 0 {
-                        continuation.resume(returning: data)
-                    } else {
-                        let rawMessage = String(
-                            data: errorData.isEmpty ? data : errorData,
-                            encoding: .utf8
-                        )
-                        let message = rawMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        continuation.resume(throwing: SkillsetBridgeError.commandFailed(
-                            message?.isEmpty == false ? message! : "Skillset command failed."
-                        ))
-                    }
+                    let result = try Self.execute(launch: launch, arguments: arguments, standardInput: standardInput)
+                    continuation.resume(returning: result)
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }
+    }
+
+    /// Runs the CLI to the end. Both pipes drain at once: a process that fills
+    /// one pipe while the other is read would otherwise block forever.
+    private static func execute(launch: (node: URL, cli: URL), arguments: [String], standardInput: String?) throws -> Data {
+        let process = Process()
+        let output = Pipe()
+        let errors = Pipe()
+        process.executableURL = launch.node
+        process.arguments = [launch.cli.path] + arguments
+        process.standardOutput = output
+        process.standardError = errors
+        process.environment = ProcessInfo.processInfo.environment
+        let input = standardInput.map { _ in Pipe() }
+        if let input { process.standardInput = input }
+
+        try process.run()
+
+        let errorBuffer = PipeBuffer()
+        let drained = DispatchGroup()
+        drained.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            errorBuffer.data = errors.fileHandleForReading.readDataToEndOfFile()
+            drained.leave()
+        }
+        if let input, let standardInput {
+            input.fileHandleForWriting.write(Data(standardInput.utf8))
+            try? input.fileHandleForWriting.close()
+        }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        drained.wait()
+        process.waitUntilExit()
+        let errorData = errorBuffer.data
+
+        guard process.terminationStatus == 0 else {
+            let message = String(data: errorData.isEmpty ? data : errorData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SkillsetBridgeError.commandFailed(
+                message.flatMap { $0.isEmpty ? nil : Self.plain($0) } ?? "Skillset command failed."
+            )
+        }
+        return data
+    }
+
+    /// The CLI colours its messages for a terminal. An alert shows them raw.
+    private static func plain(_ message: String) -> String {
+        message.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
     }
 
     private func resolveLaunch() throws -> (node: URL, cli: URL) {
@@ -119,6 +147,12 @@ struct SkillsetBridge: Sendable {
         }
         throw SkillsetBridgeError.missingBackend
     }
+}
+
+/// Holds what the stderr reader collected. The group wait orders the write
+/// before the read, so no lock is needed.
+private final class PipeBuffer: @unchecked Sendable {
+    var data = Data()
 }
 
 extension SkillsetBridge {

@@ -3,9 +3,17 @@ import SwiftUI
 
 struct MarkdownReader: View {
     let markdown: String
+    /// Skips a first `# Heading`. A skill page already shows the name as its title.
+    var dropsLeadingTitle = false
+
+    private var blocks: [MarkdownBlock] {
+        var blocks = MarkdownBlock.parse(markdown)
+        if dropsLeadingTitle, case .heading(1)? = blocks.first?.kind { blocks.removeFirst() }
+        return blocks
+    }
 
     var body: some View {
-        let blocks = MarkdownBlock.parse(markdown)
+        let blocks = blocks
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
                 blockView(block)

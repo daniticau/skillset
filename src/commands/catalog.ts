@@ -48,7 +48,10 @@ function hasAny(text: string, terms: string[]): boolean {
 export function categorizeSkill(skill: {
   name: string;
   description: string;
+  always?: boolean;
 }): CatalogCategory {
+  // An always-on skill is a constraint that loads in every session.
+  if (skill.always) return "Rule";
   const text = `${skill.name} ${skill.description}`.toLowerCase();
 
   // Ordered most-specific first. A skill can mention a tool while really being

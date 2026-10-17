@@ -33,7 +33,7 @@ struct Connection: Decodable, Equatable, Identifiable {
     let expectedSkillCount: Int
 }
 
-struct SkillRecord: Decodable, Equatable, Identifiable {
+struct SkillRecord: Equatable, Identifiable {
     let id: String
     let name: String
     let description: String
@@ -42,6 +42,36 @@ struct SkillRecord: Decodable, Equatable, Identifiable {
     let origin: String
     let userEdited: Bool
     let category: String
+    /// Loads in every session through each agent's global instructions file.
+    var always = false
+    /// The skill's folder in the canonical store.
+    var path = ""
+    /// Supporting files next to SKILL.md, relative to `path`.
+    var files: [String] = []
+
+    var folderURL: URL { URL(fileURLWithPath: path) }
+}
+
+extension SkillRecord: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, description, body, markdown, origin, userEdited, category, always, path, files
+    }
+
+    /// The last three fields arrived later, so an older backend still decodes.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        description = try c.decode(String.self, forKey: .description)
+        body = try c.decode(String.self, forKey: .body)
+        markdown = try c.decode(String.self, forKey: .markdown)
+        origin = try c.decode(String.self, forKey: .origin)
+        userEdited = try c.decode(Bool.self, forKey: .userEdited)
+        category = try c.decode(String.self, forKey: .category)
+        always = try c.decodeIfPresent(Bool.self, forKey: .always) ?? false
+        path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
+        files = try c.decodeIfPresent([String].self, forKey: .files) ?? []
+    }
 }
 
 struct HistoryRecord: Decodable, Equatable, Identifiable {

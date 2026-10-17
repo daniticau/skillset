@@ -55,10 +55,11 @@ private struct SkillList: View {
             get: { model.isBuilding ? nil : model.selectedSkillID },
             set: { if let id = $0 { model.select(id) } }
         )) {
-            ForEach(model.filteredSkills) { skill in
-                SkillRow(skill: skill)
-                    .tag(skill.id)
-                    .listRowSeparator(.hidden)
+            if !model.alwaysSkills.isEmpty {
+                Section("Always On") { rows(model.alwaysSkills) }
+            }
+            if !model.onDemandSkills.isEmpty {
+                Section(model.alwaysSkills.isEmpty ? "Skills" : "On Demand") { rows(model.onDemandSkills) }
             }
         }
         .listStyle(.sidebar)
@@ -67,14 +68,44 @@ private struct SkillList: View {
                 VStack(spacing: 6) {
                     Text("No matches")
                         .font(.system(size: 13, weight: .medium))
-                    Button("Clear search") { model.searchText = "" }
+                    Button("Clear Search") { model.searchText = "" }
                         .buttonStyle(.link)
                 }
             }
         }
-        .onChange(of: model.filteredSkills.map(\.id)) { _, visibleIDs in
+        .onChange(of: model.visibleSkillIDs) { _, visibleIDs in
             model.ensureSelection(in: visibleIDs)
         }
+    }
+
+    private func rows(_ skills: [SkillRecord]) -> some View {
+        ForEach(skills) { skill in
+            SkillRow(skill: skill)
+                .tag(skill.id)
+                .listRowSeparator(.hidden)
+                .contextMenu { SkillMenu(model: model, skill: skill) }
+        }
+    }
+}
+
+/// The actions on one skill. The sidebar's context menu and the toolbar's
+/// More menu both use it, so the two never drift apart.
+struct SkillMenu: View {
+    @Bindable var model: AppModel
+    let skill: SkillRecord
+
+    var body: some View {
+        Button("Edit") { model.edit(skill) }
+        Toggle("Always On", isOn: Binding(
+            get: { skill.always },
+            set: { on in Task { await model.setAlways(skill, on: on) } }
+        ))
+        Divider()
+        Button("Show in Finder") { model.revealInFinder(skill) }
+            .disabled(skill.path.isEmpty)
+        Button("Copy Name") { model.copyName(skill) }
+        Divider()
+        Button("Delete…", role: .destructive) { model.requestDelete(skill) }
     }
 }
 
@@ -103,6 +134,7 @@ private struct SkillRow: View {
         .contentShape(.rect)
         .help(skill.description)
         .accessibilityElement(children: .combine)
+        .accessibilityHint("\(skill.category), \(skill.always ? "always on" : "on demand")")
     }
 }
 

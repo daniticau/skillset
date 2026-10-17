@@ -5,7 +5,8 @@ import SwiftUI
 /// can be checked from a script:
 ///
 ///     SKILLSET_SNAPSHOT_PATH=/tmp/app.png \
-///     [SKILLSET_SNAPSHOT_STATE=edit|builder|settings] \
+///     [SKILLSET_SNAPSHOT_STATE=edit|builder|builder-link|settings] \
+///     [SKILLSET_SNAPSHOT_SKILL=<name>] \
 ///     [SKILLSET_SNAPSHOT_APPEARANCE=light|dark] \
 ///     [SKILLSET_SNAPSHOT_QUIT=1] Skillset.app/Contents/MacOS/Skillset
 ///
@@ -38,8 +39,10 @@ private struct SnapshotHook: NSViewRepresentable {
         let model = model
         let openSettings = openSettings
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            let chosen = environment["SKILLSET_SNAPSHOT_SKILL"].flatMap(model.skill)
+            if let chosen, !state.hasPrefix("edit") { model.select(chosen.id) }
             switch state {
-            case "edit": model.requestEdit()
+            case "edit": (chosen ?? model.selectedSkill).map(model.edit)
             case "edit-type":
                 // Type through the normal input path so the styler and the
                 // binding run exactly as they do for a person.
@@ -54,6 +57,9 @@ private struct SnapshotHook: NSViewRepresentable {
                     )
                 }
             case "builder": model.startBuilding()
+            case "builder-link":
+                model.startBuilding()
+                model.builderIdea = "https://github.com/anthropics/skills/tree/main/skills/pdf"
             case "settings": openSettings()
             default: break
             }

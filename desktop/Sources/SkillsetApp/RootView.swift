@@ -29,11 +29,25 @@ struct RootView: View {
         }
         .task {
             await model.refresh()
-            while !Task.isCancelled {
-                do { try await Task.sleep(for: .seconds(30)) }
-                catch { break }
-                await model.refresh(showSpinner: false)
-            }
+            model.watchStore()
+        }
+        // A changed store also shows on return to the app, if a watch event
+        // was missed while it sat in the background.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard !model.isMutating, !model.snapshot.generatedAt.isEmpty else { return }
+            Task { await model.refresh(showSpinner: false) }
+        }
+        .alert(
+            "Delete \(model.pendingDelete?.name ?? "skill")?",
+            isPresented: Binding(
+                get: { model.pendingDelete != nil },
+                set: { if !$0 { model.pendingDelete = nil } }
+            )
+        ) {
+            Button("Delete", role: .destructive) { Task { await model.confirmDelete() } }
+            Button("Cancel", role: .cancel) { model.pendingDelete = nil }
+        } message: {
+            Text("Removes it from the library and from every connected agent. The store's history keeps a copy.")
         }
         .alert("Discard changes?", isPresented: $model.showDiscardAlert) {
             Button("Discard", role: .destructive) { model.discardAndContinue() }
@@ -132,21 +146,7 @@ private struct WindowConfigurator: NSViewRepresentable {
         init(model: AppModel) { self.model = model }
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
-            if model.isMutating {
-                let alert = NSAlert()
-                alert.messageText = "Wait for this change to finish"
-                alert.informativeText = "Skillset is updating your library."
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-                return false
-            }
-            guard model.dirtyEditor else { return true }
-            let alert = NSAlert()
-            alert.messageText = "Discard changes?"
-            alert.informativeText = "Your edits to this skill are not saved."
-            alert.addButton(withTitle: "Keep Editing")
-            alert.addButton(withTitle: "Discard")
-            return alert.runModal() == .alertSecondButtonReturn
+            MainActor.assumeIsolated { CloseGuard.allowsClose(model, action: "Discard") }
         }
     }
 }

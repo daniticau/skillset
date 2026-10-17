@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { readConfig, readState } from "../core/config.js";
 import { getAdapter, supportedAgents } from "../core/adapters/index.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
@@ -30,6 +30,12 @@ export interface DesktopSkill {
   origin: string;
   userEdited: boolean;
   category: string;
+  /** Loads in every session through the agents' global instructions files. */
+  always: boolean;
+  /** The skill's folder in the canonical store. */
+  path: string;
+  /** Supporting files next to SKILL.md, relative to `path`. */
+  files: string[];
 }
 
 export interface DesktopHistoryEvent {
@@ -41,6 +47,24 @@ export interface DesktopHistoryEvent {
   skillNames: string[];
   agents: AgentKind[];
   source: string;
+}
+
+const MAX_LISTED_FILES = 200;
+
+/** Every file under a skill folder except SKILL.md and hidden files, sorted. */
+async function supportingFiles(dir: string): Promise<string[]> {
+  const files: string[] = [];
+  const walk = async (current: string): Promise<void> => {
+    const entries = await readdir(current, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || files.length >= MAX_LISTED_FILES) continue;
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (full !== join(dir, "SKILL.md")) files.push(relative(dir, full));
+    }
+  };
+  await walk(dir);
+  return files.sort((a, b) => a.localeCompare(b));
 }
 
 export async function createDesktopSnapshot(): Promise<Record<string, unknown>> {
@@ -65,6 +89,9 @@ export async function createDesktopSnapshot(): Promise<Record<string, unknown>> 
       origin: parsed.frontmatter.origin ?? skillState?.origin ?? "user-created",
       userEdited: skillState?.userEdited ?? false,
       category: categorizeSkill(parsed.frontmatter),
+      always: parsed.frontmatter.always === true,
+      path: storeSkillDir(name),
+      files: await supportingFiles(storeSkillDir(name)),
     });
   }
 

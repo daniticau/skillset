@@ -78,6 +78,13 @@ describe("catalog command", () => {
   it("classifies skills by the kind of knowledge they carry", () => {
     expect(
       categorizeSkill({
+        name: "explicit-skills",
+        description: "Pick a skill from what the user asks you to make.",
+        always: true,
+      })
+    ).toBe("Rule");
+    expect(
+      categorizeSkill({
         name: "coast-cli-skill",
         description: "Search past on-screen activity with the coast CLI.",
       })
