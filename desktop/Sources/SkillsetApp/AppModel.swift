@@ -38,6 +38,13 @@ final class AppModel {
     var builderRationale: String?
     var isDecomposing = false
     var isInstallingProposals = false
+    /// The New Skill page's draft: the same three fields the editor shows.
+    var draftName = ""
+    var draftDescription = ""
+    var draftBody = ""
+    /// A pasted SKILL.md asked to load in every session.
+    var draftAlways = false
+    var isCreating = false
     var toast: AppToast?
     var errorMessage: String?
 
@@ -54,7 +61,7 @@ final class AppModel {
 
     var isMutating: Bool {
         savingSkillID != nil || deletingSkillID != nil || togglingAlwaysID != nil
-            || isInstallingProposals || isAddingSource || busyConnectionID != nil
+            || isInstallingProposals || isAddingSource || isCreating || busyConnectionID != nil
     }
 
     var hasPendingWork: Bool { dirtyEditor || isMutating }
@@ -74,8 +81,20 @@ final class AppModel {
     /// Sidebar order, which search ranking and the two groups both shape.
     var visibleSkillIDs: [String] { (alwaysSkills + onDemandSkills).map(\.id) }
 
-    /// The New Skill page holds a link or a folder, not an idea.
+    /// The builder box holds a link or a folder, not an idea.
     var builderSource: String? { SkillSource.detect(builderIdea) }
+
+    /// The New Skill page holds text that is not saved yet.
+    var hasDraft: Bool {
+        !draftName.isEmpty
+            || !draftDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The draft box holds only a link or a folder, so Save adds the skill from there.
+    var draftSource: String? {
+        draftName.isEmpty && draftDescription.isEmpty ? SkillSource.detect(draftBody) : nil
+    }
 
     var selectedSkill: SkillRecord? {
         let first = visibleSkillIDs.first.flatMap(skill(_:))
@@ -270,6 +289,7 @@ final class AppModel {
             try await bridge.addSkill(source: source)
             await refresh(showSpinner: false)
             let added = snapshot.skills.map(\.id).filter { !before.contains($0) }
+            if draftSource == source { clearDraft() }
             clearBuilder()
             isBuilding = false
             if let first = added.first { selectedSkillID = first }
@@ -413,6 +433,49 @@ final class AppModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: new skill
+
+    /// A SKILL.md pasted into the draft box fills the name and description
+    /// from its frontmatter, and only the body stays in the box.
+    func splitPastedSkill() async {
+        let pasted = draftBody
+        guard pasted.range(of: #"\A\s*---[ \t]*\n[\s\S]*?\n---[ \t]*(\n|\z)"#, options: .regularExpression) != nil
+        else { return }
+        guard let split = try? await bridge.splitSkill(markdown: pasted),
+              draftBody == pasted,
+              split.name != nil || split.description != nil else { return }
+        if let name = split.name { draftName = SkillName.typing(name) }
+        if let description = split.description { draftDescription = description }
+        draftAlways = split.always ?? false
+        draftBody = split.body
+    }
+
+    /// Saves the draft as a new skill and opens it.
+    func createSkill() async {
+        let name = SkillName.final(draftName)
+        let description = draftDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard SkillName.isValid(name), !description.isEmpty, !isMutating, !isDecomposing else { return }
+        isCreating = true
+        defer { isCreating = false }
+        do {
+            try await bridge.createSkill(name: name, description: description, body: draftBody, always: draftAlways)
+            clearDraft()
+            isBuilding = false
+            selectedSkillID = name
+            await refresh(showSpinner: false)
+            showToast("Added \(name)")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func clearDraft() {
+        draftName = ""
+        draftDescription = ""
+        draftBody = ""
+        draftAlways = false
     }
 
     func clearBuilder() {

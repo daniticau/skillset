@@ -90,4 +90,18 @@ final class AppModelTests: XCTestCase {
             XCTAssertEqual(model.builderSource, "https://github.com/a/b")
         }
     }
+
+    func testALinkInTheDraftBoxAddsOnlyWhileTheFieldsAreEmpty() async {
+        await MainActor.run {
+            let model = Self.makeModel()
+            XCTAssertFalse(model.hasDraft)
+            model.draftBody = "owner/repo"
+            XCTAssertTrue(model.hasDraft)
+            XCTAssertEqual(model.draftSource, "owner/repo")
+            model.draftName = "my-skill"
+            XCTAssertNil(model.draftSource)
+            model.clearDraft()
+            XCTAssertFalse(model.hasDraft)
+        }
+    }
 }

@@ -13,10 +13,13 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: UI.sidebarWidth, max: 400)
         } detail: {
             detail
+                // An empty title keeps the toolbar's title area. It fills the
+                // space left of the actions, so they sit on the trailing edge
+                // without a spacer item that lights up on hover.
+                .navigationTitle("")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
         }
-        .modifier(HiddenWindowTitle())
         .background(WindowConfigurator(model: model))
         .background(DebugSnapshot(model: model))
         .frame(minWidth: 840, minHeight: 540)
@@ -71,7 +74,7 @@ struct RootView: View {
     @ViewBuilder
     private var detail: some View {
         if model.isBuilding {
-            BuilderView(model: model)
+            NewSkillView(model: model)
         } else if let skill = model.selectedSkill {
             SkillDetail(model: model, skill: skill)
                 .id(skill.id)
@@ -86,18 +89,6 @@ struct RootView: View {
             )
         } else {
             EmptyState(title: "No matches", message: "No skill matches that search.")
-        }
-    }
-}
-
-/// Drops the title from the toolbar but keeps the toolbar's layout, so the
-/// detail actions stay on the trailing edge.
-private struct HiddenWindowTitle: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 15.0, *) {
-            content.toolbar(removing: .title)
-        } else {
-            content
         }
     }
 }
@@ -125,28 +116,96 @@ private struct WindowConfigurator: NSViewRepresentable {
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.titlebarSeparatorStyle = .none
         guard !coordinator.positioned, let screen = window.screen ?? NSScreen.main else { return }
-        let visible = screen.visibleFrame
-        let size = NSSize(width: 1_040, height: 700)
-        window.setFrame(
-            NSRect(
-                x: visible.midX - size.width / 2,
-                y: visible.maxY - size.height - 60,
-                width: size.width,
-                height: size.height
-            ),
-            display: true
-        )
+        window.setFrame(TitleBarDoubleClick.startFrame(in: screen.visibleFrame), display: true)
+        coordinator.doubleClick = TitleBarDoubleClick(window: window)
         coordinator.positioned = true
     }
 
     final class Coordinator: NSObject, NSWindowDelegate {
         let model: AppModel
         var positioned = false
+        var doubleClick: TitleBarDoubleClick?
 
         init(model: AppModel) { self.model = model }
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
             MainActor.assumeIsolated { CloseGuard.allowsClose(model, action: "Discard") }
         }
+    }
+}
+
+/// A double-click on the empty title bar fills the screen, and a second one
+/// should put the window back. macOS fills this window but does not restore
+/// it, so the app keeps the frame from before the fill and restores it itself.
+/// Double-clicks on toolbar buttons and the traffic lights pass through.
+@MainActor
+final class TitleBarDoubleClick {
+    private weak var window: NSWindow?
+    private var monitor: Any?
+    private var frameBeforeFill: NSRect?
+
+    init(window: NSWindow) {
+        self.window = window
+        // AppKit calls local monitors on the main thread.
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.handle(event) ?? event
+        }
+    }
+
+    /// Where the window opens, and where it goes back to when no earlier frame is known.
+    static func startFrame(in visible: NSRect) -> NSRect {
+        let size = NSSize(width: 1_040, height: 700)
+        return NSRect(
+            x: visible.midX - size.width / 2,
+            y: visible.maxY - size.height - 60,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+        guard event.clickCount == 2, let window, event.window === window,
+              Self.fillsOnDoubleClick,
+              event.locationInWindow.y >= window.contentLayoutRect.maxY,
+              !Self.hitsControl(at: event.locationInWindow, in: window),
+              let visible = window.screen?.visibleFrame else { return event }
+        guard Self.covers(window.frame, visible) else {
+            // macOS fills the window. Remember where it was.
+            frameBeforeFill = window.frame
+            return event
+        }
+        let restored = frameBeforeFill ?? Self.startFrame(in: visible)
+        frameBeforeFill = nil
+        window.setFrame(restored, display: true, animate: true)
+        return nil
+    }
+
+    /// The title bar setting in Desktop & Dock. Minimize and Do Nothing stay with macOS.
+    private static var fillsOnDoubleClick: Bool {
+        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        case nil, "Fill", "Maximize": true
+        default: false
+        }
+    }
+
+    /// Filled, give or take the margins macOS may leave around a tiled window.
+    private static func covers(_ frame: NSRect, _ visible: NSRect) -> Bool {
+        frame.width >= visible.width - 32 && frame.height >= visible.height - 32
+    }
+
+    private static func hitsControl(at point: NSPoint, in window: NSWindow) -> Bool {
+        guard let frameView = window.contentView?.superview else { return true }
+        var view = frameView.hitTest(point)
+        while let current = view, current !== frameView {
+            if let field = current as? NSTextField {
+                if field.isEditable { return true }
+            } else if current is NSControl {
+                return true
+            }
+            let name = String(describing: type(of: current))
+            if name.hasPrefix("ToolbarItemHostingView") || name.contains("ThemeWidget") { return true }
+            view = current.superview
+        }
+        return false
     }
 }

@@ -4,9 +4,15 @@ import SwiftUI
 /// The body editor. With `styled` on, Markdown takes its shape in place as you
 /// type — headings grow, emphasis shows, code goes monospaced — while the
 /// syntax stays visible and editable. Off, it is a plain monospaced editor.
+///
+/// Text starts at the page inset, in line with the fields above it. Heading
+/// marks hang in the margin to the left of that line, so a heading starts
+/// where its paragraph starts.
 struct MarkdownTextView: NSViewRepresentable {
     @Binding var text: String
     var styled: Bool
+    /// Takes the keyboard when it appears.
+    var focusOnAppear = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -45,7 +51,7 @@ struct MarkdownTextView: NSViewRepresentable {
         textView.importsGraphics = false
         textView.usesFontPanel = false
         textView.usesFindBar = false
-        textView.textContainerInset = NSSize(width: UI.pageInset, height: UI.bodyTop)
+        textView.textContainerInset = NSSize(width: 0, height: UI.bodyTop)
         textView.delegate = context.coordinator
         textView.string = text
 
@@ -60,6 +66,9 @@ struct MarkdownTextView: NSViewRepresentable {
         context.coordinator.textView = textView
         context.coordinator.styled = styled
         context.coordinator.restyle()
+        if focusOnAppear {
+            DispatchQueue.main.async { textView.window?.makeFirstResponder(textView) }
+        }
         return scrollView
     }
 
@@ -105,19 +114,45 @@ struct MarkdownTextView: NSViewRepresentable {
             guard let textView, let storage = textView.textStorage else { return }
             MarkdownStyler.apply(to: storage, styled: styled)
             textView.typingAttributes = MarkdownStyler.baseAttributes(styled: styled)
+            // A fence can grow or end a code block anywhere below the edit.
+            textView.needsDisplay = true
         }
     }
 }
 
-/// Keeps the text in the same centred column the reader uses, and keeps
-/// pasted text plain so the styler stays the only source of attributes.
+extension NSAttributedString.Key {
+    /// Marks the lines of a fenced code block, which draw on one shared box.
+    static let markdownCodeBlock = NSAttributedString.Key("SkillsetMarkdownCodeBlock")
+}
+
+/// Draws the code block boxes under the text, and keeps pasted text plain so
+/// the styler stays the only source of attributes.
 private final class ColumnTextView: NSTextView {
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
-        let horizontal = max(UI.pageInset, (newSize.width - UI.columnWidth) / 2)
-        let inset = NSSize(width: horizontal, height: UI.bodyTop)
-        if textContainerInset != inset {
-            textContainerInset = inset
+    override func draw(_ dirtyRect: NSRect) {
+        drawCodeBlocks(in: dirtyRect)
+        super.draw(dirtyRect)
+    }
+
+    /// One rounded box per block, as wide as the text column. A background
+    /// colour on the characters would end each line at its last character.
+    private func drawCodeBlocks(in dirtyRect: NSRect) {
+        guard let storage = textStorage, let layoutManager, storage.length > 0 else { return }
+        let fill = NSColor.textColor.withAlphaComponent(0.05)
+        let all = NSRange(location: 0, length: storage.length)
+        storage.enumerateAttribute(.markdownCodeBlock, in: all) { value, range, _ in
+            guard value != nil else { return }
+            let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var box = NSRect.null
+            layoutManager.enumerateLineFragments(forGlyphRange: glyphs) { rect, _, _, _, _ in
+                box = box.union(rect)
+            }
+            guard !box.isNull else { return }
+            box.origin.x = MarkdownStyler.margin
+            box.origin.y += textContainerOrigin.y
+            box.size.width = bounds.width - 2 * MarkdownStyler.margin
+            guard box.intersects(dirtyRect) else { return }
+            fill.setFill()
+            NSBezierPath(roundedRect: box, xRadius: UI.fieldRadius, yRadius: UI.fieldRadius).fill()
         }
     }
 
@@ -133,6 +168,10 @@ private final class ColumnTextView: NSTextView {
 enum MarkdownStyler {
     private static let bodySize = MarkdownMetrics.body
     private static let monoSize = MarkdownMetrics.mono
+    /// Every line starts this far in. Heading marks use the space to its left.
+    static let margin = UI.pageInset
+    /// Code sits this far inside its box.
+    private static let codePadding: CGFloat = 14
 
     static func baseAttributes(styled: Bool) -> [NSAttributedString.Key: Any] {
         [
@@ -159,16 +198,19 @@ enum MarkdownStyler {
         var codeStart = 0
         var proseLines: [NSRange] = []
 
-        text.enumerateSubstrings(in: full, options: [.byLines, .substringNotRequired]) { _, range, _, _ in
+        var fences: [NSRange] = []
+        // Paragraph ranges include the line break, so the box covers whole lines.
+        text.enumerateSubstrings(in: full, options: [.byParagraphs, .substringNotRequired]) { _, range, enclosing, _ in
             let line = text.substring(with: range)
             if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                fences.append(range)
                 if inCode {
-                    let block = NSRange(location: codeStart, length: NSMaxRange(range) - codeStart)
+                    let block = NSRange(location: codeStart, length: NSMaxRange(enclosing) - codeStart)
                     storage.addAttributes(codeBlockAttributes, range: block)
                     inCode = false
                 } else {
                     inCode = true
-                    codeStart = range.location
+                    codeStart = enclosing.location
                 }
                 return
             }
@@ -178,6 +220,9 @@ enum MarkdownStyler {
         if inCode {
             let block = NSRange(location: codeStart, length: NSMaxRange(full) - codeStart)
             storage.addAttributes(codeBlockAttributes, range: block)
+        }
+        for fence in fences {
+            dim(storage, fence)
         }
         for range in proseLines {
             styleLine(storage, string: string, range: range)
@@ -191,9 +236,16 @@ enum MarkdownStyler {
         let hashes = line.prefix { $0 == "#" }.count
         if (1...6).contains(hashes), line.dropFirst(hashes).first == " " {
             let font = headingFont(level: hashes)
+            // The marks and their space hang left of the margin.
+            let marks = String(repeating: "#", count: hashes) + " "
+            let hang = (marks as NSString).size(withAttributes: [.font: font]).width
             storage.addAttributes([
                 .font: font,
-                .paragraphStyle: paragraph(spacingBefore: hashes <= 2 ? 16 : 10, spacing: 4),
+                .paragraphStyle: paragraph(
+                    spacingBefore: hashes <= 2 ? 16 : 10,
+                    spacing: 4,
+                    firstLineIndent: max(0, margin - hang)
+                ),
             ], range: range)
             storage.addAttribute(
                 .foregroundColor,
@@ -226,7 +278,7 @@ enum MarkdownStyler {
 
         if let marker = listMarker(line) {
             let markerRange = NSRange(location: range.location + marker.indent, length: marker.length)
-            storage.addAttribute(.foregroundColor, value: NSColor.controlAccentColor, range: markerRange)
+            storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: markerRange)
             let prefix = String(line.prefix(marker.indent + marker.length)) as NSString
             let width = prefix.size(withAttributes: [.font: NSFont.systemFont(ofSize: bodySize)]).width
             storage.addAttribute(
@@ -315,24 +367,35 @@ enum MarkdownStyler {
     }
 
     private static var codeBlockAttributes: [NSAttributedString.Key: Any] {
-        [
+        let inset = margin + codePadding
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 3
+        style.firstLineHeadIndent = inset
+        style.headIndent = inset
+        style.tailIndent = -inset
+        return [
             .font: monoFont(monoSize),
             .foregroundColor: NSColor.textColor,
-            .backgroundColor: codeBackground,
-            .paragraphStyle: paragraph(spacingBefore: 0, spacing: 0),
+            .paragraphStyle: style,
+            .markdownCodeBlock: true,
         ]
     }
 
+    /// `headIndent` and `firstLineIndent` count from the margin, except that a
+    /// first line may start left of it to hang a heading's marks.
     private static func paragraph(
         spacingBefore: CGFloat,
         spacing: CGFloat,
-        headIndent: CGFloat = 0
+        headIndent: CGFloat = 0,
+        firstLineIndent: CGFloat? = nil
     ) -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
         style.lineSpacing = MarkdownMetrics.lineSpacing
         style.paragraphSpacingBefore = spacingBefore
         style.paragraphSpacing = spacing
-        style.headIndent = headIndent
+        style.firstLineHeadIndent = firstLineIndent ?? margin
+        style.headIndent = margin + headIndent
+        style.tailIndent = -margin
         return style
     }
 }

@@ -5,7 +5,7 @@ import SwiftUI
 /// can be checked from a script:
 ///
 ///     SKILLSET_SNAPSHOT_PATH=/tmp/app.png \
-///     [SKILLSET_SNAPSHOT_STATE=edit|builder|builder-link|settings] \
+///     [SKILLSET_SNAPSHOT_STATE=edit|edit-type|builder|builder-link|builder-paste|settings] \
 ///     [SKILLSET_SNAPSHOT_SKILL=<name>] \
 ///     [SKILLSET_SNAPSHOT_APPEARANCE=light|dark] \
 ///     [SKILLSET_SNAPSHOT_QUIT=1] Skillset.app/Contents/MacOS/Skillset
@@ -60,6 +60,24 @@ private struct SnapshotHook: NSViewRepresentable {
             case "builder-link":
                 model.startBuilding()
                 model.builderIdea = "https://github.com/anthropics/skills/tree/main/skills/pdf"
+            case "builder-paste":
+                model.startBuilding()
+                model.draftBody = """
+                ---
+                name: tidy-commits
+                description: >-
+                  Use when committing. Keep each commit to one idea.
+                ---
+
+                # Tidy commits
+
+                One idea per commit. Write the subject in the imperative.
+
+                ```bash
+                git add -p
+                git commit
+                ```
+                """
             case "settings": openSettings()
             default: break
             }

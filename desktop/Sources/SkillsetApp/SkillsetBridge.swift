@@ -54,6 +54,24 @@ struct SkillsetBridge: Sendable {
         _ = try await run(on ? ["always", name] : ["always", name, "--off"])
     }
 
+    /// Splits a pasted SKILL.md into a name, a description, and a body. The
+    /// CLI reads the YAML, so the app never parses frontmatter itself.
+    func splitSkill(markdown: String) async throws -> SplitSkill {
+        let data = try await run(["desktop", "parse"], standardInput: markdown)
+        return try JSONDecoder().decode(SplitSkill.self, from: data)
+    }
+
+    /// Adds a new skill from the fields the app edits. The CLI renders the
+    /// frontmatter and installs it as `sks add` would.
+    func createSkill(name: String, description: String, body: String, always: Bool) async throws {
+        let payload: [String: Any] = ["name": name, "description": description, "body": body, "always": always]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw SkillsetBridgeError.commandFailed("Could not encode the skill.")
+        }
+        _ = try await run(["desktop", "create"], standardInput: json)
+    }
+
     /// Adds a skill from a local folder, `owner/repo`, a GitHub or skills.sh
     /// link, or a tweet that links to one. The CLI resolves the source.
     func addSkill(source: String) async throws {

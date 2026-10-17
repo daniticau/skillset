@@ -90,7 +90,8 @@ private struct SkillCommands: View {
 }
 
 /// Asks before a window closes or the app quits with work in flight. A save
-/// that is still running blocks the close. Unsaved edits ask first.
+/// that is still running blocks the close. Unsaved edits and an unsaved new
+/// skill ask first.
 @MainActor
 enum CloseGuard {
     static func allowsClose(_ model: AppModel, action: String) -> Bool {
@@ -102,10 +103,12 @@ enum CloseGuard {
             alert.runModal()
             return false
         }
-        guard model.dirtyEditor else { return true }
+        guard model.dirtyEditor || model.hasDraft else { return true }
         let alert = NSAlert()
         alert.messageText = "Discard your edits?"
-        alert.informativeText = "Your edits to this skill are not saved."
+        alert.informativeText = model.dirtyEditor
+            ? "Your edits to this skill are not saved."
+            : "Your new skill is not saved."
         alert.addButton(withTitle: "Keep Editing")
         alert.addButton(withTitle: action)
         return alert.runModal() == .alertSecondButtonReturn

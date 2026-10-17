@@ -12,14 +12,18 @@ struct SkillDetail: View {
     @State private var draftName: String
     @State private var draftDescription: String
     @State private var draftBody: String
+    /// The body's opening `# Title`, kept out of the editor. See `LeadingTitle`.
+    @State private var hiddenTitle: String
     @State private var showCancelConfirmation = false
 
     init(model: AppModel, skill: SkillRecord) {
         self.model = model
         self.skill = skill
+        let split = LeadingTitle.split(skill.body)
         _draftName = State(initialValue: skill.name)
         _draftDescription = State(initialValue: skill.description)
-        _draftBody = State(initialValue: skill.body)
+        _draftBody = State(initialValue: split.rest)
+        _hiddenTitle = State(initialValue: split.title)
     }
 
     private var finalName: String { SkillName.final(draftName) }
@@ -28,11 +32,14 @@ struct SkillDetail: View {
         draftDescription.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The body that is saved: the hidden title, then what the editor holds.
+    private var fullBody: String { hiddenTitle + draftBody }
+
     private var hasChanges: Bool {
         editing && (
             finalName != skill.id
                 || trimmedDescription != skill.description
-                || draftBody.trimmingCharacters(in: .whitespacesAndNewlines) != skill.body
+                || fullBody.trimmingCharacters(in: .whitespacesAndNewlines) != skill.body
         )
     }
 
@@ -80,8 +87,7 @@ struct SkillDetail: View {
                         .padding(.top, 36)
                 }
             }
-            .frame(maxWidth: UI.columnWidth, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, UI.pageInset)
             .padding(.top, UI.pageTop)
             .padding(.bottom, 40)
@@ -95,8 +101,7 @@ struct SkillDetail: View {
                 header
                 Hairline()
             }
-            .frame(maxWidth: UI.columnWidth, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, UI.pageInset)
             .padding(.top, UI.pageTop)
             .modifier(ScrollBarGutter())
@@ -107,7 +112,7 @@ struct SkillDetail: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             if editing {
                 TextField("skill-name", text: $draftName)
                     .textFieldStyle(.plain)
@@ -162,8 +167,6 @@ struct SkillDetail: View {
 
     @ToolbarContentBuilder
     private var actions: some ToolbarContent {
-        TrailingToolbarSpace()
-
         if editing {
             ToolbarItem(placement: .primaryAction) {
                 Button("Cancel") {
@@ -233,18 +236,22 @@ struct SkillDetail: View {
     }
 
     private func beginEditing() {
-        draftName = skill.name
-        draftDescription = skill.description
-        draftBody = skill.body
+        resetDrafts()
         withAnimation(.easeOut(duration: 0.15)) { editing = true }
     }
 
     private func cancelEditing() {
         model.dirtyEditor = false
         withAnimation(.easeOut(duration: 0.15)) { editing = false }
+        resetDrafts()
+    }
+
+    private func resetDrafts() {
+        let split = LeadingTitle.split(skill.body)
         draftName = skill.name
         draftDescription = skill.description
-        draftBody = skill.body
+        draftBody = split.rest
+        hiddenTitle = split.title
     }
 
     private func save() {
@@ -254,10 +261,26 @@ struct SkillDetail: View {
                 skill,
                 name: finalName,
                 description: trimmedDescription,
-                body: draftBody
+                body: fullBody
             )
             if saved { editing = false }
         }
+    }
+}
+
+/// Many skills open their body with `# Title`, a habit from Markdown files.
+/// The page already shows the skill's name as its title, so the reader skips
+/// that line, and the editor hides it too. Save puts it back unchanged.
+enum LeadingTitle {
+    /// Splits a first `# Heading` line, and the blank lines after it, from the
+    /// rest. `title + rest` is always the original body.
+    static func split(_ body: String) -> (title: String, rest: String) {
+        let lines = body.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let first = lines.first, first.hasPrefix("# ") else { return ("", body) }
+        var end = 1
+        while end < lines.count, lines[end].trimmingCharacters(in: .whitespaces).isEmpty { end += 1 }
+        let title = lines[..<end].joined(separator: "\n") + (end < lines.count ? "\n" : "")
+        return (title, lines[end...].joined(separator: "\n"))
     }
 }
 

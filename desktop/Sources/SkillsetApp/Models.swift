@@ -156,3 +156,11 @@ struct BuilderResponse: Codable, Equatable {
     let rationale: String?
     let skills: [BuilderProposal]
 }
+
+/// A pasted SKILL.md split into the fields the app edits, by `sks desktop parse`.
+struct SplitSkill: Decodable, Equatable {
+    let name: String?
+    let description: String?
+    let always: Bool?
+    let body: String
+}

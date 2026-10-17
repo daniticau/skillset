@@ -4,8 +4,8 @@ import SwiftUI
 /// One spacing grid (multiples of 4) and one type scale for every screen.
 enum UI {
     static let sidebarWidth: CGFloat = 280
-    /// Reading column for a skill, centred in the detail pane.
-    static let columnWidth: CGFloat = 680
+    /// Space on each side of a page. Text starts at the leading inset and runs
+    /// to the trailing one, so a wider window holds longer lines.
     static let pageInset: CGFloat = 32
     /// Gap between the toolbar and the first line of a page.
     static let pageTop: CGFloat = 8
@@ -72,18 +72,6 @@ enum SkillKindStyle {
         case "Judgement": "scalemass"
         case "Rule": "shield"
         default: "doc.text"
-        }
-    }
-}
-
-// MARK: - Toolbar
-
-/// Pushes the items after it to the trailing edge. The window has no title, so
-/// the toolbar has no flexible space of its own.
-struct TrailingToolbarSpace: ToolbarContent {
-    var body: some ToolbarContent {
-        if #available(macOS 26.0, *) {
-            ToolbarSpacer(.flexible, placement: .primaryAction)
         }
     }
 }
@@ -209,7 +197,8 @@ private struct IconButtonBody: View {
 // MARK: - Fields
 
 /// Shared padding for the title and description in both modes, so the text
-/// does not move when editing starts. Only the edit state paints a field.
+/// does not move when editing starts. Only the edit state paints a field, with
+/// a faint fill and no border, so the page still reads as a page.
 struct FieldChrome: ViewModifier {
     var active: Bool
 
@@ -219,11 +208,7 @@ struct FieldChrome: ViewModifier {
             .padding(.vertical, 4)
             .background(
                 RoundedRectangle(cornerRadius: UI.fieldRadius, style: .continuous)
-                    .fill(.primary.opacity(active ? 0.05 : 0))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: UI.fieldRadius, style: .continuous)
-                    .stroke(.primary.opacity(active ? 0.1 : 0))
+                    .fill(.primary.opacity(active ? 0.045 : 0))
             )
     }
 }

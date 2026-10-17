@@ -13,7 +13,12 @@ import { doctorCommand } from "./commands/doctor.js";
 import { addCommand, alwaysCommand, editCommand, removeCommand, renameCommand, showCommand } from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
 import { buildCommand } from "./commands/build.js";
-import { desktopSaveCommand, desktopSnapshotCommand } from "./commands/desktop.js";
+import {
+  desktopCreateCommand,
+  desktopParseCommand,
+  desktopSaveCommand,
+  desktopSnapshotCommand,
+} from "./commands/desktop.js";
 import { supportedAgents } from "./core/adapters/index.js";
 
 // Load ~/.skillset/.env before any command reads process.env.
@@ -192,6 +197,20 @@ export function createProgram(): Command {
     .description("update one skill's name, description, or body from JSON on stdin")
     .action(async () => {
       await desktopSaveCommand();
+    });
+
+  desktop
+    .command("parse")
+    .description("split a SKILL.md on stdin into name, description, and body as JSON")
+    .action(async () => {
+      await desktopParseCommand();
+    });
+
+  desktop
+    .command("create")
+    .description("add a new skill from a name, description, and body sent as JSON on stdin")
+    .action(async () => {
+      await desktopCreateCommand();
     });
 
   return program;
