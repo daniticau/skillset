@@ -1,16 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
-  <title id="title">Skillset side-node mark</title>
-  <desc id="desc">A central pentagon connected from the middle of each side to five circular nodes.</desc>
+  <title id="title">Skillset</title>
+  <desc id="desc">An S enclosed in curly braces, the mathematical notation for a set.</desc>
   <rect width="1024" height="1024" fill="#0a0a0a"/>
-  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="none" stroke="#fff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 220 L778 414 L677 726 L347 726 L246 414 Z"/>
-    <path d="M645 317 L777 138 M728 570 L940 639 M512 726 L512 960 M296 570 L84 639 M379 317 L247 138"/>
-  </g>
-  <g transform="translate(512 512) scale(0.78) translate(-512 -512)" fill="#fff">
-    <circle cx="777" cy="138" r="44"/>
-    <circle cx="940" cy="639" r="44"/>
-    <circle cx="512" cy="960" r="44"/>
-    <circle cx="84" cy="639" r="44"/>
-    <circle cx="247" cy="138" r="44"/>
+  <g fill="none" stroke="#ededed" stroke-linecap="round" stroke-linejoin="round">
+    <path id="brace" stroke-width="48" d="M326 256 C263 256 244 285 244 338 V412 C244 468 222 492 180 512 C222 532 244 556 244 612 V686 C244 739 263 768 326 768"/>
+    <use href="#brace" transform="translate(1024 0) scale(-1 1)"/>
+    <path stroke-width="56" d="M606 374 C581 343 547 328 502 328 C438 328 400 363 400 412 C400 459 435 483 489 499 L536 513 C593 530 624 557 624 607 C624 661 580 696 517 696 C468 696 427 677 397 644"/>
   </g>
 </svg>
