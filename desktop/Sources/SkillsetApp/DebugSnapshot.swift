@@ -59,7 +59,7 @@ private struct SnapshotHook: NSViewRepresentable {
             case "builder": model.startBuilding()
             case "builder-link":
                 model.startBuilding()
-                model.builderIdea = "https://github.com/anthropics/skills/tree/main/skills/pdf"
+                model.draftBody = "https://github.com/anthropics/skills/tree/main/skills/pdf"
             case "builder-paste":
                 model.startBuilding()
                 model.draftBody = """

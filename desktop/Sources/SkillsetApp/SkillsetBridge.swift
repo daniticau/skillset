@@ -172,21 +172,3 @@ struct SkillsetBridge: Sendable {
 private final class PipeBuffer: @unchecked Sendable {
     var data = Data()
 }
-
-extension SkillsetBridge {
-    /// Preview only — `--json` never writes.
-    func decompose(idea: String) async throws -> BuilderResponse {
-        let data = try await run(["build", "--stdin", "--json"], standardInput: idea)
-        return try JSONDecoder().decode(BuilderResponse.self, from: data)
-    }
-
-    /// Install exactly the reviewed proposals, without re-running the model.
-    func installProposals(_ proposals: [BuilderProposal]) async throws {
-        let payload = ["skills": proposals.map(\.installPayload)]
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        guard let json = String(data: data, encoding: .utf8) else {
-            throw SkillsetBridgeError.commandFailed("Could not encode the proposal.")
-        }
-        _ = try await run(["build", "--from-json", "--yes"], standardInput: json)
-    }
-}

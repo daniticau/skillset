@@ -22,7 +22,6 @@ import { getAdapter } from "../core/adapters/index.js";
 import { syncCommand } from "./sync.js";
 import { appendHistoryEvent, sharedSkillAgents } from "../core/history.js";
 import { RemoteSourceError, isRemoteSource, resolveRemoteSkill } from "../core/remote.js";
-import { buildCommand } from "./build.js";
 
 function editorCommand(): string | undefined {
   return process.env.VISUAL || process.env.EDITOR;
@@ -390,8 +389,6 @@ export interface AddOptions {
   skill?: string;
   /** Mark the new skill always-on. */
   always?: boolean;
-  /** A tweet with no skill link: build a skill from its text instead of failing. */
-  build?: boolean;
 }
 
 interface LoadedSkillSource {
@@ -439,11 +436,6 @@ export async function addCommand(
   try {
     loaded = await loadSkillSource(source, options);
   } catch (err) {
-    if (err instanceof RemoteSourceError && err.tweetText && options.build) {
-      console.log(pc.dim("the tweet links to no skill; building one from its text"));
-      await buildCommand([err.tweetText], {});
-      return;
-    }
     console.error(pc.red(err instanceof Error ? err.message : String(err)));
     process.exitCode = 1;
     return;

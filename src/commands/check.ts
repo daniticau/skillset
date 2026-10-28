@@ -30,10 +30,6 @@ function wordCount(text: string): number {
 
 /**
  * Content rules that depend only on a skill's text, not on what is on disk.
- *
- * Shared with `sks build` so a skill is authored against exactly the standard it
- * will later be checked against — there is no way to build something that
- * `check` would immediately flag.
  */
 export function validateProposedSkill(
   name: string,

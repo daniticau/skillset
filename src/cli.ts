@@ -12,7 +12,6 @@ import { catalogCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { addCommand, alwaysCommand, editCommand, removeCommand, renameCommand, showCommand } from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
-import { buildCommand } from "./commands/build.js";
 import {
   desktopCreateCommand,
   desktopParseCommand,
@@ -43,29 +42,6 @@ export function createProgram(): Command {
         nonInteractive: options.nonInteractive,
       });
     });
-
-  program
-    .command("build [idea...]")
-    .description("decompose an idea into the smallest reusable skills and install them")
-    .option("--stdin", "read the idea from stdin")
-    .option("--json", "print the proposal as JSON without writing")
-    .option("-y, --yes", "install without confirmation")
-    .option("--dry-run", "show the proposal without writing")
-    .option("--from-json", "install an already-reviewed proposal read as JSON from stdin")
-    .action(
-      async (
-        idea: string[],
-        options: {
-          stdin?: boolean;
-          json?: boolean;
-          yes?: boolean;
-          dryRun?: boolean;
-          fromJson?: boolean;
-        }
-      ) => {
-        await buildCommand(idea ?? [], options);
-      }
-    );
 
   program
     .command("list")
@@ -129,11 +105,10 @@ export function createProgram(): Command {
     .option("--stdin", "read a complete SKILL.md from stdin")
     .option("--skill <name>", "pick one skill when a remote repo holds several")
     .option("--always", "make it always-on: its body goes into every agent's global instructions file")
-    .option("--build", "if a tweet has no skill link, build a skill from its text")
     .action(
       async (
         source: string | undefined,
-        options: { stdin?: boolean; skill?: string; always?: boolean; build?: boolean }
+        options: { stdin?: boolean; skill?: string; always?: boolean }
       ) => {
         await addCommand(source, options);
       }

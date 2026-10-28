@@ -142,7 +142,7 @@ describe("remote skill resolution", () => {
     const err = await resolveRemoteSkill("https://x.com/benhylak/status/2", { fetch }).catch((e) => e);
     expect(err).toBeInstanceOf(RemoteSourceError);
     expect(err.tweetText).toContain("NEVER, EVER USE EYEBROWS");
-    expect(err.message).toContain("--build");
+    expect(err.message).toContain("links to no skill");
   });
 
   it("fetches a raw SKILL.md URL directly", async () => {

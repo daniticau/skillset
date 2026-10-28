@@ -57,22 +57,7 @@ final class AppModelTests: XCTestCase {
         }
     }
 
-    func testChangingIdeaInvalidatesPreviouslyReviewedProposals() async {
-        await MainActor.run {
-            let model = Self.makeModel()
-            model.builderIdea = "first idea"
-            model.builderProposals = [BuilderProposal(
-                name: "first", description: "first", body: "first", kind: "rule",
-                trigger: "", prevents: "", links: [], tier: "high", issues: [], installable: true
-            )]
-            model.builderRationale = "first rationale"
-            model.builderIdea = "second idea"
-            XCTAssertTrue(model.builderProposals.isEmpty)
-            XCTAssertNil(model.builderRationale)
-        }
-    }
-
-    func testAlwaysOnSkillsListFirstAndASourceSwitchesTheBuilder() async {
+    func testAlwaysOnSkillsListFirst() async {
         await MainActor.run {
             let model = AppModel()
             var rule = SkillRecord(id: "zulu", name: "zulu", description: "z", body: "z",
@@ -83,11 +68,6 @@ final class AppModelTests: XCTestCase {
             model.snapshot = DesktopSnapshot(generatedAt: "", storePath: "", connections: [], skills: [tool, rule], history: [])
             XCTAssertEqual(model.visibleSkillIDs, ["zulu", "alpha"])
             XCTAssertEqual(model.selectedSkill?.id, "zulu")
-
-            model.builderIdea = "prefer Arc over Chrome"
-            XCTAssertNil(model.builderSource)
-            model.builderIdea = "https://github.com/a/b"
-            XCTAssertEqual(model.builderSource, "https://github.com/a/b")
         }
     }
 

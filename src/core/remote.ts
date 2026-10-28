@@ -286,7 +286,7 @@ async function resolveTweet(
   }
 
   const err = new RemoteSourceError(
-    `the tweet links to no skill. Its text:\n\n${text}\n\nTo turn that text into a skill: sks add <tweet-url> --build`
+    `the tweet links to no skill. Its text:\n\n${text}`
   );
   err.tweetText = text;
   throw err;

@@ -104,59 +104,6 @@ struct AppToast: Equatable, Identifiable {
     let message: String
 }
 
-/// One proposed skill returned by `sks build --json`, plus the validation
-/// verdict the CLI already computed. The app never decides installability
-/// itself — that stays a single source of truth in the CLI.
-struct BuilderProposal: Codable, Equatable, Identifiable {
-    let name: String
-    let description: String
-    let body: String
-    let kind: String
-    let trigger: String
-    let prevents: String
-    let links: [String]
-    let tier: String
-    let issues: [BuilderIssue]
-    let installable: Bool
-
-    var id: String { name }
-
-    /// The Library's capitalised kind label, for the shared colour coding.
-    var kindLabel: String {
-        switch kind {
-        case "rule": "Rule"
-        case "workflow": "Workflow"
-        case "tool": "Tool"
-        default: "Judgement"
-        }
-    }
-
-    /// Only the fields `sks build --from-json` consumes; verdict fields are
-    /// recomputed on install rather than trusted from the client.
-    var installPayload: [String: Any] {
-        [
-            "name": name,
-            "description": description,
-            "body": body,
-            "kind": kind,
-            "trigger": trigger,
-            "prevents": prevents,
-            "links": links,
-            "tier": tier,
-        ]
-    }
-}
-
-struct BuilderIssue: Codable, Equatable {
-    let severity: String
-    let message: String
-}
-
-struct BuilderResponse: Codable, Equatable {
-    let rationale: String?
-    let skills: [BuilderProposal]
-}
-
 /// A pasted SKILL.md split into the fields the app edits, by `sks desktop parse`.
 struct SplitSkill: Decodable, Equatable {
     let name: String?

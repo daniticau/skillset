@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// One window, two columns: the library on the left, one thing on the right —
-/// the selected skill, or the builder when you are making a new one. The split
+/// the selected skill, or the New Skill page when you are making one. The split
 /// view, the sidebar surface, and the toolbar all come from the system.
 struct RootView: View {
     @Bindable var model: AppModel

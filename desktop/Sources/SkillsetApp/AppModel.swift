@@ -27,17 +27,6 @@ final class AppModel {
     /// The open editor holds changes that are not saved yet.
     var dirtyEditor = false
     var showDiscardAlert = false
-    var builderIdea = "" {
-        didSet {
-            guard builderIdea != oldValue else { return }
-            builderProposals = []
-            builderRationale = nil
-        }
-    }
-    var builderProposals: [BuilderProposal] = []
-    var builderRationale: String?
-    var isDecomposing = false
-    var isInstallingProposals = false
     /// The New Skill page's draft: the same three fields the editor shows.
     var draftName = ""
     var draftDescription = ""
@@ -61,7 +50,7 @@ final class AppModel {
 
     var isMutating: Bool {
         savingSkillID != nil || deletingSkillID != nil || togglingAlwaysID != nil
-            || isInstallingProposals || isAddingSource || isCreating || busyConnectionID != nil
+            || isAddingSource || isCreating || busyConnectionID != nil
     }
 
     var hasPendingWork: Bool { dirtyEditor || isMutating }
@@ -80,9 +69,6 @@ final class AppModel {
 
     /// Sidebar order, which search ranking and the two groups both shape.
     var visibleSkillIDs: [String] { (alwaysSkills + onDemandSkills).map(\.id) }
-
-    /// The builder box holds a link or a folder, not an idea.
-    var builderSource: String? { SkillSource.detect(builderIdea) }
 
     /// The New Skill page holds text that is not saved yet.
     var hasDraft: Bool {
@@ -281,7 +267,7 @@ final class AppModel {
 
     /// Adds a skill from a link or a folder and opens it.
     func addSkill(from source: String) async {
-        guard !isMutating, !isDecomposing else { return }
+        guard !isMutating else { return }
         isAddingSource = true
         defer { isAddingSource = false }
         let before = Set(snapshot.skills.map(\.id))
@@ -290,7 +276,6 @@ final class AppModel {
             await refresh(showSpinner: false)
             let added = snapshot.skills.map(\.id).filter { !before.contains($0) }
             if draftSource == source { clearDraft() }
-            clearBuilder()
             isBuilding = false
             if let first = added.first { selectedSkillID = first }
             showToast(added.count > 1 ? "Added \(added.count) skills" : "Added \(added.first ?? "skill")")
@@ -395,46 +380,6 @@ final class AppModel {
         .map(\.item)
     }
 
-    // MARK: builder
-
-    func decompose() async {
-        let idea = builderIdea.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !idea.isEmpty, !isDecomposing, !isMutating else { return }
-        isDecomposing = true
-        builderProposals = []
-        builderRationale = nil
-        defer { isDecomposing = false }
-        do {
-            let response = try await bridge.decompose(idea: idea)
-            guard !Task.isCancelled,
-                  idea == builderIdea.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
-            builderProposals = response.skills
-            builderRationale = response.rationale
-            if response.skills.isEmpty {
-                showToast("No new skill proposed")
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func installProposals() async {
-        let installable = builderProposals.filter(\.installable)
-        guard !installable.isEmpty, !isMutating, !isDecomposing else { return }
-        isInstallingProposals = true
-        defer { isInstallingProposals = false }
-        do {
-            try await bridge.installProposals(installable)
-            clearBuilder()
-            selectedSkillID = installable.first?.name
-            isBuilding = false
-            await refresh(showSpinner: false)
-            showToast("Built \(installable.count) skill\(installable.count == 1 ? "" : "s")")
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     // MARK: new skill
 
     /// A SKILL.md pasted into the draft box fills the name and description
@@ -456,7 +401,7 @@ final class AppModel {
     func createSkill() async {
         let name = SkillName.final(draftName)
         let description = draftDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard SkillName.isValid(name), !description.isEmpty, !isMutating, !isDecomposing else { return }
+        guard SkillName.isValid(name), !description.isEmpty, !isMutating else { return }
         isCreating = true
         defer { isCreating = false }
         do {
@@ -476,11 +421,5 @@ final class AppModel {
         draftDescription = ""
         draftBody = ""
         draftAlways = false
-    }
-
-    func clearBuilder() {
-        builderIdea = ""
-        builderProposals = []
-        builderRationale = nil
     }
 }

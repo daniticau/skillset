@@ -23,7 +23,7 @@ sks add https://x.com/juampitech/status/2090491139103064305   # a tweet that lin
 sks add --stdin < SKILL.md
 ```
 
-If a repo has more than one skill, pick one with `--skill <name>`. If a tweet doesn't link to a skill, add `--build` to turn its text into one.
+If a repo has more than one skill, pick one with `--skill <name>`.
 
 ## Always-on rules
 
@@ -44,7 +44,6 @@ Always-on text costs tokens every turn, so `sks check` warns when one goes over 
 | `sks init` | Set up the store and connect your agents |
 | `sks add [source]` | Add a skill |
 | `sks always <skill>` | Make a skill always-on (`--off` to undo) |
-| `sks build [idea...]` | Turn an idea into one or more skills |
 | `sks list` | List your skills (`sks catalog` groups them) |
 | `sks show <skill>` | Print a skill |
 | `sks check [skill]` | Check a skill's structure, wording, and size |
