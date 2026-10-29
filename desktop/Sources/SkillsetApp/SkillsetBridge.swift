@@ -2,12 +2,15 @@ import Foundation
 
 enum SkillsetBridgeError: LocalizedError {
     case missingBackend
+    case missingNode
     case commandFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .missingBackend:
             "The bundled Skillset backend could not be found. Rebuild the app with pnpm app:build."
+        case .missingNode:
+            "Skillset needs Node.js 20 or later. Install it from nodejs.org, then reopen Skillset."
         case .commandFailed(let message):
             message
         }
@@ -141,14 +144,11 @@ struct SkillsetBridge: Sendable {
 
     private func resolveLaunch() throws -> (node: URL, cli: URL) {
         let files = FileManager.default
-        if let bundledCLI = Bundle.main.url(forResource: "skillset-cli", withExtension: "cjs"),
-           let nodeFile = Bundle.main.url(forResource: "node-path", withExtension: "txt"),
-           let rawNode = try? String(contentsOf: nodeFile, encoding: .utf8),
-           files.isExecutableFile(atPath: rawNode.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return (
-                URL(fileURLWithPath: rawNode.trimmingCharacters(in: .whitespacesAndNewlines)),
-                bundledCLI
-            )
+        if let bundledCLI = Bundle.main.url(forResource: "skillset-cli", withExtension: "cjs") {
+            let saved = Bundle.main.url(forResource: "node-path", withExtension: "txt")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            guard let node = NodeLocator.locate(saved: saved) else { throw SkillsetBridgeError.missingNode }
+            return (URL(fileURLWithPath: node), bundledCLI)
         }
 
         let source = URL(fileURLWithPath: #filePath)
