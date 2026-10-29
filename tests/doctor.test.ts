@@ -26,36 +26,8 @@ vi.mock("../src/core/paths.js", () => ({
   LEGACY_CODEX_SKILLS_DIR: join(TEST_ROOT, "legacy-codex-skills"),
 }));
 
-vi.mock("../src/mine/llm/index.js", () => ({
-  defaultLLMConfig: () => ({
-    provider: "ollama",
-    model: "mock-model",
-    baseUrl: "http://127.0.0.1:11434/v1",
-    embeddingModel: undefined,
-  }),
-  isAvailable: async () => ({
-    reachable: false,
-    reason: "mocked",
-    modelPresent: false,
-    models: [],
-  }),
-}));
-
-vi.mock("../src/mine/index.js", () => ({
-  getSessionStats: () => ({
-    userSessions: 0,
-    projects: 0,
-    totalSizeBytes: 0,
-    bySource: {
-      "claude-code": { sessions: 0, bytes: 0 },
-      codex: { sessions: 0, bytes: 0 },
-      "kimi-code": { sessions: 0, bytes: 0 },
-    },
-  }),
-}));
-
 const { writeConfig, writeState } = await import("../src/core/config.js");
-const { doctorCommand, llmProviderLabel } = await import("../src/commands/doctor.js");
+const { doctorCommand } = await import("../src/commands/doctor.js");
 
 describe("doctorCommand", () => {
   beforeEach(async () => {
@@ -114,11 +86,4 @@ describe("doctorCommand", () => {
     expect(readFileSync(imported, "utf8")).toContain("alpha body");
   });
 
-  it("labels each LLM provider accurately", () => {
-    expect(llmProviderLabel("claude-cli")).toBe("Claude CLI");
-    expect(llmProviderLabel("codex-cli")).toBe("Codex CLI");
-    expect(llmProviderLabel("kimi-cli")).toBe("Kimi CLI");
-    expect(llmProviderLabel("anthropic")).toBe("Anthropic API");
-    expect(llmProviderLabel("ollama")).toBe("local Ollama");
-  });
 });

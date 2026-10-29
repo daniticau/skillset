@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  normalizeGeneratedSkillBody,
   parseSkillMd,
   renderSkillMd,
   SkillValidationError,
@@ -34,18 +33,9 @@ describe("parseSkillMd", () => {
     expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
   });
 
-  it("parses missing tier as undefined (legacy compat)", () => {
-    expect(parseSkillMd(VALID).frontmatter.tier).toBeUndefined();
-  });
-
-  it.each(["high", "medium", "low"] as const)("accepts tier=%s", (tier) => {
-    const src = `---\nname: x\ndescription: y\ntier: ${tier}\n---\n\nbody`;
-    expect(parseSkillMd(src).frontmatter.tier).toBe(tier);
-  });
-
-  it("rejects invalid tier value", () => {
+  it("ignores a legacy tier field", () => {
     const src = `---\nname: x\ndescription: y\ntier: critical\n---\n\nbody`;
-    expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
+    expect(parseSkillMd(src).frontmatter).toEqual({ name: "x", description: "y" });
   });
 
   it.each(["../escape", "bad/name", "BadName", "-leading", "trailing-", "two--hyphens"])(
@@ -67,29 +57,5 @@ describe("skill names", () => {
     expect(() =>
       renderSkillMd({ name: "../escape", description: "bad" }, "body")
     ).toThrow(SkillValidationError);
-  });
-});
-
-describe("normalizeGeneratedSkillBody", () => {
-  it("strips an orphan opening fence before generated skill markdown", () => {
-    expect(normalizeGeneratedSkillBody("```\n\n# Heading\nBody")).toBe("# Heading\nBody");
-  });
-
-  it("strips a markdown wrapper around generated skill markdown", () => {
-    expect(normalizeGeneratedSkillBody("```markdown\n# Heading\nBody\n```")).toBe("# Heading\nBody");
-  });
-
-  it("strips a bare wrapper around generated skill markdown", () => {
-    expect(normalizeGeneratedSkillBody("```\n# Heading\n\nBody\n```")).toBe("# Heading\n\nBody");
-  });
-
-  it("keeps ordinary code blocks intact", () => {
-    const body = "```sh\npnpm test\n```\n\nUse the output to decide the next step.";
-    expect(normalizeGeneratedSkillBody(body)).toBe(body);
-  });
-
-  it("keeps bare code block bodies intact", () => {
-    const body = "```\n# install deps\npnpm install\n```";
-    expect(normalizeGeneratedSkillBody(body)).toBe(body);
   });
 });

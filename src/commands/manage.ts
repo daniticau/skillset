@@ -183,7 +183,6 @@ export async function editCommand(name: string, options: EditOptions = {}): Prom
           {
             ...incoming.frontmatter,
             name,
-            tier: incoming.frontmatter.tier,
             origin: current.frontmatter.origin ?? "user-created",
             license: incoming.frontmatter.license ?? current.frontmatter.license,
           },
@@ -230,7 +229,7 @@ export interface SaveSkillFieldsInput {
 
 /**
  * Change a skill's name, description, or body and keep the rest of its
- * frontmatter (always, tier, origin, license) as it is.
+ * frontmatter (always, origin, license) as it is.
  *
  * `sks rename` and the desktop app both come through here, so a rename and an
  * edit land in one sync and one history entry. A rename moves the store

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,7 +10,6 @@ const SKILLS = join(STORE, "skills");
 vi.mock("../src/core/paths.js", () => ({
   STORE_ROOT: STORE,
   STORE_SKILLS_DIR: SKILLS,
-  SESSIONS_DIR: join(STORE, "sessions"),
   CONFLICTS_DIR: join(STORE, "conflicts"),
   CONFIG_FILE: join(STORE, "config.json"),
   STATE_FILE: join(STORE, "state.json"),
@@ -22,7 +21,7 @@ vi.mock("../src/core/paths.js", () => ({
 }));
 
 const { parseSkillMd } = await import("../src/core/skill.js");
-const { ensureBuiltinSkills, SKILL_THIS_NAME, SKILLSET_CLI_NAME } = await import("../src/core/builtin-skills.js");
+const { ensureBuiltinSkills, BUILTIN_SKILLS } = await import("../src/core/builtin-skills.js");
 
 beforeEach(() => {
   rmSync(ROOT, { recursive: true, force: true });
@@ -34,36 +33,27 @@ afterAll(() => {
 });
 
 describe("built-in skills", () => {
-  it("installs the skill-this trigger skill into the canonical store", async () => {
+  it("installs skillify and skillset-cli with their supporting files", async () => {
     const installed = await ensureBuiltinSkills();
-    expect(installed.map((s) => s.name)).toEqual([SKILL_THIS_NAME, SKILLSET_CLI_NAME]);
+    expect(installed.map((s) => s.name)).toEqual([...BUILTIN_SKILLS]);
 
-    const raw = readFileSync(join(SKILLS, SKILL_THIS_NAME, "SKILL.md"), "utf8");
-    const parsed = parseSkillMd(raw);
-    expect(parsed.frontmatter).toMatchObject({
-      name: SKILL_THIS_NAME,
-      tier: "medium",
-      origin: "user-created",
-    });
-    expect(parsed.body).toContain("sks tailor --stdin");
-
-    const cliRaw = readFileSync(join(SKILLS, SKILLSET_CLI_NAME, "SKILL.md"), "utf8");
-    const cliSkill = parseSkillMd(cliRaw);
-    expect(cliSkill.frontmatter.description).toContain("connected coding harness");
-    expect(cliSkill.body).toContain("sks edit <skill> --stdin");
-    expect(cliSkill.body).toContain("--managed");
+    for (const name of BUILTIN_SKILLS) {
+      const parsed = parseSkillMd(readFileSync(join(SKILLS, name, "SKILL.md"), "utf8"));
+      expect(parsed.frontmatter.name).toBe(name);
+      expect(parsed.body).not.toMatch(/sks tailor|--managed|sks build/);
+    }
+    expect(existsSync(join(SKILLS, "skillify", "references", "authoring.md"))).toBe(true);
   });
 
-  it("does not overwrite an existing user copy", async () => {
-    const dir = join(SKILLS, SKILL_THIS_NAME);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(
-      join(dir, "SKILL.md"),
-      "---\nname: skill-this\ndescription: custom\n---\n\ncustom body\n"
-    );
+  it("keeps a user's copy and replaces an out-of-date built-in one", async () => {
+    mkdirSync(join(SKILLS, "skillify"), { recursive: true });
+    writeFileSync(join(SKILLS, "skillify", "SKILL.md"), "---\nname: skillify\ndescription: custom\n---\n\ncustom body\n");
+    mkdirSync(join(SKILLS, "skillset-cli"), { recursive: true });
+    writeFileSync(join(SKILLS, "skillset-cli", "SKILL.md"), "---\nname: skillset-cli\ndescription: old\n---\n\nRun sks tailor --stdin.\n");
 
     const installed = await ensureBuiltinSkills();
-    expect(installed.map((s) => s.name)).toEqual([SKILLSET_CLI_NAME]);
-    expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toContain("custom body");
+    expect(installed.map((s) => s.name)).toEqual(["skillset-cli"]);
+    expect(readFileSync(join(SKILLS, "skillify", "SKILL.md"), "utf8")).toContain("custom body");
+    expect(readFileSync(join(SKILLS, "skillset-cli", "SKILL.md"), "utf8")).not.toContain("sks tailor");
   });
 });

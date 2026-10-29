@@ -10,8 +10,6 @@ import {
   CONFIG_FILE,
   STATE_FILE,
 } from "../core/paths.js";
-import { defaultLLMConfig, isAvailable } from "../llm/index.js";
-import type { Provider } from "../llm/index.js";
 import { readConfig, readState } from "../core/config.js";
 import type { Link } from "../core/config.js";
 import { getAdapter } from "../core/adapters/index.js";
@@ -172,83 +170,6 @@ async function sectionPaths(): Promise<void> {
   console.log();
 }
 
-async function sectionLLM(verbose: boolean): Promise<void> {
-  const config = defaultLLMConfig();
-  const providerLabel = llmProviderLabel(config.provider);
-  console.log(pc.bold(`LLM (${providerLabel})`));
-  console.log(`  ${label("provider")} ${pc.dim(config.provider)}`);
-  const modelFromEnv = process.env.SKILLSET_LLM_MODEL === config.model;
-  console.log(
-    `  ${label("model")} ${pc.dim(config.model)}${
-      modelFromEnv ? pc.dim(" (from env)") : pc.dim(" (default)")
-    }`
-  );
-  if (config.provider === "ollama") {
-    console.log(
-      `  ${label("endpoint")} ${pc.dim(config.baseUrl)}${
-        process.env.SKILLSET_LLM_URL ? pc.dim(" (from env)") : pc.dim(" (default)")
-      }`
-    );
-  }
-  console.log(
-    `  ${label("embedding")} ${pc.dim(config.embeddingModel ?? "(unset — TF-IDF fallback)")}`
-  );
-
-  process.stderr.write(`  ${label("reachable")} ${pc.dim("checking…")}\r`);
-  const avail = await isAvailable(config);
-  process.stderr.write("\x1b[2K\r");
-
-  if (!avail.reachable) {
-    console.log(`  ${label("reachable")} ${ERR} ${pc.red(avail.reason ?? "unknown")}`);
-    if (config.provider === "anthropic") {
-      console.log(pc.dim(`    Set ANTHROPIC_API_KEY in ~/.skillset/.env or your shell.`));
-    } else if (config.provider === "ollama") {
-      console.log(pc.dim(`    Is Ollama running on the host? Try:`));
-      console.log(pc.dim(`      curl ${config.baseUrl.replace(/\/v1\/?$/, "")}/api/tags`));
-    } else {
-      const cliName = llmProviderLabel(config.provider);
-      console.log(pc.dim(`    Is ${cliName} installed and logged in?`));
-      console.log(
-        pc.dim(`    Or pick another: ${pc.bold("SKILLSET_LLM_PROVIDER=grok-cli")}`)
-      );
-    }
-  } else {
-    console.log(`  ${label("reachable")} ${OK}`);
-    if (avail.modelPresent) {
-      console.log(`  ${label("model found")} ${OK}`);
-    } else {
-      console.log(
-        `  ${label("model found")} ${ERR} ${pc.red(`"${config.model}" not available`)}`
-      );
-      if (config.provider === "ollama") {
-        console.log(pc.dim(`    pull it: ${pc.bold(`ollama pull ${config.model}`)}`));
-      }
-    }
-    if ((verbose || !avail.modelPresent) && config.provider === "ollama") {
-      const list = avail.models.length > 0 ? avail.models.join(", ") : "(none)";
-      console.log(`  ${label("available")} ${pc.dim(list)}`);
-    }
-  }
-  console.log();
-}
-
-export function llmProviderLabel(provider: Provider): string {
-  switch (provider) {
-    case "claude-cli":
-      return "Claude CLI";
-    case "codex-cli":
-      return "Codex CLI";
-    case "kimi-cli":
-      return "Kimi CLI";
-    case "grok-cli":
-      return "Grok CLI";
-    case "anthropic":
-      return "Anthropic API";
-    case "ollama":
-      return "local Ollama";
-  }
-}
-
 async function sectionStore(): Promise<void> {
   console.log(pc.bold("Store"));
   const skillDirs = existsSync(STORE_SKILLS_DIR) ? await listSkillDirs(STORE_SKILLS_DIR) : [];
@@ -379,7 +300,6 @@ async function sectionConflicts(): Promise<void> {
 }
 
 export interface DoctorOptions {
-  verbose?: boolean;
   repair?: boolean;
   /** With --repair: the folder the store's skills link should point at. */
   store?: string;
@@ -403,7 +323,6 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
     console.log();
   }
   await sectionPaths();
-  await sectionLLM(options.verbose ?? false);
   await sectionStore();
   await sectionMirrors();
   await sectionAlways();

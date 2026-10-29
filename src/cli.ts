@@ -149,10 +149,9 @@ export function createProgram(): Command {
   program
     .command("doctor")
     .description("check store health, LLM connectivity, and mirror state")
-    .option("-v, --verbose", "show extra detail")
     .option("--repair", "relink a moved store, then reconcile canonical skills with connected mirrors")
     .option("--store <path>", "with --repair: point the store's skills link at this folder")
-    .action(async (options: { verbose?: boolean; repair?: boolean; store?: string }) => {
+    .action(async (options: { repair?: boolean; store?: string }) => {
       await doctorCommand(options);
     });
 

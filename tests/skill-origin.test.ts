@@ -23,23 +23,21 @@ describe("SkillFrontmatter origin", () => {
     expect(() => parseSkillMd(src)).toThrow(SkillValidationError);
   });
 
-  it("renderSkillMd round-trips origin + tier + license in stable order", () => {
+  it("renderSkillMd round-trips origin + license in stable order", () => {
     const rendered = renderSkillMd(
       {
         name: "demo",
         description: "A test",
-        tier: "medium",
         origin: "auto-created",
         license: "MIT",
       },
       "body here"
     );
-    expect(rendered).toMatch(/^---\nname: demo\ndescription: "A test"\ntier: medium\norigin: auto-created\nlicense: "MIT"\n---\n\nbody here\n$/);
+    expect(rendered).toMatch(/^---\nname: demo\ndescription: "A test"\norigin: auto-created\nlicense: "MIT"\n---\n\nbody here\n$/);
     const parsed = parseSkillMd(rendered);
     expect(parsed.frontmatter).toEqual({
       name: "demo",
       description: "A test",
-      tier: "medium",
       origin: "auto-created",
       license: "MIT",
     });

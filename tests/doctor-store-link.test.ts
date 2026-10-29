@@ -29,11 +29,6 @@ vi.mock("../src/core/paths.js", () => ({
   LEGACY_CODEX_SKILLS_DIR: join(ROOT, "legacy"),
 }));
 
-vi.mock("../src/llm/index.js", () => ({
-  defaultLLMConfig: () => ({ provider: "grok-cli", model: "x", embeddingModel: undefined }),
-  isAvailable: async () => ({ reachable: true, modelPresent: true, models: [] }),
-}));
-
 const { writeConfig } = await import("../src/core/config.js");
 const { sync } = await import("../src/core/mirror.js");
 const { doctorCommand } = await import("../src/commands/doctor.js");

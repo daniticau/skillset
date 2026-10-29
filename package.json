@@ -35,7 +35,10 @@
   "files": [
     "dist",
     "dist-app",
-    "desktop"
+    "desktop",
+    "!desktop/.build",
+    "!desktop/build",
+    "skills"
   ],
   "scripts": {
     "app:build": "./desktop/build-app.sh",
@@ -54,7 +57,6 @@
     "cli:link": "node scripts/link-cli.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
     "commander": "^12.1.0",
     "gray-matter": "^4.0.3",
     "picocolors": "^1.1.1"

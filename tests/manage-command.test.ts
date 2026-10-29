@@ -184,7 +184,7 @@ describe("agent-safe skill management", () => {
     expect(existsSync(join(SKILLS, "test-skill"))).toBe(false);
     const markdown = readFileSync(join(SKILLS, "focused-testing", "SKILL.md"), "utf8");
     expect(markdown).toContain("name: focused-testing");
-    expect(markdown).toContain("tier: medium");
+    expect(markdown).toContain("origin: user-created");
     expect(markdown).toContain("origin: user-created");
     expect(markdown).toContain("Run the exact test requested.");
 
@@ -225,7 +225,7 @@ describe("agent-safe skill management", () => {
     expect(ok).toBe(true);
     const markdown = readFileSync(join(SKILLS, "test-skill", "SKILL.md"), "utf8");
     expect(markdown).toContain('description: "Use when running one narrow test."');
-    expect(markdown).toContain("tier: medium");
+    expect(markdown).toContain("origin: user-created");
     expect(markdown).toContain("origin: user-created");
     expect(markdown).toContain("Run one test.");
     expect(markdown).not.toContain("Run the exact test requested.");

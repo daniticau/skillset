@@ -102,7 +102,6 @@ function semanticHash(skill: ParsedSkill): string {
   const normalized = JSON.stringify({
     name: skill.frontmatter.name,
     description: skill.frontmatter.description,
-    tier: skill.frontmatter.tier,
     license: skill.frontmatter.license,
     always: skill.frontmatter.always ?? false,
     body: skill.body.trim(),
@@ -128,7 +127,6 @@ function mergeFrontmatter(
   return {
     name: mirror.name,
     description: mirror.description,
-    tier: mirror.tier ?? prior?.tier,
     license: mirror.license ?? prior?.license,
     origin: mirror.origin ?? prior?.origin ?? fallbackOrigin,
     always: mirror.always ?? prior?.always,
@@ -140,7 +138,7 @@ function mergeFrontmatter(
  * from a mirror). Only writes SKILL.md; doesn't touch other files that may
  * coexist in the canonical dir for per-dir layouts.
  *
- * Reads the prior canonical frontmatter (if any) to preserve tier/license/origin
+ * Reads the prior canonical frontmatter (if any) to preserve always/license/origin
  * when the mirror format can't carry them.
  */
 async function readCanonicalFrontmatter(
@@ -159,7 +157,7 @@ async function readCanonicalFrontmatter(
  * `priorOverride` must be supplied by callers that overwrite the canonical
  * directory before writing (the per-skill-dir copy paths). Reading prior
  * frontmatter off disk after that copy would read back the mirror's own
- * frontmatter, so canonical-only metadata such as tier would be lost.
+ * frontmatter, so canonical-only metadata such as origin would be lost.
  */
 async function writeCanonicalSkillFile(
   skill: ParsedSkill,

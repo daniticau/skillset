@@ -2,7 +2,7 @@ import pc from "picocolors";
 import { readState } from "../core/config.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
 import { readSkillMd } from "../core/skill.js";
-import type { SkillOrigin, SkillTier } from "../core/skill.js";
+import type { SkillOrigin } from "../core/skill.js";
 
 /**
  * Skills are grouped by the KIND of knowledge they carry, not by topic.
@@ -25,7 +25,6 @@ type CatalogCategory = (typeof CATEGORIES)[number];
 interface CatalogEntry {
   name: string;
   description: string;
-  tier?: SkillTier;
   origin: SkillOrigin;
   userEdited: boolean;
   category: CatalogCategory;
@@ -110,10 +109,6 @@ function originLabel(origin: SkillOrigin, userEdited: boolean): string {
   return origin === "user-created" ? "user-authored" : "auto-created";
 }
 
-function tierLabel(tier: SkillTier | undefined): string {
-  return tier ? `tier ${tier}` : "legacy tier";
-}
-
 function wrap(text: string, width: number): string[] {
   const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   const lines: string[] = [];
@@ -148,7 +143,6 @@ async function loadCatalogEntries(): Promise<CatalogEntry[]> {
     entries.push({
       name: parsed.frontmatter.name,
       description: parsed.frontmatter.description,
-      tier: parsed.frontmatter.tier,
       origin,
       userEdited,
       category: categorizeSkill(parsed.frontmatter),
@@ -187,10 +181,7 @@ export async function catalogCommand(): Promise<void> {
     console.log();
     console.log(pc.bold(`${category} (${group.length})`));
     for (const entry of group) {
-      const meta = [
-        originLabel(entry.origin, entry.userEdited),
-        tierLabel(entry.tier),
-      ].join(" | ");
+      const meta = originLabel(entry.origin, entry.userEdited);
       console.log(`  ${pc.bold(entry.name)} ${pc.dim(`[${meta}]`)}`);
       for (const line of wrap(entry.description, descriptionWidth)) {
         console.log(`    ${pc.dim(line)}`);

@@ -10,7 +10,7 @@
     <meta property="og:title" content="Skillset. One folder of skills that every coding agent reads." />
     <meta
       property="og:description"
-      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a tweet or a repo. Make a rule always-on everywhere."
+      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
     />
     <meta property="og:image" content="./assets/skillset-preview.png?v=8" />
     <meta
@@ -21,7 +21,7 @@
     <meta name="twitter:title" content="Skillset" />
     <meta
       name="twitter:description"
-      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a tweet or a repo. Make a rule always-on everywhere."
+      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
     />
     <meta name="twitter:image" content="./assets/skillset-preview.png?v=8" />
     <meta name="theme-color" content="#0a0a0a" />
@@ -227,30 +227,30 @@
 
       <section class="section wrap" id="add" aria-labelledby="add-title">
         <div class="intro">
-          <h2 id="add-title">Add a skill from a tweet, a repo, or a file.</h2>
+          <h2 id="add-title">Add a skill from a repo, a page, or a file.</h2>
           <p>
-            <code>sks add</code> takes a tweet that links to a skill, a GitHub repo or URL, a
-            skills.sh page, a local folder, or stdin. The skill lands in the store, passes
+            <code>sks add</code> takes a GitHub repo or URL, a skills.sh page, a local folder,
+            stdin, or a tweet that links to one of those. The skill lands in the store, passes
             <code>sks check</code>, and mirrors out before the command returns.
           </p>
         </div>
         <div class="duo">
-          <figure class="term" aria-label="Adding a skill from a tweet">
+          <figure class="term" aria-label="Adding a skill from skills.sh">
             <div class="term-bar">
               <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="term-title">~/.skillset</span>
             </div>
-            <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks add https://x.com/juampitech/status/2090491139103064305</span>
+            <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks add https://skills.sh/cursor/plugins/unslop</span>
 <span class="t-ok">✓</span> added <span class="t-hl">unslop</span>
-<span class="t-dim">  from github.com/cursor/plugins@main/pstack/skills/unslop (via https://x.com/juampitech/status/2090491139103064305)</span>
+<span class="t-dim">  from github.com/cursor/plugins@main/pstack/skills/unslop</span>
 <span class="t-ok">✓</span> synced 13 skill(s) → 6 mirror(s) (6 writes)</code></pre>
           </figure>
           <figure class="sources" aria-label="Sources sks add accepts">
-            <div class="source-row"><span>A tweet that links to a skill</span><code>sks add https://x.com/juampitech/status/2090491139103064305</code></div>
             <div class="source-row"><span>A skills.sh page</span><code>sks add https://skills.sh/cursor/plugins/unslop</code></div>
             <div class="source-row"><span>A GitHub repo, one skill picked out</span><code>sks add cursor/plugins --skill unslop</code></div>
             <div class="source-row"><span>A local folder</span><code>sks add ./my-skill</code></div>
             <div class="source-row"><span>A file on stdin</span><code>sks add --stdin &lt; SKILL.md</code></div>
+            <div class="source-row"><span>A tweet that links to a skill</span><code>sks add https://x.com/juampitech/status/2090491139103064305</code></div>
           </figure>
         </div>
       </section>
@@ -339,9 +339,9 @@ Short words. Active voice. One idea per sentence. Cut every word you can.
         <div class="intro">
           <h2 id="app-title">A window onto the store.</h2>
           <p>
-            The Mac app lists every skill. You edit the name, the description, and the body in
-            place. New skill opens the builder. Describe a preference, a workflow, or a correction,
-            and it proposes the smallest skills that pass <code>sks check</code>. Build it from the
+            The Mac app lists every skill in two groups, always-on and on demand, and marks each
+            by kind. You edit the name, the description, and the body in place. New Skill takes a
+            pasted <code>SKILL.md</code> or a link and saves it to the store. Build it from the
             repo with <code>pnpm app:install</code>.
           </p>
         </div>
