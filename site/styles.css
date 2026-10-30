@@ -722,18 +722,13 @@ tbody th code {
 
 /* ---------- app shot ---------- */
 
-.shot {
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 24px 64px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
-}
-
+/* The screenshot is the window itself, with its own rounded corners and
+   edge. The shadow follows its transparent corners. */
 .shot img {
   display: block;
   width: 100%;
   height: auto;
+  filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.55));
 }
 
 /* ---------- commands ---------- */

@@ -22,3 +22,23 @@ if (header) {
   update();
   window.addEventListener("scroll", update, { passive: true });
 }
+
+// In-page links scroll without writing a #fragment into the address bar, so
+// the URL stays skillset.daniticau.com. The hrefs still work without script.
+for (const link of document.querySelectorAll('a[href^="#"]')) {
+  link.addEventListener("click", (event) => {
+    const id = link.getAttribute("href").slice(1);
+    const target = id === "top" ? document.body : document.getElementById(id);
+    if (!target) return;
+    event.preventDefault();
+    if (id === "top") window.scrollTo({ top: 0 });
+    else target.scrollIntoView();
+  });
+}
+
+// A shared link with a fragment still lands on its section, then drops the fragment.
+if (location.hash) {
+  const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  history.replaceState(null, "", location.pathname + location.search);
+  target?.scrollIntoView({ behavior: "instant" });
+}
