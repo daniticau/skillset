@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Skillset keeps one folder of SKILL.md files on your disk and mirrors it into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill once and every agent has it."
-    />
-    <meta property="og:title" content="Skillset. One folder of skills that every coding agent reads." />
-    <meta
-      property="og:description"
-      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
+      content="Skillset keeps your SKILL.md files in one folder and mirrors them into Claude Code, Codex, Kimi Code, Grok, and Cursor. A CLI and a Mac app."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://skillset.daniticau.com/" />
+    <meta property="og:title" content="Skillset. One folder of skills that every coding agent reads." />
+    <meta
+      property="og:description"
+      content="Your SKILL.md files in one folder, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. A CLI and a Mac app."
+    />
     <meta property="og:image" content="https://skillset.daniticau.com/assets/skillset-preview.png?v=9" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -25,7 +25,7 @@
     <meta name="twitter:title" content="Skillset" />
     <meta
       name="twitter:description"
-      content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
+      content="Your SKILL.md files in one folder, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. A CLI and a Mac app."
     />
     <meta name="twitter:image" content="https://skillset.daniticau.com/assets/skillset-preview.png?v=9" />
     <link rel="canonical" href="https://skillset.daniticau.com/" />
@@ -39,385 +39,85 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=9" />
-    <script src="./script.js?v=9" defer></script>
+    <link rel="stylesheet" href="./styles.css?v=12" />
+    <script src="./script.js?v=10" defer></script>
   </head>
   <body>
-    <header class="site-header">
-      <div class="wrap header-inner">
-        <a class="brand" href="#top" aria-label="Skillset, home">
-          <img class="brand-mark" src="./assets/skillset-icon.svg?v=2" width="22" height="22" alt="" />
-          <span>skillset</span>
-        </a>
-        <nav class="nav" aria-label="Sections">
-          <a href="#why">Why</a>
-          <a href="#always">Always-on</a>
-          <a href="#app">App</a>
-          <a href="#commands">Commands</a>
-          <a href="https://github.com/daniticau/skillset">GitHub</a>
-        </nav>
-        <a class="btn btn-primary btn-sm" href="#install">Install</a>
-      </div>
+    <header class="wrap site-header">
+      <span class="brand">
+        <img src="./assets/skillset-icon.svg?v=2" width="22" height="22" alt="" />
+        skillset
+      </span>
+      <nav class="nav" aria-label="Links">
+        <a href="https://github.com/daniticau/skillset">GitHub</a>
+        <a href="https://www.npmjs.com/package/skillset-cli">npm</a>
+      </nav>
     </header>
 
-    <main id="top">
+    <main>
       <section class="hero wrap" aria-labelledby="hero-title">
-        <h1 id="hero-title"><span class="line">One folder of skills that every</span> <span class="line">coding agent reads.</span></h1>
+        <h1 id="hero-title">One folder of skills that every coding agent reads.</h1>
         <p class="lede">
-          Claude Code, Codex, Kimi Code, Grok, and Cursor all learn from <code>SKILL.md</code> files,
-          each from a folder of its own. Skillset keeps one folder you own and mirrors it into all of
-          them. Add a skill once and every agent has it.
+          Skillset keeps your <code>SKILL.md</code> files in one place and mirrors them into Claude
+          Code, Codex, Kimi Code, Grok, and Cursor. Use the CLI, the Mac app, or both.
         </p>
-        <div class="actions">
-          <div class="install" aria-label="Install command">
-            <span class="install-prompt" aria-hidden="true">$</span>
-            <code id="install-command">npm i -g skillset-cli</code>
-            <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy the install command">
-              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" />
-                <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor" />
-              </svg>
-              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-          </div>
-          <a class="btn btn-ghost" href="https://github.com/daniticau/skillset">View on GitHub</a>
+        <div class="install" aria-label="Install command">
+          <span class="install-prompt" aria-hidden="true">$</span>
+          <code id="install-command">npm i -g skillset-cli</code>
+          <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy the install command">
+            <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" />
+              <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor" />
+            </svg>
+            <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
-        <p class="fine">Runs on macOS with Node 20 or newer. MIT licensed.</p>
-
-        <figure class="fan" aria-label="One store folder mirrored into six agent folders">
-          <svg class="fan-svg" viewBox="0 0 1040 400" role="img" aria-labelledby="fan-title">
-            <title id="fan-title">The store at ~/.skillset/skills mirrored into the skills folder of each agent</title>
-            <g class="fan-lines" fill="none" stroke-width="1.5">
-              <path d="M364 200 C 520 200, 520 54, 676 54" />
-              <path d="M364 200 C 520 200, 520 114, 676 114" />
-              <path d="M364 200 C 520 200, 520 174, 676 174" />
-              <path d="M364 200 C 520 200, 520 234, 676 234" />
-              <path d="M364 200 C 520 200, 520 294, 676 294" />
-              <path d="M364 200 C 520 200, 520 354, 676 354" />
-            </g>
-            <rect class="fan-store" x="48" y="84" width="316" height="232" rx="12" />
-            <text class="fan-title" x="74" y="122">~/.skillset/skills/</text>
-            <g class="fan-files">
-              <text x="74" y="156">no-eyebrows/SKILL.md</text>
-              <text class="fan-always" x="330" y="156" text-anchor="end">∞</text>
-              <text x="74" y="182">pnpm-only/SKILL.md</text>
-              <text class="fan-always" x="330" y="182" text-anchor="end">∞</text>
-              <text x="74" y="208">release-checklist/SKILL.md</text>
-              <text x="74" y="234">unslop/SKILL.md</text>
-              <text x="74" y="260">vercel-deploy/SKILL.md</text>
-              <text x="74" y="286">writing-rules/SKILL.md</text>
-              <text class="fan-always" x="330" y="286" text-anchor="end">∞</text>
-            </g>
-            <circle class="fan-dot" cx="364" cy="200" r="4" />
-            <g class="fan-targets">
-              <rect x="676" y="32" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="54" r="3.5" />
-              <text class="fan-name" x="698" y="59">Claude Code</text>
-              <text class="fan-path" x="972" y="59" text-anchor="end">~/.claude/skills</text>
-
-              <rect x="676" y="92" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="114" r="3.5" />
-              <text class="fan-name" x="698" y="119">Codex</text>
-              <text class="fan-path" x="972" y="119" text-anchor="end">~/.codex/skills</text>
-
-              <rect x="676" y="152" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="174" r="3.5" />
-              <text class="fan-name" x="698" y="179">Kimi Code</text>
-              <text class="fan-path" x="972" y="179" text-anchor="end">~/.kimi-code/skills</text>
-
-              <rect x="676" y="212" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="234" r="3.5" />
-              <text class="fan-name" x="698" y="239">Grok CLI</text>
-              <text class="fan-path" x="972" y="239" text-anchor="end">~/.grok/skills</text>
-
-              <rect x="676" y="272" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="294" r="3.5" />
-              <text class="fan-name" x="698" y="299">Cursor</text>
-              <text class="fan-path" x="972" y="299" text-anchor="end">~/.cursor/skills</text>
-
-              <rect x="676" y="332" width="316" height="44" rx="10" />
-              <circle class="fan-dot" cx="676" cy="354" r="3.5" />
-              <text class="fan-name" x="698" y="359">Any other agent</text>
-              <text class="fan-path" x="972" y="359" text-anchor="end">~/.agents/skills</text>
-            </g>
-          </svg>
-
-          <div class="fan-stack">
-            <div class="fan-stack-store">
-              <div class="fan-stack-title">~/.skillset/skills/</div>
-              <ul>
-                <li>no-eyebrows/SKILL.md <span class="fan-always">∞</span></li>
-                <li>pnpm-only/SKILL.md <span class="fan-always">∞</span></li>
-                <li>release-checklist/SKILL.md</li>
-                <li>unslop/SKILL.md</li>
-                <li>vercel-deploy/SKILL.md</li>
-                <li>writing-rules/SKILL.md <span class="fan-always">∞</span></li>
-              </ul>
-            </div>
-            <div class="fan-stack-line"></div>
-            <ul class="fan-stack-targets">
-              <li><span>Claude Code</span><code>~/.claude/skills</code></li>
-              <li><span>Codex</span><code>~/.codex/skills</code></li>
-              <li><span>Kimi Code</span><code>~/.kimi-code/skills</code></li>
-              <li><span>Grok CLI</span><code>~/.grok/skills</code></li>
-              <li><span>Cursor</span><code>~/.cursor/skills</code></li>
-              <li><span>Any other agent</span><code>~/.agents/skills</code></li>
-            </ul>
-          </div>
-
-          <figcaption>
-            The store is the source of truth. Each connected agent holds a mirror of it. Edit a
-            mirror copy by hand and the edit flows back. The <span class="fan-always">∞</span> marks
-            a rule that is also always-on.
-          </figcaption>
-        </figure>
+        <p class="fine">Then <code>sks init</code>. Run <code>sks app</code> for the Mac app. macOS, Node 20 or newer.</p>
       </section>
 
-      <section class="principles" aria-label="Principles">
-        <div class="wrap principles-grid">
-          <div>
-            <h3>You own the files.</h3>
-            <p>Plain Markdown in <code>~/.skillset/skills</code>. Put it in git, or symlink it into a repo you already keep. Agents are mirrors, not owners.</p>
-          </div>
-          <div>
-            <h3>Edits flow back.</h3>
-            <p>Change a mirror copy by hand, or let an agent change it. Skillset promotes the edit to the store. It never overwrites you.</p>
-          </div>
-          <div>
-            <h3>Agents can run it.</h3>
-            <p>Every command works without a person at the keyboard. Claude Code can save a rule with <code>sks add --stdin</code>, and Codex follows it in its next session.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section wrap" id="why" aria-labelledby="why-title">
-        <div class="intro">
-          <h2 id="why-title">The format is shared. The folder is not.</h2>
-          <p>
-            A skill is a folder with a <code>SKILL.md</code> inside: a name, a one-line description,
-            and a body of instructions. An agent reads the description at the start of a session and
-            loads the body when a task matches it.
-          </p>
-          <p>
-            Five coding agents read that format. Each one reads it from its own folder. A rule you
-            teach Claude Code on Monday is unknown to Codex on Tuesday, so you teach it again.
-            Skillset is the folder they share.
-          </p>
-        </div>
-        <figure class="figure">
-          <div class="table-scroll">
-            <table class="paths">
-              <thead>
-                <tr>
-                  <th scope="col">Agent</th>
-                  <th scope="col">Reads skills from</th>
-                  <th scope="col">Always-on rules go to</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><th scope="row">Claude Code</th><td><code>~/.claude/skills</code></td><td><code>~/.claude/CLAUDE.md</code></td></tr>
-                <tr><th scope="row">Codex</th><td><code>~/.codex/skills</code></td><td><code>~/.codex/AGENTS.md</code></td></tr>
-                <tr><th scope="row">Kimi Code</th><td><code>~/.kimi-code/skills</code></td><td><code>~/.kimi-code/AGENTS.md</code></td></tr>
-                <tr><th scope="row">Grok CLI</th><td><code>~/.grok/skills</code></td><td><code>~/.grok/AGENTS.md</code></td></tr>
-                <tr><th scope="row">Cursor</th><td><code>~/.cursor/skills</code></td><td><span class="none">none, its rules live in Settings</span></td></tr>
-                <tr><th scope="row">Any other agent</th><td><code>~/.agents/skills</code></td><td><code>~/.agents/AGENTS.md</code></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <figcaption>Skillset writes every folder in this table from one store at <code>~/.skillset/skills</code>.</figcaption>
-        </figure>
-      </section>
-
-      <section class="section wrap" id="add" aria-labelledby="add-title">
-        <div class="intro">
-          <h2 id="add-title">Add a skill from a repo, a page, or a file.</h2>
-          <p>
-            <code>sks add</code> takes a GitHub repo or URL, a skills.sh page, a local folder,
-            stdin, or a tweet that links to one of those. The skill lands in the store, passes
-            <code>sks check</code>, and mirrors out before the command returns.
-          </p>
-        </div>
-        <div class="duo">
-          <figure class="term" aria-label="Adding a skill from skills.sh">
-            <div class="term-bar">
-              <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="term-title">~/.skillset</span>
-            </div>
-            <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks add https://skills.sh/cursor/plugins/unslop</span>
+      <section class="showcase wrap" aria-label="The Mac app and the CLI">
+        <img
+          class="app"
+          src="./assets/skillset-app.png?v=2"
+          width="1806"
+          height="1216"
+          decoding="async"
+          alt="The Skillset Mac app. The sidebar lists skills in two groups, Always On and On Demand. The detail pane shows the no-eyebrows rule."
+        />
+        <figure class="term" aria-label="The Skillset CLI">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+          <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks add cursor/plugins --skill unslop</span>
 <span class="t-ok">✓</span> added <span class="t-hl">unslop</span>
-<span class="t-dim">  from github.com/cursor/plugins@main/pstack/skills/unslop</span>
-<span class="t-ok">✓</span> synced 13 skills → 6 mirrors (6 writes)</code></pre>
-          </figure>
-          <figure class="sources" aria-label="Sources sks add accepts">
-            <div class="source-row"><span>A skills.sh page</span><code>sks add https://skills.sh/cursor/plugins/unslop</code></div>
-            <div class="source-row"><span>A GitHub repo, one skill picked out</span><code>sks add cursor/plugins --skill unslop</code></div>
-            <div class="source-row"><span>A local folder</span><code>sks add ./my-skill</code></div>
-            <div class="source-row"><span>A file on stdin</span><code>sks add --stdin &lt; SKILL.md</code></div>
-            <div class="source-row"><span>A tweet that links to a skill</span><code>sks add https://x.com/juampitech/status/2090491139103064305</code></div>
-          </figure>
-        </div>
-      </section>
+<span class="t-ok">✓</span> synced 12 skills → 6 mirrors (6 writes)
 
-      <section class="section wrap" id="always" aria-labelledby="always-title">
-        <div class="intro">
-          <h2 id="always-title">Some rules must never miss.</h2>
-          <p>
-            A skill loads on demand. The agent reads its one-line description and pulls the body in
-            when it decides the skill applies. That decision is cheap, and it can miss.
-          </p>
-          <p>
-            A rule like "never use eyebrow text" must hold every time. Mark it always-on and skillset
-            writes its body into a block it owns inside each agent's global instructions file. The
-            agent reads that file before your first message, every session. One command flips a
-            skill between the two modes. Text outside the block is yours and stays untouched.
-          </p>
-        </div>
-        <div class="duo">
-          <figure class="term" aria-label="Making a skill always-on">
-            <div class="term-bar">
-              <span class="term-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-              <span class="term-title">~/.skillset</span>
-            </div>
-            <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks always no-eyebrows</span>
-<span class="t-inf">∞</span> <span class="t-hl">no-eyebrows</span> is now always-on; it goes into every agent's global instructions file
-<span class="t-ok">✓</span> updated <span class="t-hl">no-eyebrows</span>
+<span class="t-prompt">$</span> <span class="t-cmd">sks always no-eyebrows</span>
 <span class="t-inf">∞</span> always-on: 3 rules → Claude Code ~/.claude/CLAUDE.md
 <span class="t-inf">∞</span> always-on: 3 rules → Codex ~/.codex/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rules → Kimi Code ~/.kimi-code/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rules → Grok CLI ~/.grok/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rules → Generic ~/.agents/AGENTS.md
-<span class="t-ok">✓</span> synced 13 skills → 6 mirrors (6 writes)</code></pre>
-          </figure>
-          <figure class="file" aria-label="The managed block inside ~/.claude/CLAUDE.md">
-            <figcaption>~/.claude/CLAUDE.md</figcaption>
-            <pre><code><span class="f-dim"># Your own instructions
-
-Everything above and below the block is yours. Skillset never touches it.</span>
-
-<span class="f-mark">&lt;!-- skillset:always:start --&gt;</span>
-<span class="f-dim">&lt;!-- Managed by skillset. Do not edit this block. Change a rule with `sks edit &lt;name&gt;`; drop one with `sks always &lt;name&gt; --off`. --&gt;</span>
-
-<span class="f-head">## Never use eyebrows</span>
-<span class="f-dim">&lt;!-- skill: no-eyebrows --&gt;</span>
-An eyebrow, also called a kicker or overline, is a small label above a heading.
-Do not add eyebrows to a user interface. Remove them when editing existing UI.
-
-<span class="f-head">## pnpm only</span>
-<span class="f-dim">&lt;!-- skill: pnpm-only --&gt;</span>
-Run `pnpm install`, `pnpm add`, and `pnpm run &lt;script&gt;`. Do not write `npm` or `yarn` commands.
-
-<span class="f-head">## Writing rules</span>
-<span class="f-dim">&lt;!-- skill: writing-rules --&gt;</span>
-Short words. Active voice. One idea per sentence. Cut every word you can.
-<span class="f-mark">&lt;!-- skillset:always:end --&gt;</span></code></pre>
-          </figure>
-        </div>
-      </section>
-
-      <section class="section wrap" id="own" aria-labelledby="own-title">
-        <div class="intro">
-          <h2 id="own-title">Nothing gets lost.</h2>
-        </div>
-        <div class="grid-cards">
-          <div>
-            <h3>A conflict keeps both versions.</h3>
-            <p>If two mirrors diverge, the newest edit wins. Skillset archives the losing version under <code>conflicts/</code> with a note on where it came from.</p>
-          </div>
-          <div>
-            <h3>No deletion on a guess.</h3>
-            <p>Skillset removes a mirror copy only when it holds a hash proving it wrote that copy. A skill you installed yourself is adopted or ignored, never removed.</p>
-          </div>
-          <div>
-            <h3>Each change is a commit.</h3>
-            <p>The store is a git repository. Each command that changes it commits, so any earlier version is one checkout away.</p>
-          </div>
-          <div>
-            <h3>Nothing exotic.</h3>
-            <p>Files, content hashes, a symlink, and a managed block between two comments. You can open all of it in a text editor.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section wrap" id="app" aria-labelledby="app-title">
-        <div class="intro">
-          <h2 id="app-title">A window onto the store.</h2>
-          <p>
-            The Mac app lists every skill in two groups, always-on and on demand, and marks each
-            by kind. Edit the name, the description, and the body in place. Paste a
-            <code>SKILL.md</code> or a link into New Skill to add one. The app and the CLI share
-            the store, so a change in one shows up in the other. Run <code>sks app</code> to
-            install it.
-          </p>
-        </div>
-        <figure class="shot">
-          <img
-            src="./assets/skillset-app.png?v=2"
-            width="1806"
-            height="1216"
-            loading="lazy"
-            decoding="async"
-            alt="The Skillset Mac app. A sidebar lists eleven skills in two groups, Always On and On Demand. The detail pane shows the no-eyebrows rule."
-          />
+<span class="t-ok">✓</span> synced 12 skills → 6 mirrors (6 writes)</code></pre>
         </figure>
       </section>
 
-      <section class="section wrap" id="commands" aria-labelledby="commands-title">
-        <div class="intro">
-          <h2 id="commands-title">Every command that changes the store mirrors afterwards.</h2>
-          <p>There is no sync command to forget.</p>
+      <section class="points wrap" aria-label="What it does">
+        <div>
+          <h2>Every agent, one library</h2>
+          <p>Add a skill once and every agent has it. Edit a copy inside any agent's folder and the edit comes back to the store.</p>
         </div>
-        <div class="command-list">
-          <div class="command-row"><code>sks init</code><span>Create the store, connect the agents it finds, import their skills, mirror back out.</span></div>
-          <div class="command-row"><code>sks add [source]</code><span>Add a skill from a path, a GitHub repo or URL, a skills.sh page, a tweet, or stdin. <code>--always</code> makes it always-on.</span></div>
-          <div class="command-row"><code>sks always &lt;skill&gt;</code><span>Make a skill always-on. <code>--off</code> returns it to on-demand.</span></div>
-          <div class="command-row"><span class="cmd"><code>sks list</code> / <code>sks catalog</code></span><span>List skills, flat or grouped by kind: Tool, Workflow, Judgement, Rule.</span></div>
-          <div class="command-row"><code>sks show &lt;skill&gt;</code><span>Print one canonical <code>SKILL.md</code>. <code>--json</code> or <code>--path</code> for agents.</span></div>
-          <div class="command-row"><code>sks check [skill]</code><span>Validate structure, trigger wording, context size, and always-on length.</span></div>
-          <div class="command-row"><code>sks edit &lt;skill&gt;</code><span>Edit in <code>$EDITOR</code>, or replace from <code>--stdin</code> or <code>--source</code>.</span></div>
-          <div class="command-row"><code>sks rename &lt;skill&gt; &lt;new&gt;</code><span>Rename a skill. The store folder and every mirror copy move with it.</span></div>
-          <div class="command-row"><code>sks remove &lt;skill&gt;</code><span>Delete a skill and prune it from every mirror. <code>--block</code> stops it being adopted back.</span></div>
-          <div class="command-row"><code>sks status</code><span>Connected mirrors, their instructions files, and every skill's state.</span></div>
-          <div class="command-row"><span class="cmd"><code>sks connect</code> / <code>sks disconnect</code></span><span>Manage mirrors. Connecting imports the agent's existing skills first.</span></div>
-          <div class="command-row"><code>sks app</code><span>Install the Mac app into <code>/Applications</code>.</span></div>
-          <div class="command-row"><code>sks doctor [--repair]</code><span>Store health, mirror drift, conflicts. <code>--repair</code> relinks a moved store and reconciles every mirror.</span></div>
+        <div>
+          <h2>Rules that always load</h2>
+          <p>Mark a skill always-on and it goes into each agent's <code>CLAUDE.md</code> or <code>AGENTS.md</code>. The rest of the file stays yours.</p>
         </div>
-      </section>
-
-      <section class="section wrap cta" id="install" aria-labelledby="install-title">
-        <h2 id="install-title">Install once. Teach every agent.</h2>
-        <div class="actions">
-          <div class="install" aria-label="Install command">
-            <span class="install-prompt" aria-hidden="true">$</span>
-            <code id="install-command-2">npm i -g skillset-cli</code>
-            <button class="copy" type="button" data-copy-target="install-command-2" aria-label="Copy the install command">
-              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" />
-                <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor" />
-              </svg>
-              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-          </div>
+        <div>
+          <h2>Add from anywhere</h2>
+          <p>A GitHub repo, a skills.sh page, a folder, or a tweet that links to a skill. Every change is a git commit, so nothing is lost.</p>
         </div>
-        <p class="cta-note">
-          Then run <code>sks init</code>. It creates <code>~/.skillset</code>, finds the coding agents
-          you have, imports the skills they already hold, and mirrors the merged library back out.
-          Run <code>sks app</code> for the Mac app.
-        </p>
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <span>Skillset is MIT licensed. Made by Daniel Ticau.</span>
-        <nav aria-label="Links">
-          <a href="https://github.com/daniticau/skillset">GitHub</a>
-          <a href="https://www.npmjs.com/package/skillset-cli">npm</a>
-        </nav>
-      </div>
+    <footer class="wrap site-footer">
+      <span>MIT licensed. Made by Daniel Ticau.</span>
+      <a href="https://github.com/daniticau/skillset#readme">Docs</a>
     </footer>
   </body>
 </html>
