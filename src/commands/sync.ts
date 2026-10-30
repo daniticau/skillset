@@ -3,6 +3,7 @@ import { sync } from "../core/mirror.js";
 import type { SyncReport } from "../core/mirror.js";
 import { getAdapter } from "../core/adapters/index.js";
 import type { AgentKind } from "../core/config.js";
+import { count } from "../core/ux/count.js";
 
 function displaySourceLabel(label: string): string {
   if (label === "canonical") return "canonical";
@@ -35,7 +36,7 @@ export function printSyncReport(report: SyncReport): void {
     const loserCount = a.archivedLoserCount ?? a.losers.length;
     console.log(
       pc.yellow(
-        `⚠ conflict on "${a.skill}" — ${winnerName} won (newest mtime); archived ${loserCount} version(s) [${loserNames}] to ${a.archive}`
+        `⚠ conflict on "${a.skill}" — ${winnerName} won (newest mtime); archived ${count(loserCount, "version")} [${loserNames}] to ${a.archive}`
       )
     );
   }
@@ -61,7 +62,7 @@ export function printSyncReport(report: SyncReport): void {
     console.log(
       a.removed
         ? pc.dim(`− always-on block removed from ${who} ${a.file}`)
-        : pc.blue(`∞ always-on: ${a.skills.length} rule(s) → ${who} ${a.file}`)
+        : pc.blue(`∞ always-on: ${count(a.skills.length, "rule")} → ${who} ${a.file}`)
     );
   }
   for (const f of report.failures ?? []) {
@@ -72,7 +73,7 @@ export function printSyncReport(report: SyncReport): void {
   const ok = report.skillCount - failed;
   console.log(
     pc.green(
-      `✓ synced ${ok} skill(s) → ${report.linkCount} mirror(s) (${mirrored.length} writes)` +
+      `✓ synced ${count(ok, "skill")} → ${count(report.linkCount, "mirror")} (${count(mirrored.length, "write")})` +
         (failed > 0 ? pc.red(` — ${failed} failed`) : "")
     )
   );

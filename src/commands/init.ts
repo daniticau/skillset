@@ -179,4 +179,5 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   console.log(pc.dim(`  • ${pc.bold("sks add <repo, link, or folder>")} to add a skill`));
   console.log(pc.dim(`  • ${pc.bold("sks always <skill>")} to load a rule in every session`));
   console.log(pc.dim(`  • ${pc.bold("sks list")} to see the library`));
+  console.log(pc.dim(`  • ${pc.bold("sks app")} to install the desktop app`));
 }

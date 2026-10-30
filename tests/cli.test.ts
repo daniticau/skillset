@@ -11,6 +11,7 @@ describe("public CLI", () => {
     expect(commands).toEqual([
       "add",
       "always",
+      "app",
       "catalog",
       "check",
       "connect",

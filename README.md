@@ -11,6 +11,14 @@ sks init
 
 It's still early.
 
+## The app
+
+```sh
+sks app
+```
+
+This installs Skillset.app into `/Applications`. The app lists every skill in two groups, Always On and On Demand. You can read, edit, pin, and add skills there. It works on the same store as the CLI, so a change in one shows up in the other.
+
 ## Adding skills
 
 You can add a skill from almost anywhere:
@@ -53,6 +61,7 @@ Always-on text costs tokens every turn, so `sks check` warns when one goes over 
 | `sks status` | Show connected agents and each skill's state |
 | `sks connect <agent>` / `sks disconnect <agent>` | Add or drop an agent |
 | `sks doctor` | Check for problems (`--repair` to fix a moved store) |
+| `sks app` | Install the desktop app |
 
 Every command that changes something syncs right after, so there's no `sync` command.
 
@@ -80,7 +89,7 @@ pnpm build
 pnpm test
 pnpm typecheck
 pnpm cli:link     # point ~/.local/bin/sks at this checkout
-pnpm app:build    # the macOS app
+pnpm app:install  # build the macOS app and put it in ~/Applications
 ```
 
 ## License

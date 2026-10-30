@@ -21,6 +21,7 @@ import type { AgentAdapter } from "./adapters/index.js";
 import { CONFLICTS_DIR, STORE_SKILLS_DIR } from "./paths.js";
 import { appendHistoryEvent, sharedSkillAgents } from "./history.js";
 import { writeAlwaysBlock } from "./adapters/always-block.js";
+import { count } from "./ux/count.js";
 
 export type SyncAction =
   | { kind: "promoted"; skill: string; from: Link }
@@ -525,7 +526,7 @@ export async function sync(options: SyncOptions = {}): Promise<SyncReport> {
   // delete every skill skillset ever wrote from every mirror. Stop here instead.
   if (!existsSync(STORE_SKILLS_DIR) && Object.keys(state.skills).length > 0) {
     throw new Error(
-      `canonical store ${STORE_SKILLS_DIR} is missing but state.json still tracks ${Object.keys(state.skills).length} skill(s); ` +
+      `canonical store ${STORE_SKILLS_DIR} is missing but state.json still tracks ${count(Object.keys(state.skills).length, "skill")}; ` +
         `refusing to sync because it would prune every mirror. Run \`sks doctor --repair\` to relink the store.`
     );
   }

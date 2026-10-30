@@ -1,6 +1,7 @@
 import pc from "picocolors";
 import { status } from "../core/mirror.js";
 import { getAdapter } from "../core/adapters/index.js";
+import { count } from "../core/ux/count.js";
 
 export async function statusCommand(): Promise<void> {
   const s = await status();
@@ -36,7 +37,7 @@ export async function statusCommand(): Promise<void> {
         : pc.green("•");
     const conflict =
       sk.conflicts > 0
-        ? ` ${pc.yellow(`⚠ ${sk.conflicts} conflict(s), last ${sk.lastConflictAt}`)}`
+        ? ` ${pc.yellow(`⚠ ${count(sk.conflicts, "conflict")}, last ${sk.lastConflictAt}`)}`
         : "";
     const always = sk.always ? ` ${pc.blue("∞")}` : "";
     console.log(`  ${marker} ${sk.name}${always}${conflict}`);

@@ -19,6 +19,7 @@ import type { ParsedSkill } from "../core/skill.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
 import { sync } from "../core/mirror.js";
 import { printSyncReport } from "./sync.js";
+import { count } from "../core/ux/count.js";
 
 const OK = pc.green("✓");
 const MISS = pc.yellow("•");
@@ -292,7 +293,7 @@ async function sectionConflicts(): Promise<void> {
   if (total === 0) {
     console.log(pc.dim(`  none recorded — multi-mirror divergences will land in ${CONFLICTS_DIR}`));
   } else {
-    console.log(`  ${label("archived")} ${pc.dim(`${total} conflict(s) across ${Object.values(state.skills).filter((s) => (s.conflictHistory?.length ?? 0) > 0).length} skill(s)`)}`);
+    console.log(`  ${label("archived")} ${pc.dim(`${count(total, "conflict")} across ${count(Object.values(state.skills).filter((s) => (s.conflictHistory?.length ?? 0) > 0).length, "skill")}`)}`);
     if (lastAt) console.log(`  ${label("last at")} ${pc.dim(lastAt)}`);
     console.log(`  ${label("archive")} ${pc.dim(CONFLICTS_DIR)}`);
   }

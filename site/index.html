@@ -12,7 +12,11 @@
       property="og:description"
       content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
     />
-    <meta property="og:image" content="./assets/skillset-preview.png?v=8" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://skillset.daniticau.com/" />
+    <meta property="og:image" content="https://skillset.daniticau.com/assets/skillset-preview.png?v=9" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
       content="One folder of skills, mirrored into every coding agent's own skills folder."
@@ -23,7 +27,8 @@
       name="twitter:description"
       content="One folder of SKILL.md files, mirrored into Claude Code, Codex, Kimi Code, Grok, and Cursor. Add a skill from a repo, a skills.sh page, or a file. Make a rule always-on everywhere."
     />
-    <meta name="twitter:image" content="./assets/skillset-preview.png?v=8" />
+    <meta name="twitter:image" content="https://skillset.daniticau.com/assets/skillset-preview.png?v=9" />
+    <link rel="canonical" href="https://skillset.daniticau.com/" />
     <meta name="theme-color" content="#0a0a0a" />
     <title>Skillset. One folder of skills that every coding agent reads.</title>
     <link rel="icon" href="./assets/skillset-icon.svg?v=2" type="image/svg+xml" />
@@ -34,8 +39,8 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=6" />
-    <script src="./script.js?v=6" defer></script>
+    <link rel="stylesheet" href="./styles.css?v=8" />
+    <script src="./script.js?v=8" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -47,6 +52,7 @@
         <nav class="nav" aria-label="Sections">
           <a href="#why">Why</a>
           <a href="#always">Always-on</a>
+          <a href="#app">App</a>
           <a href="#commands">Commands</a>
           <a href="https://github.com/daniticau/skillset">GitHub</a>
         </nav>
@@ -56,7 +62,6 @@
 
     <main id="top">
       <section class="hero wrap" aria-labelledby="hero-title">
-        <div class="hero-glow" aria-hidden="true"></div>
         <h1 id="hero-title"><span class="line">One folder of skills that every</span> <span class="line">coding agent reads.</span></h1>
         <p class="lede">
           Claude Code, Codex, Kimi Code, Grok, and Cursor all learn from <code>SKILL.md</code> files,
@@ -243,7 +248,7 @@
             <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks add https://skills.sh/cursor/plugins/unslop</span>
 <span class="t-ok">✓</span> added <span class="t-hl">unslop</span>
 <span class="t-dim">  from github.com/cursor/plugins@main/pstack/skills/unslop</span>
-<span class="t-ok">✓</span> synced 13 skill(s) → 6 mirror(s) (6 writes)</code></pre>
+<span class="t-ok">✓</span> synced 13 skills → 6 mirrors (6 writes)</code></pre>
           </figure>
           <figure class="sources" aria-label="Sources sks add accepts">
             <div class="source-row"><span>A skills.sh page</span><code>sks add https://skills.sh/cursor/plugins/unslop</code></div>
@@ -278,12 +283,12 @@
             <pre><code><span class="t-prompt">$</span> <span class="t-cmd">sks always no-eyebrows</span>
 <span class="t-inf">∞</span> <span class="t-hl">no-eyebrows</span> is now always-on; it goes into every agent's global instructions file
 <span class="t-ok">✓</span> updated <span class="t-hl">no-eyebrows</span>
-<span class="t-inf">∞</span> always-on: 3 rule(s) → Claude Code ~/.claude/CLAUDE.md
-<span class="t-inf">∞</span> always-on: 3 rule(s) → Codex ~/.codex/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rule(s) → Kimi Code ~/.kimi-code/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rule(s) → Grok CLI ~/.grok/AGENTS.md
-<span class="t-inf">∞</span> always-on: 3 rule(s) → Generic ~/.agents/AGENTS.md
-<span class="t-ok">✓</span> synced 13 skill(s) → 6 mirror(s) (6 writes)</code></pre>
+<span class="t-inf">∞</span> always-on: 3 rules → Claude Code ~/.claude/CLAUDE.md
+<span class="t-inf">∞</span> always-on: 3 rules → Codex ~/.codex/AGENTS.md
+<span class="t-inf">∞</span> always-on: 3 rules → Kimi Code ~/.kimi-code/AGENTS.md
+<span class="t-inf">∞</span> always-on: 3 rules → Grok CLI ~/.grok/AGENTS.md
+<span class="t-inf">∞</span> always-on: 3 rules → Generic ~/.agents/AGENTS.md
+<span class="t-ok">✓</span> synced 13 skills → 6 mirrors (6 writes)</code></pre>
           </figure>
           <figure class="file" aria-label="The managed block inside ~/.claude/CLAUDE.md">
             <figcaption>~/.claude/CLAUDE.md</figcaption>
@@ -340,9 +345,10 @@ Short words. Active voice. One idea per sentence. Cut every word you can.
           <h2 id="app-title">A window onto the store.</h2>
           <p>
             The Mac app lists every skill in two groups, always-on and on demand, and marks each
-            by kind. You edit the name, the description, and the body in place. New Skill takes a
-            pasted <code>SKILL.md</code> or a link and saves it to the store. Build it from the
-            repo with <code>pnpm app:install</code>.
+            by kind. Edit the name, the description, and the body in place. Paste a
+            <code>SKILL.md</code> or a link into New Skill to add one. The app and the CLI share
+            the store, so a change in one shows up in the other. Run <code>sks app</code> to
+            install it.
           </p>
         </div>
         <figure class="shot">
@@ -352,7 +358,7 @@ Short words. Active voice. One idea per sentence. Cut every word you can.
             height="1400"
             loading="lazy"
             decoding="async"
-            alt="The Skillset Mac app. A sidebar lists thirteen skills. The detail pane shows the no-eyebrows skill with its description and body."
+            alt="The Skillset Mac app. A sidebar lists eleven skills in two groups, Always On and On Demand. The detail pane shows the no-eyebrows rule."
           />
         </figure>
       </section>
@@ -374,6 +380,7 @@ Short words. Active voice. One idea per sentence. Cut every word you can.
           <div class="command-row"><code>sks remove &lt;skill&gt;</code><span>Delete a skill and prune it from every mirror. <code>--block</code> stops it being adopted back.</span></div>
           <div class="command-row"><code>sks status</code><span>Connected mirrors, their instructions files, and every skill's state.</span></div>
           <div class="command-row"><span class="cmd"><code>sks connect</code> / <code>sks disconnect</code></span><span>Manage mirrors. Connecting imports the agent's existing skills first.</span></div>
+          <div class="command-row"><code>sks app</code><span>Install the Mac app into <code>/Applications</code>.</span></div>
           <div class="command-row"><code>sks doctor [--repair]</code><span>Store health, mirror drift, conflicts. <code>--repair</code> relinks a moved store and reconciles every mirror.</span></div>
         </div>
       </section>
@@ -398,6 +405,7 @@ Short words. Active voice. One idea per sentence. Cut every word you can.
         <p class="cta-note">
           Then run <code>sks init</code>. It creates <code>~/.skillset</code>, finds the coding agents
           you have, imports the skills they already hold, and mirrors the merged library back out.
+          Run <code>sks app</code> for the Mac app.
         </p>
       </section>
     </main>

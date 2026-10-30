@@ -5,6 +5,7 @@ import pc from "picocolors";
 import { STORE_SKILLS_DIR } from "../core/paths.js";
 import { listSkillDirs, readSkillMd } from "../core/skill.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
+import { count } from "../core/ux/count.js";
 
 export type CheckSeverity = "error" | "warning";
 
@@ -194,7 +195,7 @@ export async function checkCommand(name: string | undefined, options: CheckOptio
       console.log(`  ${marker} ${pc.bold(issue.skill)} ${issue.message}`);
     }
     if (result.issues.length > 0) console.log();
-    const summary = `${result.valid}/${result.checked} valid skill(s) · ${result.errors} error(s) · ${result.warnings} warning(s)`;
+    const summary = `${result.valid}/${count(result.checked, "valid skill")} · ${count(result.errors, "error")} · ${count(result.warnings, "warning")}`;
     console.log(result.errors > 0 ? pc.red(summary) : pc.green(`✓ ${summary}`));
   }
   if (result.errors > 0) process.exitCode = 1;

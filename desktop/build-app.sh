@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="${0:A:h:h}"
+# --release builds for Apple silicon and Intel and leaves out this Mac's Node
+# path. `sks app` writes the user's own path when it installs the app.
+RELEASE=0
+[[ "${1:-}" == "--release" ]] && RELEASE=1
+ARCH_FLAGS=()
+(( RELEASE )) && ARCH_FLAGS=(--arch arm64 --arch x86_64)
 DESKTOP_DIR="$ROOT_DIR/desktop"
 APP_DIR="$DESKTOP_DIR/build/Skillset.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -30,17 +36,18 @@ mkdir -p "$BUILD_DIR"
 print -r -- "$ROOT_DIR" > "$ROOT_MARKER"
 
 # Belt and braces: a stale cache the marker did not catch still gets one clean retry.
-if ! swift build -c release --package-path "$DESKTOP_DIR"; then
+if ! swift build -c release "${ARCH_FLAGS[@]}" --package-path "$DESKTOP_DIR"; then
   print -r -- "swift build failed; clearing desktop/.build and retrying once" >&2
   rm -rf "$BUILD_DIR"
   mkdir -p "$BUILD_DIR"
   print -r -- "$ROOT_DIR" > "$ROOT_MARKER"
-  swift build -c release --package-path "$DESKTOP_DIR"
+  swift build -c release "${ARCH_FLAGS[@]}" --package-path "$DESKTOP_DIR"
 fi
+BIN_DIR="$(swift build -c release "${ARCH_FLAGS[@]}" --package-path "$DESKTOP_DIR" --show-bin-path)"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-cp "$DESKTOP_DIR/.build/release/Skillset" "$MACOS_DIR/Skillset"
+cp "$BIN_DIR/Skillset" "$MACOS_DIR/Skillset"
 
 # SwiftPM stamps the binary with an SDK version equal to the deployment target
 # (14.0). macOS reads that stamp to choose the design: a 14.0 stamp puts the app
@@ -52,7 +59,7 @@ xcrun vtool -set-build-version macos "$MIN_OS" "$(xcrun --sdk macosx --show-sdk-
 
 cp "$DESKTOP_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$ROOT_DIR/dist-app/cli.cjs" "$RESOURCES_DIR/skillset-cli.cjs"
-print -r -- "$NODE_PATH" > "$RESOURCES_DIR/node-path.txt"
+(( RELEASE )) || print -r -- "$NODE_PATH" > "$RESOURCES_DIR/node-path.txt"
 
 rm -rf "$ICONSET_DIR"
 mkdir -p "$ICONSET_DIR"

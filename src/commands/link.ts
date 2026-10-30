@@ -5,6 +5,7 @@ import { getAdapter, supportedAgents } from "../core/adapters/index.js";
 import { sync } from "../core/mirror.js";
 import { printSyncReport } from "./sync.js";
 import { appendHistoryEvent } from "../core/history.js";
+import { count } from "../core/ux/count.js";
 
 export async function connectCommand(
   rawAgent: string,
@@ -59,7 +60,7 @@ export async function disconnectCommand(rawAgent: string, options: { path?: stri
     console.log(pc.dim(`• no matching connection for ${agent}`));
     return;
   }
-  console.log(pc.green(`✓ disconnected ${removed} mirror(s) for ${agent}`));
+  console.log(pc.green(`✓ disconnected ${count(removed, "mirror")} for ${agent}`));
   printSyncReport(await sync());
   await appendHistoryEvent({
     kind: "connection",

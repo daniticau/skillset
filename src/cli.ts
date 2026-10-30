@@ -3,7 +3,6 @@ import pc from "picocolors";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { loadEnv } from "./core/env.js";
 import { initCommand } from "./commands/init.js";
 import { connectCommand, disconnectCommand } from "./commands/link.js";
 import { statusCommand } from "./commands/status.js";
@@ -12,6 +11,7 @@ import { catalogCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { addCommand, alwaysCommand, editCommand, removeCommand, renameCommand, showCommand } from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
+import { appCommand } from "./commands/app.js";
 import {
   desktopCreateCommand,
   desktopParseCommand,
@@ -20,8 +20,8 @@ import {
 } from "./commands/desktop.js";
 import { supportedAgents } from "./core/adapters/index.js";
 
-// Load ~/.skillset/.env before any command reads process.env.
-loadEnv();
+/** Set from package.json at build time. */
+declare const SKILLSET_VERSION: string | undefined;
 
 export function createProgram(): Command {
   const program = new Command();
@@ -29,7 +29,7 @@ export function createProgram(): Command {
   program
     .name("sks")
     .description("one canonical skill library, mirrored into every coding agent")
-    .version("0.2.0");
+    .version(typeof SKILLSET_VERSION === "string" ? SKILLSET_VERSION : "dev");
 
   program
     .command("init")
@@ -148,11 +148,20 @@ export function createProgram(): Command {
 
   program
     .command("doctor")
-    .description("check store health, LLM connectivity, and mirror state")
+    .description("check store health and mirror state")
     .option("--repair", "relink a moved store, then reconcile canonical skills with connected mirrors")
     .option("--store <path>", "with --repair: point the store's skills link at this folder")
     .action(async (options: { repair?: boolean; store?: string }) => {
       await doctorCommand(options);
+    });
+
+  program
+    .command("app")
+    .description("install the Skillset desktop app")
+    .option("--dir <path>", "install into this folder instead of /Applications")
+    .option("--no-open", "install without opening the app")
+    .action(async (options: { dir?: string; open?: boolean }) => {
+      await appCommand(options);
     });
 
   const desktop = program
