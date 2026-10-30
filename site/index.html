@@ -39,7 +39,7 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=12" />
+    <link rel="stylesheet" href="./styles.css?v=13" />
     <script src="./script.js?v=10" defer></script>
   </head>
   <body>
@@ -50,7 +50,6 @@
       </span>
       <nav class="nav" aria-label="Links">
         <a href="https://github.com/daniticau/skillset">GitHub</a>
-        <a href="https://www.npmjs.com/package/skillset-cli">npm</a>
       </nav>
     </header>
 
@@ -61,20 +60,28 @@
           Skillset keeps your <code>SKILL.md</code> files in one place and mirrors them into Claude
           Code, Codex, Kimi Code, Grok, and Cursor. Use the CLI, the Mac app, or both.
         </p>
-        <div class="install" aria-label="Install command">
-          <span class="install-prompt" aria-hidden="true">$</span>
-          <code id="install-command">npm i -g skillset-cli</code>
-          <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy the install command">
-            <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" />
-              <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor" />
+        <div class="actions">
+          <a class="download" href="https://github.com/daniticau/skillset/releases/latest/download/Skillset.dmg">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+            Download for Mac
+          </a>
+          <div class="install" aria-label="Install command">
+            <span class="install-prompt" aria-hidden="true">$</span>
+            <code id="install-command">npm i -g skillset-cli</code>
+            <button class="copy" type="button" data-copy-target="install-command" aria-label="Copy the install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" />
+                <path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3.5v5A1.5 1.5 0 0 0 4 10h1.5" stroke="currentColor" />
+              </svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <p class="fine">Then <code>sks init</code>. Run <code>sks app</code> for the Mac app. macOS, Node 20 or newer.</p>
+        <p class="fine">macOS 14 or newer, with Node 20 or newer. The app and the CLI share one library.</p>
       </section>
 
       <section class="showcase wrap" aria-label="The Mac app and the CLI">

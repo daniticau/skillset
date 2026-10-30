@@ -18,10 +18,13 @@ export const BUILTIN_SKILLS = ["skillify", "skillset-cli"] as const;
  */
 const STALE_MARKERS = ["sks tailor", "--managed", "sks promote"];
 
-/** `skills/` sits next to `dist/` when bundled and two levels above this file in the source tree. */
+/**
+ * `skills/` sits next to `dist/` in the npm package, next to the CLI inside
+ * Skillset.app's Resources, and two levels above this file in the source tree.
+ */
 function builtinSkillsDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  for (const candidate of [join(here, "..", "skills"), join(here, "..", "..", "skills")]) {
+  for (const candidate of [join(here, "..", "skills"), join(here, "skills"), join(here, "..", "..", "skills")]) {
     if (existsSync(join(candidate, BUILTIN_SKILLS[0], "SKILL.md"))) return candidate;
   }
   throw new Error("the built-in skills folder is missing from this install of Skillset");

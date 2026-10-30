@@ -26,13 +26,18 @@ export function bundledAppPath(): string | null {
   return null;
 }
 
-/** /Applications when the user can write to it, which admin accounts can. */
+/**
+ * Where an earlier install already lives, so an update replaces it. Otherwise
+ * /Applications when the user can write to it, which admin accounts can.
+ */
 export async function defaultInstallDir(): Promise<string> {
+  const home = join(homedir(), "Applications");
+  if (existsSync(join(home, "Skillset.app"))) return home;
   try {
     await access("/Applications", constants.W_OK);
     return "/Applications";
   } catch {
-    return join(homedir(), "Applications");
+    return home;
   }
 }
 

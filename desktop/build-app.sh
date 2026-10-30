@@ -59,6 +59,8 @@ xcrun vtool -set-build-version macos "$MIN_OS" "$(xcrun --sdk macosx --show-sdk-
 
 cp "$DESKTOP_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$ROOT_DIR/dist-app/cli.cjs" "$RESOURCES_DIR/skillset-cli.cjs"
+# The app runs `sks init` on a new Mac, which installs these.
+ditto "$ROOT_DIR/skills" "$RESOURCES_DIR/skills"
 (( RELEASE )) || print -r -- "$NODE_PATH" > "$RESOURCES_DIR/node-path.txt"
 
 rm -rf "$ICONSET_DIR"

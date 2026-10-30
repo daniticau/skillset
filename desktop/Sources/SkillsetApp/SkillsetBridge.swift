@@ -18,6 +18,16 @@ enum SkillsetBridgeError: LocalizedError {
 }
 
 struct SkillsetBridge: Sendable {
+    /// A first launch on a new Mac has no `~/.skillset`. `sks init` creates
+    /// it, connects the agents it finds, and imports their skills, as it does
+    /// from the terminal. A store that exists, even a broken one, is left to
+    /// `sks doctor`, so this never replaces it.
+    func setUpIfNeeded() async throws {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        guard !FileManager.default.fileExists(atPath: "\(home)/.skillset") else { return }
+        _ = try await run(["init", "--non-interactive"])
+    }
+
     func snapshot() async throws -> DesktopSnapshot {
         let data = try await run(["desktop", "snapshot"])
         return try JSONDecoder().decode(DesktopSnapshot.self, from: data)

@@ -195,6 +195,7 @@ final class AppModel {
         if showSpinner { isRefreshing = true }
         defer { isRefreshing = false }
         do {
+            try await bridge.setUpIfNeeded()
             let next = try await bridge.snapshot()
             guard !Task.isCancelled else { return }
             // A background refresh must not change the editor's baseline.

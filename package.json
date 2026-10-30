@@ -53,7 +53,8 @@
     "start": "node ./dist/cli.js",
     "cli": "node ./dist/cli.js",
     "cli:link": "node scripts/link-cli.mjs",
-    "app:release": "./desktop/build-app.sh --release && rm -rf app && mkdir app && ditto desktop/build/Skillset.app app/Skillset.app"
+    "app:release": "./desktop/build-app.sh --release && rm -rf app && mkdir app && ditto desktop/build/Skillset.app app/Skillset.app",
+    "app:publish": "./desktop/release-app.sh"
   },
   "dependencies": {
     "commander": "^12.1.0",

@@ -140,12 +140,37 @@ h1 {
   text-wrap: pretty;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.download:hover {
+  background: #ffffff;
+}
+
 .install {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   height: 46px;
-  margin-top: 32px;
   padding: 0 8px 0 18px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
@@ -348,6 +373,20 @@ h1 {
   .points {
     grid-template-columns: 1fr;
     gap: 28px;
+  }
+
+  .actions,
+  .download,
+  .install {
+    width: 100%;
+  }
+
+  .download {
+    justify-content: center;
+  }
+
+  .install {
+    justify-content: space-between;
   }
 }
 
