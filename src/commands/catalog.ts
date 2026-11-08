@@ -35,12 +35,14 @@ interface CatalogEntry {
  *
  * Plain substring matching silently misfires: "whenever" contains "never", so
  * every skill whose description said "use whenever…" was classified as a hard
- * rule. Anchor each term to word boundaries instead.
+ * rule. Anchor each term to word boundaries instead. A trailing `*` marks a
+ * stem: "evaluat*" matches "evaluate", "evaluating", and "evaluation".
  */
 function hasAny(text: string, terms: string[]): boolean {
   return terms.some((term) => {
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+    const stem = term.endsWith("*");
+    const escaped = (stem ? term.slice(0, -1) : term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}${stem ? "\\w*" : ""}\\b`, "i").test(text);
   });
 }
 
@@ -71,13 +73,13 @@ export function categorizeSkill(skill: {
   if (isRule) return "Rule";
 
   const isJudgement = hasAny(text, [
-    "evaluat",
+    "evaluat*",
     "ranking",
     "choosing",
-    "critiqu",
-    "assess",
+    "critiqu*",
+    "assess*",
     "novelty",
-    "aesthetic",
+    "aesthetic*",
     "taste",
     "targeted questions",
     "ambiguous",

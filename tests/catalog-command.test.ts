@@ -109,6 +109,17 @@ describe("catalog command", () => {
     ).toBe("Rule");
   });
 
+  it("matches stems such as \"evaluat*\" against every word form", () => {
+    // Word boundaries on both ends used to stop "evaluat" from matching "evaluate".
+    for (const description of [
+      "Use when the user asks to evaluate a design.",
+      "Use when the user wants a critique of a draft.",
+      "Use when the user assesses a pull request.",
+    ]) {
+      expect(categorizeSkill({ name: "review-helper", description })).toBe("Judgement");
+    }
+  });
+
   it("does not treat \"whenever\" as the constraint word \"never\"", () => {
     // Substring matching used to classify every "use whenever…" skill as a Rule.
     expect(
