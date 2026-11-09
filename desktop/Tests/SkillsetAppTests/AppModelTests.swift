@@ -119,6 +119,20 @@ final class AppModelTests: XCTestCase {
             XCTAssertEqual(model.skillGroups.map(\.name), ["Learning", "Special", "Always On", "Design", "On Demand"])
             XCTAssertEqual(AppModel().groupOrder, model.groupOrder)
 
+            // A drag only marks the target; the order changes on the drop.
+            model.beginGroupDrag("Special")
+            model.hoverGroup("Design")
+            XCTAssertEqual(model.dropTarget, "Design")
+            XCTAssertTrue(model.dropsBelowTarget)
+            XCTAssertEqual(model.skillGroups.map(\.name), ["Learning", "Special", "Always On", "Design", "On Demand"])
+            model.hoverGroup("Special")
+            XCTAssertNil(model.dropTarget)
+            model.hoverGroup("Design")
+            model.dropGroup()
+            XCTAssertEqual(model.skillGroups.map(\.name), ["Learning", "Always On", "Design", "Special", "On Demand"])
+            XCTAssertNil(model.draggingGroup)
+            XCTAssertNil(model.dropTarget)
+
             model.toggleGroup("Design")
             XCTAssertFalse(model.isExpanded("Design"))
             XCTAssertTrue(model.visibleSkillIDs.contains("orb"))

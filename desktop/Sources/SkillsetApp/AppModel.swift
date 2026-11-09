@@ -101,9 +101,10 @@ final class AppModel {
 
     /// The group whose header is being dragged.
     var draggingGroup: String?
-    /// The header the dragged group last swapped with. A swap moves that header
-    /// under the still pointer, and must not trigger a swap back.
-    private var lastSwapTarget: String?
+    /// The group the dragged one will land next to. The list does not change
+    /// while the drag runs; only an insertion line moves. Changing rows under
+    /// a running drag makes the list reload and jump.
+    var dropTarget: String?
     /// Ends a drag that no header received: dropped outside, or cancelled.
     private var dragEndMonitor: Any?
 
@@ -139,7 +140,7 @@ final class AppModel {
 
     func beginGroupDrag(_ group: String) {
         draggingGroup = group
-        lastSwapTarget = nil
+        dropTarget = nil
         guard dragEndMonitor == nil else { return }
         // AppKit keeps mouse events to itself while a drag runs. The first one
         // the app sees with no button down comes after the drag has ended.
@@ -155,22 +156,35 @@ final class AppModel {
 
     func endGroupDrag() {
         draggingGroup = nil
-        lastSwapTarget = nil
+        dropTarget = nil
         if let dragEndMonitor { NSEvent.removeMonitor(dragEndMonitor) }
         dragEndMonitor = nil
     }
 
-    /// Called as the dragged group's header passes over another header.
-    func dragGroup(_ group: String, over target: String) {
-        guard group != target else { return }
-        guard target != lastSwapTarget else { return }
-        lastSwapTarget = target
-        moveGroup(group, to: target)
+    /// The pointer is over a group's header or one of its skills.
+    func hoverGroup(_ target: String) {
+        guard let draggingGroup else { return }
+        let next = target == draggingGroup ? nil : target
+        guard next != dropTarget else { return }
+        withAnimation(.easeOut(duration: 0.12)) { dropTarget = next }
     }
 
-    /// Once the pointer leaves the header it swapped with, a swap back is allowed.
-    func leaveGroupHeader(_ target: String) {
-        if lastSwapTarget == target { lastSwapTarget = nil }
+    /// True when the dragged group lands after the target, so the insertion
+    /// line goes under the target group instead of over it.
+    var dropsBelowTarget: Bool {
+        let order = orderedGroupNames
+        guard let draggingGroup, let dropTarget,
+              let from = order.firstIndex(of: draggingGroup),
+              let to = order.firstIndex(of: dropTarget) else { return false }
+        return from < to
+    }
+
+    /// Moves the dragged group to the marked place, once, after the drag ends.
+    func dropGroup() {
+        if let draggingGroup, let dropTarget {
+            withAnimation(.smooth(duration: 0.3)) { moveGroup(draggingGroup, to: dropTarget) }
+        }
+        endGroupDrag()
     }
 
     /// Moves a dragged group to where another one sits. Dragged down, it lands

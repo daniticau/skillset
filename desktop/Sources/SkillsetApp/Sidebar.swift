@@ -63,19 +63,12 @@ private struct SkillList: View {
                     .padding(.top, gap(before: index))
                     .selectionDisabled()
                     .listRowSeparator(.hidden)
-                if model.isExpanded(group.name) { rows(group.skills) }
+                if model.isExpanded(group.name) { rows(group) }
             }
         }
         .listStyle(.sidebar)
         .environment(\.sidebarRowSize, .small)
         .environment(\.defaultMinListRowHeight, 16)
-        // A group dropped on a skill row lands where it is now, instead of
-        // flying back to where the drag began.
-        .onDrop(of: [.text], isTargeted: nil) { _ in
-            guard model.draggingGroup != nil else { return false }
-            model.endGroupDrag()
-            return true
-        }
         .overlay {
             if model.filteredSkills.isEmpty, !model.snapshot.skills.isEmpty {
                 VStack(spacing: 6) {
@@ -99,18 +92,26 @@ private struct SkillList: View {
         return model.isExpanded(groups[index - 1].name) ? UI.groupGap : 0
     }
 
-    private func rows(_ skills: [SkillRecord]) -> some View {
-        ForEach(skills) { skill in
+    /// A group's skills. Each row is also a drop target for the group, so a
+    /// dragged group can be aimed anywhere over it, not just at its header.
+    private func rows(_ group: SkillGroup) -> some View {
+        ForEach(group.skills) { skill in
             SkillRow(skill: skill)
+                .overlay(alignment: .bottom) {
+                    if skill.id == group.skills.last?.id {
+                        InsertionLine(visible: model.dropTarget == group.name && model.dropsBelowTarget)
+                    }
+                }
                 .tag(skill.id)
                 .listRowSeparator(.hidden)
                 .contextMenu { SkillMenu(model: model, skill: skill) }
+                .onDrop(of: [.text], delegate: GroupDropDelegate(model: model, target: group.name))
         }
     }
 }
 
-/// A group's title. A click folds the group away or opens it. A drag moves
-/// it: the other groups make room as it passes over them.
+/// A group's title. A click on the name, the count, or the arrow folds the
+/// group or opens it. A drag moves it: a line marks where it will land.
 private struct GroupHeader: View {
     @Bindable var model: AppModel
     let group: SkillGroup
@@ -122,24 +123,39 @@ private struct GroupHeader: View {
             Text(group.name)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            if !expanded {
-                Text("\(group.skills.count)")
-                    .font(.system(size: 11))
-                    .monospacedDigit()
-                    .foregroundStyle(.tertiary)
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+                // Simultaneous, so a press held before a drag still starts the drag.
+                .simultaneousGesture(TapGesture().onEnded(toggle))
+
+            Button(action: toggle) {
+                HStack(spacing: 6) {
+                    if !expanded {
+                        Text("\(group.skills.count)")
+                            .font(.system(size: 11))
+                            .monospacedDigit()
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                }
                 .foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(expanded ? 90 : 0))
+                .padding(.leading, 8)
+                .frame(minHeight: 16)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
         }
-        .contentShape(.rect)
+        .overlay(alignment: .top) {
+            InsertionLine(visible: model.dropTarget == group.name && !model.dropsBelowTarget)
+        }
+        .overlay(alignment: .bottom) {
+            // A folded group's header is its last row.
+            if !expanded {
+                InsertionLine(visible: model.dropTarget == group.name && model.dropsBelowTarget)
+            }
+        }
         .opacity(model.draggingGroup == group.name ? 0.4 : 1)
-        // Simultaneous, so a press held before a drag still starts the drag.
-        .simultaneousGesture(TapGesture().onEnded {
-            withAnimation(.smooth(duration: 0.25)) { model.toggleGroup(group.name) }
-        })
         .onDrag {
             model.beginGroupDrag(group.name)
             return NSItemProvider(object: group.name as NSString)
@@ -157,10 +173,28 @@ private struct GroupHeader: View {
         .accessibilityValue(expanded ? "expanded" : "collapsed")
         .accessibilityAction { model.toggleGroup(group.name) }
     }
+
+    private func toggle() {
+        withAnimation(.smooth(duration: 0.25)) { model.toggleGroup(group.name) }
+    }
 }
 
-/// Moves the dragged group as soon as it enters another group's header, so
-/// the list reorders under the pointer instead of jumping on release.
+/// Where a dragged group will land. It fades in place, so nothing in the
+/// list moves until the drop.
+private struct InsertionLine: View {
+    let visible: Bool
+
+    var body: some View {
+        Capsule()
+            .fill(Color.accentColor)
+            .frame(height: 2)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(false)
+    }
+}
+
+/// Marks where the dragged group will land. The move itself waits for the
+/// drop: reordering rows under a running drag makes the list reload and jump.
 private struct GroupDropDelegate: DropDelegate {
     let model: AppModel
     let target: String
@@ -170,12 +204,7 @@ private struct GroupDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        guard let dragged = model.draggingGroup else { return }
-        withAnimation(.smooth(duration: 0.28)) { model.dragGroup(dragged, over: target) }
-    }
-
-    func dropExited(info: DropInfo) {
-        model.leaveGroupHeader(target)
+        model.hoverGroup(target)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -183,7 +212,7 @@ private struct GroupDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        model.endGroupDrag()
+        model.dropGroup()
         return true
     }
 }
