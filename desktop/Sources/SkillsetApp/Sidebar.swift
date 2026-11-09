@@ -231,27 +231,23 @@ struct SkillMenu: View {
     }
 }
 
+/// One line per skill: its kind's symbol and its name. The description shows
+/// on hover and in the detail pane, so the list stays compact.
 private struct SkillRow: View {
     let skill: SkillRecord
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(spacing: 8) {
             Image(systemName: SkillKindStyle.symbol(skill.kind))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(SkillKindStyle.color(skill.kind))
                 .frame(width: 18)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(skill.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                Text(skill.description)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
+            Text(skill.name)
+                .font(.system(size: 13))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
-        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
         .help(skill.description)

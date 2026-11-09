@@ -1,6 +1,6 @@
 {
   "name": "skillset-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "One skill library for every coding agent. Skillset keeps your skills in one place and syncs them into Claude Code, Codex, Kimi Code, Grok, and Cursor.",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
