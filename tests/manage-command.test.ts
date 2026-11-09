@@ -24,7 +24,7 @@ vi.mock("../src/core/paths.js", () => ({
   LEGACY_CODEX_SKILLS_DIR: join(ROOT, "legacy-codex-skills"),
 }));
 
-const { addCommand, editCommand, renameCommand, saveSkillFields, showCommand } = await import("../src/commands/manage.js");
+const { addCommand, alwaysCommand, categoryCommand, editCommand, kindCommand, renameCommand, saveSkillFields, showCommand } = await import("../src/commands/manage.js");
 const { readState } = await import("../src/core/config.js");
 
 const RAW = `---
@@ -251,5 +251,39 @@ describe("agent-safe skill management", () => {
     await showCommand("test-skill");
 
     expect(write).toHaveBeenCalledWith(expect.stringContaining("name: test-skill"));
+  });
+});
+
+describe("category and kind", () => {
+  const skillFile = () => join(SKILLS, "test-skill", "SKILL.md");
+
+  it("sets, keeps, and clears a category", async () => {
+    await addCommand(undefined, { content: RAW });
+    await categoryCommand("test-skill", "Design");
+    expect(readFileSync(skillFile(), "utf8")).toContain('category: "Design"');
+
+    // Other mutations re-render the frontmatter and must keep the category.
+    await alwaysCommand("test-skill");
+    await saveSkillFields({ name: "test-skill", description: "Use when testing categories." });
+    expect(readFileSync(skillFile(), "utf8")).toContain('category: "Design"');
+
+    await categoryCommand("test-skill", undefined, { clear: true });
+    expect(readFileSync(skillFile(), "utf8")).not.toContain("category:");
+  });
+
+  it("rejects an empty category", async () => {
+    await addCommand(undefined, { content: RAW });
+    await categoryCommand("test-skill", "   ");
+    expect(process.exitCode).toBe(1);
+    expect(readFileSync(skillFile(), "utf8")).not.toContain("category:");
+  });
+
+  it("sets a kind and rejects an unknown one", async () => {
+    await addCommand(undefined, { content: RAW });
+    await kindCommand("test-skill", "Tool");
+    expect(readFileSync(skillFile(), "utf8")).toContain("kind: tool");
+    await kindCommand("test-skill", "recipe");
+    expect(process.exitCode).toBe(1);
+    expect(readFileSync(skillFile(), "utf8")).toContain("kind: tool");
   });
 });

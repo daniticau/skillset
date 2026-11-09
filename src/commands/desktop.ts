@@ -1,6 +1,7 @@
 import matter from "gray-matter";
 import pc from "picocolors";
-import { renderSkillMd } from "../core/skill.js";
+import { cleanCategory, isSkillKind, renderSkillMd } from "../core/skill.js";
+import type { SkillKind } from "../core/skill.js";
 import { createDesktopSnapshot } from "../desktop/snapshot.js";
 import { addCommand, readStdin, saveSkillFields } from "./manage.js";
 import type { SaveSkillFieldsInput } from "./manage.js";
@@ -49,6 +50,8 @@ export interface SplitSkill {
   name?: string;
   description?: string;
   always?: boolean;
+  category?: string;
+  kind?: SkillKind;
   body: string;
 }
 
@@ -71,6 +74,9 @@ export function splitSkillMarkdown(raw: string): SplitSkill {
     split.description = data.description.trim();
   }
   if (data.always === true) split.always = true;
+  if (typeof data.category === "string") split.category = cleanCategory(data.category);
+  const kind = typeof data.kind === "string" ? data.kind.trim().toLowerCase() : undefined;
+  if (isSkillKind(kind)) split.kind = kind;
   return split;
 }
 
@@ -84,6 +90,8 @@ export interface CreateSkillInput {
   description: string;
   body: string;
   always: boolean;
+  category?: string;
+  kind?: SkillKind;
 }
 
 /** Turn the app's JSON payload into a new skill. Exported for tests. */
@@ -102,11 +110,13 @@ export function parseDesktopCreate(raw: string): CreateSkillInput {
     description,
     body: optionalString(data.body, "body") ?? "",
     always: data.always === true,
+    category: cleanCategory(optionalString(data.category, "category") ?? ""),
+    kind: isSkillKind(data.kind) ? data.kind : undefined,
   };
 }
 
 /**
- * `sks desktop create`: the app sends `{ name, description, body, always? }`
+ * `sks desktop create`: the app sends `{ name, description, body, always?, category?, kind? }`
  * on stdin. The CLI renders the frontmatter and installs the skill the same
  * way `sks add` does.
  */
@@ -116,7 +126,16 @@ export async function desktopCreateCommand(): Promise<void> {
   try {
     const input = parseDesktopCreate((await readStdin()).trim());
     always = input.always;
-    content = renderSkillMd({ name: input.name, description: input.description, always }, input.body);
+    content = renderSkillMd(
+      {
+        name: input.name,
+        description: input.description,
+        always,
+        category: input.category,
+        kind: input.kind,
+      },
+      input.body
+    );
   } catch (err) {
     console.error(pc.red(`invalid skill: ${err instanceof Error ? err.message : String(err)}`));
     process.exitCode = 1;

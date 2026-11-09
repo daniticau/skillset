@@ -75,6 +75,17 @@ describe("catalog command", () => {
     expect(output).toContain("skillify");
   });
 
+  it("trusts a kind written into the frontmatter over the keyword guess", () => {
+    expect(
+      categorizeSkill({
+        name: "coast-cli-skill",
+        description: "Search past on-screen activity with the coast CLI.",
+        always: true,
+        kind: "judgement",
+      })
+    ).toBe("Judgement");
+  });
+
   it("classifies skills by the kind of knowledge they carry", () => {
     expect(
       categorizeSkill({

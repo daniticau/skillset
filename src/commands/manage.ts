@@ -11,7 +11,11 @@ import {
   writeState,
 } from "../core/config.js";
 import {
+  MAX_CATEGORY_LENGTH,
+  SKILL_KINDS,
+  cleanCategory,
   hashSkillDir,
+  isSkillKind,
   parseSkillMd,
   readSkillMd,
   renderSkillMd,
@@ -576,6 +580,85 @@ export async function removeCommand(
     agents,
     source: "manual",
   });
+}
+
+export interface CategoryOptions {
+  /** Take the skill out of its category. */
+  clear?: boolean;
+}
+
+/**
+ * `sks category <skill> [category]`: put a skill in a sidebar group such as
+ * "Design". The agent that writes a skill picks the group, so the library
+ * sorts itself. With no category it prints the current one.
+ */
+export async function categoryCommand(
+  name: string,
+  category: string | undefined,
+  options: CategoryOptions = {}
+): Promise<void> {
+  const dir = storeSkillDir(name);
+  const file = join(dir, "SKILL.md");
+  if (!existsSync(file)) {
+    console.error(pc.red(`no skill named "${name}"`));
+    process.exitCode = 1;
+    return;
+  }
+  const parsed = await readSkillMd(dir);
+  if (!options.clear && category === undefined) {
+    console.log(parsed.frontmatter.category ?? pc.dim("(none)"));
+    return;
+  }
+  let next: string | undefined;
+  if (!options.clear) {
+    next = cleanCategory(category ?? "");
+    if (!next) {
+      console.error(pc.red(`category must be 1 to ${MAX_CATEGORY_LENGTH} characters`));
+      process.exitCode = 1;
+      return;
+    }
+  }
+  if (parsed.frontmatter.category === next) {
+    console.log(pc.dim(`• ${name} is already ${next ? `in ${next}` : "without a category"}`));
+    return;
+  }
+  const before = await hashSkillDir(dir);
+  await writeFile(file, renderSkillMd({ ...parsed.frontmatter, category: next }, parsed.body), "utf8");
+  console.log(
+    next
+      ? pc.green(`✓ ${pc.bold(name)} is now in ${pc.bold(next)}`)
+      : pc.dim(`○ ${pc.bold(name)} has no category now`)
+  );
+  await finishEdit(name, before);
+}
+
+/**
+ * `sks kind <skill> <kind>`: record the kind of knowledge a skill carries.
+ * It overrides the keyword guess that `sks catalog` and the app fall back on.
+ */
+export async function kindCommand(name: string, kind: string): Promise<void> {
+  const dir = storeSkillDir(name);
+  const file = join(dir, "SKILL.md");
+  if (!existsSync(file)) {
+    console.error(pc.red(`no skill named "${name}"`));
+    process.exitCode = 1;
+    return;
+  }
+  const lowered = kind.trim().toLowerCase();
+  if (!isSkillKind(lowered)) {
+    console.error(pc.red(`kind must be one of ${SKILL_KINDS.join(", ")}`));
+    process.exitCode = 1;
+    return;
+  }
+  const parsed = await readSkillMd(dir);
+  if (parsed.frontmatter.kind === lowered) {
+    console.log(pc.dim(`• ${name} is already a ${lowered} skill`));
+    return;
+  }
+  const before = await hashSkillDir(dir);
+  await writeFile(file, renderSkillMd({ ...parsed.frontmatter, kind: lowered }, parsed.body), "utf8");
+  console.log(pc.green(`✓ ${pc.bold(name)} is a ${lowered} skill`));
+  await finishEdit(name, before);
 }
 
 export interface AlwaysOptions {

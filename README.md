@@ -17,7 +17,7 @@ It's still early.
 sks app
 ```
 
-This installs Skillset.app into `/Applications`. The app lists every skill in two groups, Always On and On Demand. You can read, edit, pin, and add skills there. It works on the same store as the CLI, so a change in one shows up in the other.
+This installs Skillset.app into `/Applications`. The app groups your skills by category in the sidebar. Click a group to fold it, and drag it to change the order. You can read, edit, pin, and add skills there. It works on the same store as the CLI, so a change in one shows up in the other.
 
 ## Adding skills
 
@@ -45,6 +45,17 @@ Skillset then writes that skill into each agent's global instructions file (`~/.
 
 Always-on text costs tokens every turn, so `sks check` warns when one goes over 150 words. `sks always <skill> --off` turns it back into a normal skill.
 
+## Categories
+
+Each skill can carry a `category`, such as Design or Learning, and a `kind`: tool, workflow, judgement, or rule. The agent that writes a skill picks both, because it has read the whole skill. The built-in skillify skill does this for every skill it makes.
+
+```sh
+sks category tactile-button-design Design
+sks kind tactile-button-design judgement
+```
+
+The app shows skillify under Special at the top, then Always On, then your categories. Skills with no category go under On Demand at the bottom.
+
 ## Commands
 
 | Command | What it does |
@@ -52,6 +63,8 @@ Always-on text costs tokens every turn, so `sks check` warns when one goes over 
 | `sks init` | Set up the store and connect your agents |
 | `sks add [source]` | Add a skill |
 | `sks always <skill>` | Make a skill always-on (`--off` to undo) |
+| `sks category <skill> [category]` | Put a skill in a sidebar group (`--clear` to undo) |
+| `sks kind <skill> <kind>` | Set a skill's kind: tool, workflow, judgement, or rule |
 | `sks list` | List your skills (`sks catalog` groups them) |
 | `sks show <skill>` | Print a skill |
 | `sks check [skill]` | Check a skill's structure, wording, and size |

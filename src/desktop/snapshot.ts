@@ -29,7 +29,10 @@ export interface DesktopSkill {
   markdown: string;
   origin: string;
   userEdited: boolean;
-  category: string;
+  /** Tool, Workflow, Judgement, or Rule. */
+  kind: string;
+  /** The sidebar group an agent chose, such as "Design". Absent until one is set. */
+  category?: string;
   /** Loads in every session through the agents' global instructions files. */
   always: boolean;
   /** The skill's folder in the canonical store. */
@@ -88,7 +91,8 @@ export async function createDesktopSnapshot(): Promise<Record<string, unknown>> 
       markdown,
       origin: parsed.frontmatter.origin ?? skillState?.origin ?? "user-created",
       userEdited: skillState?.userEdited ?? false,
-      category: categorizeSkill(parsed.frontmatter),
+      kind: categorizeSkill(parsed.frontmatter),
+      category: parsed.frontmatter.category,
       always: parsed.frontmatter.always === true,
       path: storeSkillDir(name),
       files: await supportingFiles(storeSkillDir(name)),

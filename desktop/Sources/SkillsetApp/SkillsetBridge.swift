@@ -61,6 +61,11 @@ struct SkillsetBridge: Sendable {
         _ = try await run(["doctor", "--repair"])
     }
 
+    /// Puts a skill in a sidebar group, or takes it out with nil.
+    func setCategory(name: String, category: String?) async throws {
+        _ = try await run(category.map { ["category", name, $0] } ?? ["category", name, "--clear"])
+    }
+
     /// Turns a skill's always-on flag on or off. The CLI rewrites every
     /// agent's managed instructions block in the same pass.
     func setAlways(name: String, on: Bool) async throws {
@@ -76,8 +81,13 @@ struct SkillsetBridge: Sendable {
 
     /// Adds a new skill from the fields the app edits. The CLI renders the
     /// frontmatter and installs it as `sks add` would.
-    func createSkill(name: String, description: String, body: String, always: Bool) async throws {
-        let payload: [String: Any] = ["name": name, "description": description, "body": body, "always": always]
+    func createSkill(
+        name: String, description: String, body: String,
+        always: Bool, category: String? = nil, kind: String? = nil
+    ) async throws {
+        var payload: [String: Any] = ["name": name, "description": description, "body": body, "always": always]
+        if let category { payload["category"] = category }
+        if let kind { payload["kind"] = kind }
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let json = String(data: data, encoding: .utf8) else {
             throw SkillsetBridgeError.commandFailed("Could not encode the skill.")

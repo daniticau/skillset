@@ -3,6 +3,8 @@ import SwiftUI
 
 /// One spacing grid (multiples of 4) and one type scale for every screen.
 enum UI {
+    /// Space above a sidebar group header that follows an open group.
+    static let groupGap: CGFloat = 8
     static let sidebarWidth: CGFloat = 280
     /// Space on each side of a page. Text starts at the leading inset and runs
     /// to the trailing one, so a wider window holds longer lines.
@@ -213,24 +215,21 @@ struct FieldChrome: ViewModifier {
     }
 }
 
-/// An always-visible scroll bar narrows its scroll view. A view that sits above
-/// the scroll view pads by the same width, so one column runs down the page.
-struct ScrollBarGutter: ViewModifier {
-    @State private var width = ScrollBarGutter.current
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.trailing, width)
-            .onReceive(NotificationCenter.default.publisher(
-                for: NSScroller.preferredScrollerStyleDidChangeNotification
-            )) { _ in width = Self.current }
+/// Thin overlay scroll bars everywhere. With a mouse attached, macOS asks
+/// for wide legacy bars, and SwiftUI's list resets its own scroll view to them
+/// whenever it updates. So the app answers "overlay" whenever AppKit asks.
+enum ThinScrollers {
+    static func install() {
+        guard let system = class_getClassMethod(NSScroller.self, #selector(getter: NSScroller.preferredScrollerStyle)),
+              let overlay = class_getClassMethod(NSScroller.self, #selector(NSScroller.skillsetOverlayStyle))
+        else { return }
+        method_exchangeImplementations(system, overlay)
     }
+}
 
-    private static var current: CGFloat {
-        NSScroller.preferredScrollerStyle == .legacy
-            ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-            : 0
-    }
+extension NSScroller {
+    /// Swapped in for `preferredScrollerStyle` by `ThinScrollers.install()`.
+    @objc class func skillsetOverlayStyle() -> NSScroller.Style { .overlay }
 }
 
 // MARK: - Feedback

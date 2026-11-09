@@ -41,7 +41,10 @@ struct SkillRecord: Equatable, Identifiable {
     let markdown: String
     let origin: String
     let userEdited: Bool
-    let category: String
+    /// Tool, Workflow, Judgement, or Rule.
+    let kind: String
+    /// The sidebar group an agent chose, such as "Design". Nil until one is set.
+    var category: String?
     /// Loads in every session through each agent's global instructions file.
     var always = false
     /// The skill's folder in the canonical store.
@@ -54,10 +57,10 @@ struct SkillRecord: Equatable, Identifiable {
 
 extension SkillRecord: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, description, body, markdown, origin, userEdited, category, always, path, files
+        case id, name, description, body, markdown, origin, userEdited, kind, category, always, path, files
     }
 
-    /// The last three fields arrived later, so an older backend still decodes.
+    /// Later fields are optional, so an older backend still decodes.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
@@ -67,7 +70,8 @@ extension SkillRecord: Decodable {
         markdown = try c.decode(String.self, forKey: .markdown)
         origin = try c.decode(String.self, forKey: .origin)
         userEdited = try c.decode(Bool.self, forKey: .userEdited)
-        category = try c.decode(String.self, forKey: .category)
+        kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "Workflow"
+        category = try c.decodeIfPresent(String.self, forKey: .category)
         always = try c.decodeIfPresent(Bool.self, forKey: .always) ?? false
         path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
         files = try c.decodeIfPresent([String].self, forKey: .files) ?? []
@@ -109,5 +113,7 @@ struct SplitSkill: Decodable, Equatable {
     let name: String?
     let description: String?
     let always: Bool?
+    let category: String?
+    let kind: String?
     let body: String
 }

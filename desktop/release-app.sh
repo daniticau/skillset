@@ -34,6 +34,7 @@ mkdir -p "$OUT_DIR/dmg"
 ditto "$APP" "$OUT_DIR/dmg/Skillset.app"
 ln -s /Applications "$OUT_DIR/dmg/Applications"
 hdiutil create -quiet -volname Skillset -srcfolder "$OUT_DIR/dmg" -format UDZO "$DMG"
+rm -rf "$OUT_DIR/dmg"
 codesign --sign "$IDENTITY" --timestamp "$DMG"
 
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait

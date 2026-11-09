@@ -20,6 +20,8 @@ final class AppModel {
     var savingSkillID: String?
     var deletingSkillID: String?
     var togglingAlwaysID: String?
+    /// The skill whose category is being changed.
+    var movingSkillID: String?
     var isAddingSource = false
     /// The skill waiting on the delete confirmation.
     var pendingDelete: SkillRecord?
@@ -33,6 +35,9 @@ final class AppModel {
     var draftBody = ""
     /// A pasted SKILL.md asked to load in every session.
     var draftAlways = false
+    /// The category and kind a pasted SKILL.md carried, kept for the new skill.
+    var draftCategory: String?
+    var draftKind: String?
     var isCreating = false
     var toast: AppToast?
     var errorMessage: String?
@@ -50,7 +55,7 @@ final class AppModel {
 
     var isMutating: Bool {
         savingSkillID != nil || deletingSkillID != nil || togglingAlwaysID != nil
-            || isAddingSource || isCreating || busyConnectionID != nil
+            || movingSkillID != nil || isAddingSource || isCreating || busyConnectionID != nil
     }
 
     var hasPendingWork: Bool { dirtyEditor || isMutating }
@@ -62,13 +67,123 @@ final class AppModel {
         }
     }
 
-    /// The sidebar's two groups: rules that load in every session, then the
-    /// skills an agent loads when the description matches.
-    var alwaysSkills: [SkillRecord] { filteredSkills.filter(\.always) }
-    var onDemandSkills: [SkillRecord] { filteredSkills.filter { !$0.always } }
+    /// The sidebar's groups, in the order the user dragged them into.
+    var skillGroups: [SkillGroup] {
+        var buckets: [String: [SkillRecord]] = [:]
+        for skill in filteredSkills {
+            buckets[SkillGroup.name(for: skill), default: []].append(skill)
+        }
+        return orderedGroupNames.compactMap { name in
+            buckets[name].map { SkillGroup(name: name, skills: $0) }
+        }
+    }
 
-    /// Sidebar order, which search ranking and the two groups both shape.
-    var visibleSkillIDs: [String] { (alwaysSkills + onDemandSkills).map(\.id) }
+    /// Sidebar order, which search ranking and the groups both shape. A
+    /// collapsed group still counts, so collapsing never moves the selection.
+    var visibleSkillIDs: [String] { skillGroups.flatMap { $0.skills.map(\.id) } }
+
+    /// Every category a skill uses, for the Category menu.
+    var categoryNames: [String] {
+        let used = Set(snapshot.skills.compactMap(\.category))
+        return orderedGroupNames.filter(used.contains)
+    }
+
+    // MARK: sidebar groups
+
+    /// Group names the user has put in order. Saved per Mac, like a window size.
+    var groupOrder: [String] = UserDefaults.standard.stringArray(forKey: DefaultsKey.groupOrder) ?? [] {
+        didSet { UserDefaults.standard.set(groupOrder, forKey: DefaultsKey.groupOrder) }
+    }
+
+    var collapsedGroups: Set<String> = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.collapsedGroups) ?? []) {
+        didSet { UserDefaults.standard.set(collapsedGroups.sorted(), forKey: DefaultsKey.collapsedGroups) }
+    }
+
+    /// The group whose header is being dragged.
+    var draggingGroup: String?
+    /// The header the dragged group last swapped with. A swap moves that header
+    /// under the still pointer, and must not trigger a swap back.
+    private var lastSwapTarget: String?
+    /// Ends a drag that no header received: dropped outside, or cancelled.
+    private var dragEndMonitor: Any?
+
+    private enum DefaultsKey {
+        static let groupOrder = "sidebarGroupOrder"
+        static let collapsedGroups = "sidebarCollapsedGroups"
+    }
+
+    /// Every group name in the library, in sidebar order: the user's saved
+    /// order first, then new groups in their default place.
+    var orderedGroupNames: [String] {
+        let names = Set(snapshot.skills.map(SkillGroup.name(for:)))
+        let saved = Dictionary(groupOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return names.sorted { lhs, rhs in
+            let left = saved[lhs] ?? SkillGroup.defaultRank(lhs, after: groupOrder.count)
+            let right = saved[rhs] ?? SkillGroup.defaultRank(rhs, after: groupOrder.count)
+            return left == right ? lhs.localizedStandardCompare(rhs) == .orderedAscending : left < right
+        }
+    }
+
+    /// A search shows every match, so it opens collapsed groups.
+    func isExpanded(_ group: String) -> Bool {
+        !collapsedGroups.contains(group) || !searchText.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    func toggleGroup(_ group: String) {
+        if collapsedGroups.contains(group) {
+            collapsedGroups.remove(group)
+        } else {
+            collapsedGroups.insert(group)
+        }
+    }
+
+    func beginGroupDrag(_ group: String) {
+        draggingGroup = group
+        lastSwapTarget = nil
+        guard dragEndMonitor == nil else { return }
+        // AppKit keeps mouse events to itself while a drag runs. The first one
+        // the app sees with no button down comes after the drag has ended.
+        dragEndMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .scrollWheel, .keyDown]
+        ) { [weak self] event in
+            if NSEvent.pressedMouseButtons == 0 || event.type != .mouseMoved {
+                MainActor.assumeIsolated { self?.endGroupDrag() }
+            }
+            return event
+        }
+    }
+
+    func endGroupDrag() {
+        draggingGroup = nil
+        lastSwapTarget = nil
+        if let dragEndMonitor { NSEvent.removeMonitor(dragEndMonitor) }
+        dragEndMonitor = nil
+    }
+
+    /// Called as the dragged group's header passes over another header.
+    func dragGroup(_ group: String, over target: String) {
+        guard group != target else { return }
+        guard target != lastSwapTarget else { return }
+        lastSwapTarget = target
+        moveGroup(group, to: target)
+    }
+
+    /// Once the pointer leaves the header it swapped with, a swap back is allowed.
+    func leaveGroupHeader(_ target: String) {
+        if lastSwapTarget == target { lastSwapTarget = nil }
+    }
+
+    /// Moves a dragged group to where another one sits. Dragged down, it lands
+    /// after that group; dragged up, before it.
+    func moveGroup(_ group: String, to target: String) {
+        var order = orderedGroupNames
+        guard group != target,
+              let from = order.firstIndex(of: group),
+              let to = order.firstIndex(of: target) else { return }
+        order.remove(at: from)
+        order.insert(group, at: to)
+        groupOrder = order
+    }
 
     /// The New Skill page holds text that is not saved yet.
     var hasDraft: Bool {
@@ -247,10 +362,18 @@ final class AppModel {
         pendingDelete = skill
     }
 
-    func confirmDelete() async {
-        guard let skill = pendingDelete else { return }
-        pendingDelete = nil
-        await deleteSkill(skill)
+    /// Puts a skill in a sidebar group, or takes it out with nil.
+    func setCategory(_ skill: SkillRecord, to category: String?) async {
+        guard !isMutating, skill.category != category else { return }
+        movingSkillID = skill.id
+        defer { movingSkillID = nil }
+        do {
+            try await bridge.setCategory(name: skill.id, category: category)
+            await refresh(showSpinner: false)
+            showToast(category.map { "Moved \(skill.name) to \($0)" } ?? "\(skill.name) has no category")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func setAlways(_ skill: SkillRecord, on: Bool) async {
@@ -395,6 +518,8 @@ final class AppModel {
         if let name = split.name { draftName = SkillName.typing(name) }
         if let description = split.description { draftDescription = description }
         draftAlways = split.always ?? false
+        draftCategory = split.category
+        draftKind = split.kind
         draftBody = split.body
     }
 
@@ -406,7 +531,10 @@ final class AppModel {
         isCreating = true
         defer { isCreating = false }
         do {
-            try await bridge.createSkill(name: name, description: description, body: draftBody, always: draftAlways)
+            try await bridge.createSkill(
+                name: name, description: description, body: draftBody,
+                always: draftAlways, category: draftCategory, kind: draftKind
+            )
             clearDraft()
             isBuilding = false
             selectedSkillID = name
@@ -422,5 +550,39 @@ final class AppModel {
         draftDescription = ""
         draftBody = ""
         draftAlways = false
+        draftCategory = nil
+        draftKind = nil
+    }
+}
+
+/// One sidebar section: a category, or one of the groups skillset adds.
+struct SkillGroup: Identifiable, Equatable {
+    let name: String
+    let skills: [SkillRecord]
+
+    var id: String { name }
+
+    /// Skillify's group. It sits at the top.
+    static let special = "Special"
+    /// Rules that load in every session, whatever their category.
+    static let alwaysOn = "Always On"
+    /// Skills with no category yet. They sit at the bottom.
+    static let onDemand = "On Demand"
+
+    static func name(for skill: SkillRecord) -> String {
+        if skill.category == special { return special }
+        if skill.always { return alwaysOn }
+        return skill.category ?? onDemand
+    }
+
+    /// Where a group goes before the user moves it: Special and Always On on
+    /// top, categories next, skills with no category last.
+    static func defaultRank(_ name: String, after savedCount: Int) -> Int {
+        switch name {
+        case special: -2
+        case alwaysOn: -1
+        case onDemand: Int.max
+        default: savedCount
+        }
     }
 }

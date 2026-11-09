@@ -7,7 +7,7 @@ final class AppModelTests: XCTestCase {
         let model = AppModel()
         let skills = ["alpha", "beta"].map { name in
             SkillRecord(id: name, name: name, description: name, body: name,
-                        markdown: name, origin: "manual", userEdited: true, category: "Rule")
+                        markdown: name, origin: "manual", userEdited: true, kind: "Rule")
         }
         model.snapshot = DesktopSnapshot(generatedAt: "", storePath: "", connections: [], skills: skills, history: [])
         model.selectedSkillID = "alpha"
@@ -61,10 +61,10 @@ final class AppModelTests: XCTestCase {
         await MainActor.run {
             let model = AppModel()
             var rule = SkillRecord(id: "zulu", name: "zulu", description: "z", body: "z",
-                                   markdown: "z", origin: "manual", userEdited: false, category: "Rule")
+                                   markdown: "z", origin: "manual", userEdited: false, kind: "Rule")
             rule.always = true
             let tool = SkillRecord(id: "alpha", name: "alpha", description: "a", body: "a",
-                                   markdown: "a", origin: "manual", userEdited: false, category: "Tool")
+                                   markdown: "a", origin: "manual", userEdited: false, kind: "Tool")
             model.snapshot = DesktopSnapshot(generatedAt: "", storePath: "", connections: [], skills: [tool, rule], history: [])
             XCTAssertEqual(model.visibleSkillIDs, ["zulu", "alpha"])
             XCTAssertEqual(model.selectedSkill?.id, "zulu")
@@ -82,6 +82,48 @@ final class AppModelTests: XCTestCase {
             XCTAssertNil(model.draftSource)
             model.clearDraft()
             XCTAssertFalse(model.hasDraft)
+        }
+    }
+
+    func testGroupsPutSpecialAndAlwaysOnFirstAndFollowTheSavedOrder() async {
+        await MainActor.run {
+            let defaults = UserDefaults.standard
+            let savedOrder = defaults.stringArray(forKey: "sidebarGroupOrder")
+            let savedCollapsed = defaults.stringArray(forKey: "sidebarCollapsedGroups")
+            defer {
+                defaults.set(savedOrder, forKey: "sidebarGroupOrder")
+                defaults.set(savedCollapsed, forKey: "sidebarCollapsedGroups")
+            }
+            defaults.removeObject(forKey: "sidebarGroupOrder")
+            defaults.removeObject(forKey: "sidebarCollapsedGroups")
+
+            func record(_ name: String, _ category: String?, always: Bool = false) -> SkillRecord {
+                var skill = SkillRecord(id: name, name: name, description: name, body: name,
+                                        markdown: name, origin: "manual", userEdited: false, kind: "Workflow")
+                skill.category = category
+                skill.always = always
+                return skill
+            }
+            let model = AppModel()
+            model.snapshot = DesktopSnapshot(generatedAt: "", storePath: "", connections: [], skills: [
+                record("loose", nil),
+                record("orb", "Design"),
+                record("rules", "Writing", always: true),
+                record("skillify", "Special"),
+                record("tutor", "Learning"),
+            ], history: [])
+
+            XCTAssertEqual(model.skillGroups.map(\.name), ["Special", "Always On", "Design", "Learning", "On Demand"])
+
+            model.moveGroup("Learning", to: "Special")
+            XCTAssertEqual(model.skillGroups.map(\.name), ["Learning", "Special", "Always On", "Design", "On Demand"])
+            XCTAssertEqual(AppModel().groupOrder, model.groupOrder)
+
+            model.toggleGroup("Design")
+            XCTAssertFalse(model.isExpanded("Design"))
+            XCTAssertTrue(model.visibleSkillIDs.contains("orb"))
+            model.searchText = "orb"
+            XCTAssertTrue(model.isExpanded("Design"))
         }
     }
 }

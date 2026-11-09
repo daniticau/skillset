@@ -104,7 +104,6 @@ struct SkillDetail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, UI.pageInset)
             .padding(.top, UI.pageTop)
-            .modifier(ScrollBarGutter())
 
             MarkdownTextView(text: $draftBody, styled: stylesMarkdown)
                 .disabled(model.savingSkillID != nil)
@@ -291,9 +290,9 @@ private struct SkillFacts: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: SkillKindStyle.symbol(skill.category))
-                .foregroundStyle(SkillKindStyle.color(skill.category))
-            Text(skill.category)
+            Image(systemName: SkillKindStyle.symbol(skill.kind))
+                .foregroundStyle(SkillKindStyle.color(skill.kind))
+            Text(skill.kind)
             Text("·").foregroundStyle(.tertiary)
             Text(skill.always ? "Loads in every session" : "Loads when the description matches")
         }

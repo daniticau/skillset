@@ -9,7 +9,16 @@ import { statusCommand } from "./commands/status.js";
 import { listCommand } from "./commands/list.js";
 import { catalogCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { addCommand, alwaysCommand, editCommand, removeCommand, renameCommand, showCommand } from "./commands/manage.js";
+import {
+  addCommand,
+  alwaysCommand,
+  categoryCommand,
+  editCommand,
+  kindCommand,
+  removeCommand,
+  renameCommand,
+  showCommand,
+} from "./commands/manage.js";
 import { checkCommand } from "./commands/check.js";
 import { appCommand } from "./commands/app.js";
 import {
@@ -120,6 +129,21 @@ export function createProgram(): Command {
     .option("--off", "load on demand again")
     .action(async (skill: string, options: { off?: boolean }) => {
       await alwaysCommand(skill, options);
+    });
+
+  program
+    .command("category <skill> [category]")
+    .description("put a skill in a sidebar group such as Design; prints the current one if none is given")
+    .option("--clear", "take the skill out of its category")
+    .action(async (skill: string, category: string | undefined, options: { clear?: boolean }) => {
+      await categoryCommand(skill, category, options);
+    });
+
+  program
+    .command("kind <skill> <kind>")
+    .description("record what a skill carries: tool, workflow, judgement, or rule")
+    .action(async (skill: string, kind: string) => {
+      await kindCommand(skill, kind);
     });
 
   program

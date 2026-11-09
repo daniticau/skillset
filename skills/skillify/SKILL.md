@@ -1,6 +1,8 @@
 ---
 name: skillify
 description: "Turns a preference, correction, workflow, task prompt, or source into a reusable Skillset skill. Use only when the user explicitly asks for a skill: \"skillify\", \"skill this\", \"make this a skill\", or \"save this as a skill\". A plain \"remember this\" goes to memory, not to a skill."
+category: "Special"
+kind: workflow
 license: "MIT"
 ---
 
@@ -49,7 +51,7 @@ A named task prompt passes, because the task, its scope, and its name are the us
 
 - **Rule or correction.** State it in one durable sentence. Drop the situational detail, such as this file or this bug. Keep the user's own words where they carry taste.
 - **Task prompt.** Make a Workflow skill the user runs on demand. Keep the user's words for the goal. Add what counts as a hit, the steps, and the output shape, because an agent would guess those differently on each run.
-- **Source.** Fetch the URL, read the file, or take the pasted text. Keep only what an agent cannot derive: private tools and flags, the user's choices, non-obvious order, and known traps. If the source is already a SKILL.md or a skills repo, install it unchanged with `sks add <source>`, or `sks add --stdin` for pasted text. Then go to the check in step 6.
+- **Source.** Fetch the URL, read the file, or take the pasted text. Keep only what an agent cannot derive: private tools and flags, the user's choices, non-obvious order, and known traps. If the source is already a SKILL.md or a skills repo, install it unchanged with `sks add <source>`, or `sks add --stdin` for pasted text. Then set its category and kind with `sks category` and `sks kind`, and go to the check in step 7.
 
 Ask one question only when the intent is unknowable. Otherwise decide, and report the choice.
 
@@ -59,7 +61,11 @@ Write one skill per situation that should load it. Split an input whose parts fi
 
 Use the name from `as <name>`. Convert it to kebab-case if needed, and say so. Otherwise pick a specific noun phrase or gerund, such as `state-machines` or `processing-pdfs`. If a different skill already has the name, ask before you replace it. If `sks add` says an agent's folder already holds the name, the user put a skill there. Ask whether to adopt it (`sks doctor --repair`) or rename.
 
-### 3. Choose the load mode
+### 3. Sort it
+
+Give every skill a `category` and a `kind` in its frontmatter. Run `sks list` and reuse an existing category when one fits. Make a new one, one or two words in Title Case, only when none fits. Pick the kind from tool, workflow, judgement, or rule. See "Category and kind" in [references/authoring.md](references/authoring.md).
+
+### 4. Choose the load mode
 
 On demand is the default. Make it always-on (`always: true`) only when all three hold:
 
@@ -67,11 +73,11 @@ On demand is the default. Make it always-on (`always: true`) only when all three
 2. No single request signals when it applies, so on-demand loading would miss it.
 3. The body fits in 150 words. Skillset copies it into every agent's global instructions file.
 
-### 4. Write it
+### 5. Write it
 
 Follow [references/authoring.md](references/authoring.md). The description decides whether the skill ever loads, so spend the most care there. See [references/examples.md](references/examples.md) for input-to-skill pairs.
 
-### 5. Test it cold
+### 6. Test it cold
 
 Read only the name and description, as an agent with no context would:
 
@@ -80,7 +86,7 @@ Read only the name and description, as an agent with no context would:
 
 Then read the body as a fresh agent. Could it act without this conversation? Fix every "no" before you install.
 
-### 6. Install and check
+### 7. Install and check
 
 Pipe a single-file skill through a quoted heredoc, so the shell leaves `$` alone:
 
@@ -89,6 +95,8 @@ sks add --stdin <<'EOF'
 ---
 name: <name>
 description: "<What it does>. Use when the user <request>."
+category: "<Category>"
+kind: <kind>
 ---
 <body>
 EOF
@@ -99,9 +107,9 @@ For a skill with `references/` or `scripts/`, write the folder in a temp directo
 
 `sks add` does not validate, so always run `sks check` right after it. Fix every error and every warning you can with `sks edit <name> --stdin`.
 
-### 7. Report
+### 8. Report
 
-Give three lines: the name and whether it is new or an update; how to call it, such as `/state-machines`; and the load mode plus any choice you made. If an existing skill already covered the input, say so. That is a good outcome.
+Give three lines: the name and whether it is new or an update; how to call it, such as `/state-machines`; and the category, kind, and load mode plus any choice you made. If an existing skill already covered the input, say so. That is a good outcome.
 
 ## Guardrails
 

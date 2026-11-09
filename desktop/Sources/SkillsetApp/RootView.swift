@@ -40,16 +40,20 @@ struct RootView: View {
             guard !model.isMutating, !model.snapshot.generatedAt.isEmpty else { return }
             Task { await model.refresh(showSpinner: false) }
         }
+        // The alert hands the skill to its buttons. Closing the alert clears
+        // `pendingDelete` before a Task can read it, so the Delete button must
+        // not look it up again.
         .alert(
             "Delete \(model.pendingDelete?.name ?? "skill")?",
             isPresented: Binding(
                 get: { model.pendingDelete != nil },
                 set: { if !$0 { model.pendingDelete = nil } }
-            )
-        ) {
-            Button("Delete", role: .destructive) { Task { await model.confirmDelete() } }
+            ),
+            presenting: model.pendingDelete
+        ) { skill in
+            Button("Delete", role: .destructive) { Task { await model.deleteSkill(skill) } }
             Button("Cancel", role: .cancel) { model.pendingDelete = nil }
-        } message: {
+        } message: { _ in
             Text("Removes it from the library and from every connected agent. The store's history keeps a copy.")
         }
         .alert("Discard changes?", isPresented: $model.showDiscardAlert) {

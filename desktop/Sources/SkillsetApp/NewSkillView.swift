@@ -44,7 +44,6 @@ struct NewSkillView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, UI.pageInset)
             .padding(.top, UI.pageTop)
-            .modifier(ScrollBarGutter())
 
             MarkdownTextView(text: $model.draftBody, styled: stylesMarkdown, focusOnAppear: true)
                 .overlay(alignment: .topLeading) {

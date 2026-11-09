@@ -2,7 +2,7 @@ import pc from "picocolors";
 import { readState } from "../core/config.js";
 import { listStoreSkills, storeSkillDir } from "../core/store.js";
 import { readSkillMd } from "../core/skill.js";
-import type { SkillOrigin } from "../core/skill.js";
+import type { SkillKind, SkillOrigin } from "../core/skill.js";
 
 /**
  * Skills are grouped by the KIND of knowledge they carry, not by topic.
@@ -46,11 +46,25 @@ function hasAny(text: string, terms: string[]): boolean {
   });
 }
 
+const KIND_LABELS: Record<SkillKind, CatalogCategory> = {
+  tool: "Tool",
+  workflow: "Workflow",
+  judgement: "Judgement",
+  rule: "Rule",
+};
+
+/**
+ * The kind an agent wrote into the frontmatter wins. It read the whole skill,
+ * so it judges better than keywords. The keyword guess below covers skills
+ * that have no `kind` yet.
+ */
 export function categorizeSkill(skill: {
   name: string;
   description: string;
   always?: boolean;
+  kind?: SkillKind;
 }): CatalogCategory {
+  if (skill.kind) return KIND_LABELS[skill.kind];
   // An always-on skill is a constraint that loads in every session.
   if (skill.always) return "Rule";
   const text = `${skill.name} ${skill.description}`.toLowerCase();

@@ -42,6 +42,11 @@ struct SkillsetDesktopApp: App {
 final class SkillsetAppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
 
+    /// Before any window exists, so every scroll view starts thin.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        ThinScrollers.install()
+    }
+
     /// A background launch (a script, `open -g`) gets no main window until the
     /// app receives a reopen event. The snapshot hook lives in that window, so
     /// a snapshot run asks for one. It does not take focus.
@@ -76,6 +81,9 @@ private struct SkillCommands: View {
         }
         .keyboardShortcut("l", modifiers: [.command, .shift])
         .disabled(skill == nil || model.isMutating)
+        if let skill {
+            CategoryMenu(model: model, skill: skill)
+        }
         Divider()
         Button("Show in Finder") { skill.map(model.revealInFinder) }
             .keyboardShortcut("r", modifiers: [.command, .shift])

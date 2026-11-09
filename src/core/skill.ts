@@ -36,6 +36,34 @@ export interface SkillFrontmatter {
    * keep these short and absolute: never do X, always do Y.
    */
   always?: boolean;
+  /**
+   * The sidebar group, such as "Design" or "Learning". An agent picks it when
+   * it writes the skill, so the library sorts itself. Free text, Title Case.
+   */
+  category?: string;
+  /** The kind of knowledge: tool, workflow, judgement, or rule. An agent sets it. */
+  kind?: SkillKind;
+}
+
+/** The kind of knowledge a skill carries. `sks catalog` groups by it. */
+export type SkillKind = "tool" | "workflow" | "judgement" | "rule";
+
+export const SKILL_KINDS: readonly SkillKind[] = ["tool", "workflow", "judgement", "rule"];
+
+export function isSkillKind(v: unknown): v is SkillKind {
+  return typeof v === "string" && (SKILL_KINDS as readonly string[]).includes(v);
+}
+
+export const MAX_CATEGORY_LENGTH = 40;
+
+/**
+ * Collapses spaces in a category. Returns nothing for an empty value or one
+ * longer than MAX_CATEGORY_LENGTH, so a stray value cannot flood the sidebar.
+ */
+export function cleanCategory(value: string): string | undefined {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned || cleaned.length > MAX_CATEGORY_LENGTH) return undefined;
+  return cleaned;
 }
 
 export interface ParsedSkill {
@@ -82,6 +110,12 @@ export function parseSkillMd(source: string): ParsedSkill {
     }
     always = data.always;
   }
+  // Lenient on purpose: skills from elsewhere may use these keys their own
+  // way. A value skillset cannot use is ignored, never a reason to reject.
+  const category =
+    typeof data.category === "string" ? cleanCategory(data.category) : undefined;
+  const loweredKind = typeof data.kind === "string" ? data.kind.trim().toLowerCase() : undefined;
+  const kind = isSkillKind(loweredKind) ? loweredKind : undefined;
   return {
     frontmatter: {
       name: data.name,
@@ -89,13 +123,16 @@ export function parseSkillMd(source: string): ParsedSkill {
       license: typeof data.license === "string" ? data.license : undefined,
       origin,
       always,
+      category,
+      kind,
     },
     body: content,
   };
 }
 
 /**
- * Render a SKILL.md with stable frontmatter ordering (name → description → always → origin → license).
+ * Render a SKILL.md with stable frontmatter ordering
+ * (name → description → category → kind → always → origin → license).
  * Trailing newline included. Used by mirror / make / synthesize so the on-disk format is uniform.
  */
 export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): string {
@@ -105,6 +142,8 @@ export function renderSkillMd(frontmatter: SkillFrontmatter, body: string): stri
     `name: ${frontmatter.name}`,
     `description: ${JSON.stringify(frontmatter.description)}`,
   ];
+  if (frontmatter.category) fm.push(`category: ${JSON.stringify(frontmatter.category)}`);
+  if (frontmatter.kind) fm.push(`kind: ${frontmatter.kind}`);
   if (frontmatter.always) fm.push("always: true");
   if (frontmatter.origin) fm.push(`origin: ${frontmatter.origin}`);
   if (frontmatter.license) fm.push(`license: ${JSON.stringify(frontmatter.license)}`);

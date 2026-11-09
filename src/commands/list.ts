@@ -15,7 +15,8 @@ export async function listCommand(): Promise<void> {
   }
   for (const name of names) {
     const parsed = await readSkillMd(storeSkillDir(name));
-    console.log(`${alwaysMark(parsed.frontmatter.always)} ${pc.bold(name)}`);
+    const category = parsed.frontmatter.category ? `  ${pc.magenta(parsed.frontmatter.category)}` : "";
+    console.log(`${alwaysMark(parsed.frontmatter.always)} ${pc.bold(name)}${category}`);
     console.log(`  ${pc.dim(parsed.frontmatter.description)}`);
   }
 }

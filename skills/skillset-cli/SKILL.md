@@ -1,6 +1,7 @@
 ---
 name: skillset-cli
 description: "Inspect, check, add, edit, rename, or remove skills in the user's Skillset library with the sks CLI. Use when the user asks to change their skills, says \"sks\" or \"Skillset\", or when another skill such as skillify needs to write to the library."
+kind: tool
 license: "MIT"
 ---
 
@@ -21,6 +22,18 @@ sks doctor
 ```
 
 Use `sks catalog` to see skills grouped by kind: Tool, Workflow, Judgement, Rule.
+
+## Sort
+
+Every skill has a `category`, the group it sits in, in the desktop sidebar, and a `kind`. Read the skill, then set both:
+
+```sh
+sks category <skill> <Category>   # reuse one from sks list when it fits; Title Case
+sks category <skill> --clear
+sks kind <skill> tool|workflow|judgement|rule
+```
+
+When the user asks to sort or tidy the library, set both for every skill that lacks them.
 
 ## Capture or Improve
 

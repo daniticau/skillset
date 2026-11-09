@@ -59,3 +59,23 @@ describe("skill names", () => {
     ).toThrow(SkillValidationError);
   });
 });
+
+describe("category and kind frontmatter", () => {
+  const base = "---\nname: x\ndescription: Use when testing.\n";
+
+  it("reads a category and a kind and renders them back", () => {
+    const parsed = parseSkillMd(`${base}category: "  Design   Systems "\nkind: Judgement\n---\n\nBody.\n`);
+    expect(parsed.frontmatter.category).toBe("Design Systems");
+    expect(parsed.frontmatter.kind).toBe("judgement");
+    const rendered = renderSkillMd(parsed.frontmatter, parsed.body);
+    expect(rendered).toContain('category: "Design Systems"');
+    expect(rendered).toContain("kind: judgement");
+    expect(parseSkillMd(rendered).frontmatter).toMatchObject({ category: "Design Systems", kind: "judgement" });
+  });
+
+  it("ignores values it cannot use instead of rejecting the skill", () => {
+    const parsed = parseSkillMd(`${base}category: [a, b]\nkind: recipe\n---\n\nBody.\n`);
+    expect(parsed.frontmatter.category).toBeUndefined();
+    expect(parsed.frontmatter.kind).toBeUndefined();
+  });
+});

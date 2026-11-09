@@ -131,6 +131,8 @@ function mergeFrontmatter(
     license: mirror.license ?? prior?.license,
     origin: mirror.origin ?? prior?.origin ?? fallbackOrigin,
     always: mirror.always ?? prior?.always,
+    category: mirror.category ?? prior?.category,
+    kind: mirror.kind ?? prior?.kind,
   };
 }
 

@@ -3,7 +3,7 @@
 ## Contents
 - Frontmatter rules
 - Writing the description
-- How the kind is read
+- Category and kind
 - Body structure and length
 - Progressive disclosure
 - What `sks check` enforces
@@ -15,6 +15,8 @@
 ---
 name: kebab-case-name        # lowercase, numbers, single hyphens; 64 chars at most
 description: "..."           # non-empty; under 300 chars
+category: "Design"           # the sidebar group; Title Case, 40 chars at most
+kind: workflow               # tool, workflow, judgement, or rule
 always: true                 # optional; copies the body into every agent's global instructions
 ---
 ```
@@ -47,16 +49,22 @@ description: Finds implicit state machines in the current app, where state hides
 description: Helps with documents
 ```
 
-## How the kind is read
+## Category and kind
 
-`sks catalog` and the desktop app file each skill under one kind: Tool, Workflow, Judgement, or Rule. Skillset reads the kind from words in the name and description, in this order:
+Every skill gets both. You read the whole skill, so you judge better than any keyword match.
 
-1. **Rule.** An always-on skill, or one whose description says "never", "always", "do not", "must not", "before committing", or "before claiming".
-2. **Judgement.** Words such as "evaluate", "assess", "choosing", "critique", "taste", or "ranking".
-3. **Tool.** Words such as "CLI", "browser", "SDK", "terminal", or "simulator".
-4. **Workflow.** Everything else.
+**Category** is the group the skill sits in, in the desktop sidebar. It answers "what part of my work is this for?" Run `sks list` and reuse an existing category when one fits, such as `Design`, `Writing`, `Learning`, or `Research`. Make a new one only when none fits. Keep it one or two words in Title Case. Leave `Special` to skillify.
 
-So write the description in the words of its kind. A Workflow description that says "never" lands under Rule. There is no `kind` field in the frontmatter.
+**Kind** is the kind of knowledge the skill carries:
+
+1. **tool.** How to drive a specific piece of software or CLI.
+2. **workflow.** Ordered steps for a task.
+3. **judgement.** An algorithm for deciding or evaluating.
+4. **rule.** A durable constraint to respect.
+
+`sks catalog` groups by kind. A skill with no `kind` falls back to a keyword guess from its description, so always set it.
+
+To change either one later, run `sks category <name> <category>` or `sks kind <name> <kind>`.
 
 ## Body structure and length
 
