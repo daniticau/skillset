@@ -67,6 +67,7 @@ private struct SkillList: View {
             }
         }
         .listStyle(.sidebar)
+        .environment(\.sidebarRowSize, .small)
         .environment(\.defaultMinListRowHeight, 16)
         // A group dropped on a skill row lands where it is now, instead of
         // flying back to where the drag began.
@@ -135,9 +136,10 @@ private struct GroupHeader: View {
         }
         .contentShape(.rect)
         .opacity(model.draggingGroup == group.name ? 0.4 : 1)
-        .onTapGesture {
+        // Simultaneous, so a press held before a drag still starts the drag.
+        .simultaneousGesture(TapGesture().onEnded {
             withAnimation(.smooth(duration: 0.25)) { model.toggleGroup(group.name) }
-        }
+        })
         .onDrag {
             model.beginGroupDrag(group.name)
             return NSItemProvider(object: group.name as NSString)
@@ -237,14 +239,14 @@ private struct SkillRow: View {
     let skill: SkillRecord
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: SkillKindStyle.symbol(skill.kind))
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(SkillKindStyle.color(skill.kind))
-                .frame(width: 18)
+                .frame(width: 16)
 
             Text(skill.name)
-                .font(.system(size: 13))
+                .font(.system(size: 12))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
