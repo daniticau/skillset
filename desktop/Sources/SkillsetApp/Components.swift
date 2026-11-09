@@ -5,7 +5,11 @@ import SwiftUI
 enum UI {
     /// Space above a sidebar group header that follows an open group.
     static let groupGap: CGFloat = 8
-    static let sidebarWidth: CGFloat = 280
+    /// The sidebar drags from its minimum, which still fits the New Skill
+    /// button and the gear, out to its maximum.
+    static let sidebarMinWidth: CGFloat = 172
+    static let sidebarWidth: CGFloat = 220
+    static let sidebarMaxWidth: CGFloat = 480
     /// Space on each side of a page. Text starts at the leading inset and runs
     /// to the trailing one, so a wider window holds longer lines.
     static let pageInset: CGFloat = 32

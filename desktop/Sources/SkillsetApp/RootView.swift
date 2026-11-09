@@ -10,7 +10,7 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             Sidebar(model: model)
-                .navigationSplitViewColumnWidth(min: 260, ideal: UI.sidebarWidth, max: 400)
+                .navigationSplitViewColumnWidth(min: UI.sidebarMinWidth, ideal: UI.sidebarWidth, max: UI.sidebarMaxWidth)
         } detail: {
             detail
                 // An empty title keeps the toolbar's title area. It fills the
