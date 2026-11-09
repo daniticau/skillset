@@ -33,7 +33,7 @@ writeFileSync(
   [
     "#!/bin/sh",
     `if [ ! -f "${cli}" ]; then`,
-    `  echo "sks: ${cli} is missing. Did the skillset checkout move? Run \`pnpm cli:link\` from the repo." >&2`,
+    `  echo "sks: ${cli} is missing. Did the skillset checkout move? Run 'pnpm cli:link' from the repo." >&2`,
     "  exit 1",
     "fi",
     `exec "${node}" "${cli}" "$@"`,
